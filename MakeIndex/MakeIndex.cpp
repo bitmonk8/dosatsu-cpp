@@ -2,44 +2,44 @@
 #include <doctest/doctest.h>
 
 #include <iostream>
-#include <vector>
 #include <string>
+#include <vector>
 
 auto RealMain(int argc, char** argv) -> int
 {
-   return 0;
+    return 0;
 }
 
 auto main(int argc, char** argv) -> int
 {
-   std::vector<std::string> args(argv + 1, argv + argc);
+    std::vector<std::string> args(argv + 1, argv + argc);
 
-   auto it  = std::find(args.begin(), args.end(), "--selftest");
-   bool runTests = it != args.end();
+    auto it = std::find(args.begin(), args.end(), "--selftest");
+    bool runTests = it != args.end();
 
-   if (runTests)
-   {
-       args.erase(it); 
+    if (runTests)
+    {
+        args.erase(it);
 
-       std::vector<const char*> docTestArgv;
-       docTestArgv.push_back(argv[0]);
-       for (auto& s : args) docTestArgv.push_back(s.c_str());
+        std::vector<const char*> docTestArgv;
+        docTestArgv.push_back(argv[0]);
+        for (auto& s : args)
+            docTestArgv.push_back(s.c_str());
 
-       doctest::Context ctx;
-       ctx.applyCommandLine(static_cast<int>(docTestArgv.size()),
-                            const_cast<char**>(docTestArgv.data()));
-       return ctx.run();
-   }
+        doctest::Context ctx;
+        ctx.applyCommandLine(static_cast<int>(docTestArgv.size()), const_cast<char**>(docTestArgv.data()));
+        return ctx.run();
+    }
 
-   return RealMain(argc, argv);
+    return RealMain(argc, argv);
 }
 
-int add(int a, int b) 
+int add(int a, int b)
 {
-     return a + b;
+    return a + b;
 }
 
-TEST_CASE("add works") 
+TEST_CASE("add works")
 {
     CHECK(add(2, 3) == 5);
 }
