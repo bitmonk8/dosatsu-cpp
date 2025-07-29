@@ -25,6 +25,12 @@ target("MakeIndex")
     add_files("MakeIndex/MakeIndex.cpp")
     add_includedirs("3rdParty/include", {public = true})
     apply_common_flags()
+    
+    -- Add test support - runs MakeIndex with --selftest flag
+    add_tests("selftest", {
+        run_timeout = 10000,
+        runargs = {"--selftest"}
+    })
 
 -- Format target for code formatting with clang-format
 target("format")
