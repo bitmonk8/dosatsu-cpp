@@ -63,7 +63,7 @@ The project uses [doctest](https://github.com/doctest/doctest) for unit testing.
 
 ```bash
 # Run all tests
-xmake test -vD -j1
+xmake test -v
 
 # Or run the executable with selftest flag
 xmake run MakeIndex --selftest

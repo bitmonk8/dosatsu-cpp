@@ -35,12 +35,8 @@ auto main(int argc, char** argv) -> int
     return RealMain(argc, argv);
 }
 
-auto add(int a, int b) -> int
+// This is just a small dummy test to make sure we actualy have a test and can verify that the testing system works
+// We can remove this test once we start having actual tests
+TEST_CASE("Empty dummy test")
 {
-    return a + b;
-}
-
-TEST_CASE("add works")
-{
-    CHECK(add(2, 3) == 5);
 }
