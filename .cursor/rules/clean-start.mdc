@@ -1,0 +1,16 @@
+---
+description: Before making any code changed, this rule MUST be followed
+globs:
+alwaysApply: true
+---
+Run "xmake":
+Ensure that everything compiles without errors.
+
+Run "xmake test":
+Verify that all tests are currently passing.
+
+If either step fails:
+* STOP immediately.
+* Do not proceed with any changes.
+* Notify the user about the failure.
+* Await further instructions before continuing.

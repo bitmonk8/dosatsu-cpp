@@ -1,0 +1,6 @@
+---
+description: Always breakdown tasks
+globs:
+alwaysApply: true
+---
+Always decompose the requested changes into small, incremental steps that can be independently verified.
