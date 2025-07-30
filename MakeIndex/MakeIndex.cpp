@@ -1,6 +1,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -14,7 +15,7 @@ auto main(int argc, char** argv) -> int
 {
     std::vector<std::string> args(argv + 1, argv + argc);
 
-    auto it = std::find(args.begin(), args.end(), "--selftest");
+    auto it = std::ranges::find(args, "--selftest");
     bool runTests = it != args.end();
 
     if (runTests)
@@ -34,7 +35,7 @@ auto main(int argc, char** argv) -> int
     return RealMain(argc, argv);
 }
 
-int add(int a, int b)
+auto add(int a, int b) -> int
 {
     return a + b;
 }

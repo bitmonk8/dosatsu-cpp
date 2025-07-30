@@ -1,3 +1,5 @@
+add_moduledirs("xmake_modules")
+
 add_rules("mode.debug")
 set_defaultmode("debug")
 
@@ -97,7 +99,7 @@ target("lint")
             end
         else
             print("Running clang-tidy on all project files...")
-            local source_dirs = {"Lib", "Tests"}
+            local source_dirs ={"MakeIndex"}
             local file_patterns = {"*.cpp"}
             for _, dir in ipairs(source_dirs) do
                 if os.isdir(dir) then
@@ -139,7 +141,7 @@ target("lint")
             end
         end
 
-        local fix_command_args = {"-p", "build", "--header-filter=.*", "--fix", "--fix-errors", "--quiet"}
+        local fix_command_args = {"-p", "build", "--fix", "--fix-errors", "--quiet"}
         for _, file in ipairs(files) do
             table.insert(fix_command_args, file)
         end
@@ -148,7 +150,7 @@ target("lint")
         execv.MyExecV("clang-tidy", fix_command_args, {stdout = nullLogFile, stderr = nullLogFile})
         os.rm(nullLogFile)
 
-        local command_args = {"-p", "build", "--header-filter=.*"}
+        local command_args = {"-p", "build"}
         for _, file in ipairs(files) do
             table.insert(command_args, file)
         end
@@ -160,9 +162,20 @@ target("lint")
         local out_file    = path.join("build", "lint_output.txt")
         local ok, errors = execv.MyExecV("clang-tidy", command_args, {stdout = out_file, stderr = out_file})
 
+        local function filter_clang_tidy_output(output)
+            local filtered = {}
+            for line in output:gmatch("[^\r\n]+") do
+                if not line:match("Suppressed %d+ warnings %(%d+ in non%-user code, %d+ NOLINT%)") and
+                   not line:match("Use %-header%-filter=%.%* to display errors from all non%-system headers. Use %-system%-headers to display errors from system headers as well.") then
+                    table.insert(filtered, line)
+                end
+            end
+            return table.concat(filtered, "\n")
+        end
+
         local lint_output = io.readfile(out_file)
         if lint_output and #lint_output > 0 then
-            print(lint_output)
+            print(filter_clang_tidy_output(lint_output))
         end
 
         os.run("xmake project -k compile_commands build")

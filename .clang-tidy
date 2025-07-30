@@ -6,7 +6,7 @@ HeaderFileExtensions:
   - h
 ImplementationFileExtensions:
   - cpp
-HeaderFilterRegex: '.*'
+HeaderFilterRegex: '.*/MakeIndex/.*'
 ExcludeHeaderFilterRegex: ''
 FormatStyle:     none
 CheckOptions:
