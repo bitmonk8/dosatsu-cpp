@@ -121,7 +121,7 @@ public:
     void dumpTranslationUnit(const clang::TranslationUnitDecl* TU);
 
     // Required by ASTNodeTraverser
-    KuzuNodeDumper& doGetNodeDelegate() { return NodeDumper; }
+    auto doGetNodeDelegate() -> KuzuNodeDumper& { return NodeDumper; }
 
 private:
     const clang::ASTContext& Context;

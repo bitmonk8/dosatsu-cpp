@@ -142,7 +142,9 @@ target("lint")
 
             content = content:gsub("%%s?-Wno%%-unused%%-command%%-line%%-argument", "")
             content = content:gsub("%%s?-Werror", "")
-
+            content = content:gsub('"([^"]*)"', function(match)
+                return '"' .. match .. ' -Wno-deprecated-this-capture -Wno-deprecated-anon-enum-enum-conversion"'
+            end)
             local f_write = io.open(db_path, "w")
             if f_write then
                 f_write:write(content)

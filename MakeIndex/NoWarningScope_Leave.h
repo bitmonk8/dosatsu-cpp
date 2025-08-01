@@ -13,3 +13,5 @@
 #pragma GCC diagnostic pop
 
 #endif
+
+// NOLINTEND

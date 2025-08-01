@@ -1,6 +1,8 @@
 //  Push the current diagnostic state and silence *all* warnings on
 //  MSVC, Clang and GCC.  Pair with NoWarningScope_Leave.h.
 
+// NOLINTBEGIN
+
 #if defined(_MSC_VER)
 
 #pragma warning(push)
