@@ -3,7 +3,7 @@ description: Always test changes after each step
 globs:
 alwaysApply: true
 ---
-After each incremental code change
+After each incremental C++ code change
 
 * Run "xmake" to check that everything still compiles
   - If any compilation errors occur, fix them before doing anything else.

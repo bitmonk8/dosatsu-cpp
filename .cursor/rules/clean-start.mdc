@@ -1,5 +1,5 @@
 ---
-description: Before making any code changed, this rule MUST be followed
+description: Before making any C++ code changes, this rule MUST be followed
 globs:
 alwaysApply: true
 ---
