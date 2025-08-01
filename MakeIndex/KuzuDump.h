@@ -1,5 +1,6 @@
 #pragma once
 
+// clang-format off
 #include "NoWarningScope_Enter.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTNodeTraverser.h"
@@ -12,6 +13,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/Support/raw_ostream.h"
 #include "NoWarningScope_Leave.h"
+// clang-format on
 
 namespace kuzu
 {
@@ -78,7 +80,7 @@ public:
     /// Constructor for dumping to a Kuzu database
     /// @param Context The AST context
     /// @param DatabasePath Path to the Kuzu database
-    KuzuDump(const clang::ASTContext& Context, std::string  DatabasePath);
+    KuzuDump(const clang::ASTContext& Context, std::string DatabasePath);
 
     /// Constructor for testing without database
     /// @param Context The AST context

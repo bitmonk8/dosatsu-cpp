@@ -1,5 +1,6 @@
 #include "KuzuDump.h"
 
+// clang-format off
 #include "NoWarningScope_Enter.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
@@ -11,6 +12,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "llvm/Support/raw_ostream.h"
 #include "NoWarningScope_Leave.h"
+// clang-format on
 
 #include <memory>
 #include <sstream>
@@ -41,7 +43,7 @@ public:
 };
 }  // namespace kuzu
 
-KuzuDump::KuzuDump(const clang::ASTContext& Context, std::string  DatabasePath)
+KuzuDump::KuzuDump(const clang::ASTContext& Context, std::string DatabasePath)
     : Context(Context), DatabasePath(std::move(DatabasePath))
 {
     // TODO: Initialize Kuzu database when available
