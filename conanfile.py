@@ -4,11 +4,11 @@ from conan.tools.cmake import cmake_layout
 
 class CppGraphIndexConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
-    generators = "MesonDeps", "PkgConfigDeps"
+    generators = "MesonToolchain", "PkgConfigDeps"
     
     def requirements(self):
-        # Dependencies will be added in later steps
-        pass
+        # Core LLVM library for C++ AST parsing and analysis
+        self.requires("llvm-core/19.1.7")
     
     def build_requirements(self):
         # Build-only dependencies will be added as needed
