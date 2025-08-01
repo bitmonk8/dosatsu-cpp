@@ -91,8 +91,8 @@ void KuzuDump::VisitFunctionDecl(const clang::FunctionDecl* D)
         return;
 
     // TODO: Insert function declaration node with function-specific attributes
-    std::string functionName = D->getNameAsString();
-    std::string qualifiedName = getQualifiedName(D);
+    // std::string functionName = D->getNameAsString();
+    // std::string qualifiedName = getQualifiedName(D);
 
     // insertASTNode("FunctionDecl", getNodeId(D), functionName, getSourceLocation(D->getLocation()));
 
@@ -122,8 +122,8 @@ void KuzuDump::VisitVarDecl(const clang::VarDecl* D)
         return;
 
     // TODO: Insert variable declaration node
-    std::string varName = D->getNameAsString();
-    std::string typeStr = getTypeString(D->getType());
+    // std::string varName = D->getNameAsString();
+    // std::string typeStr = getTypeString(D->getType());
 
     // insertASTNode("VarDecl", getNodeId(D), varName, getSourceLocation(D->getLocation()));
     // createTypeRelationship(D, D->getType().getTypePtr());
@@ -144,8 +144,8 @@ void KuzuDump::VisitRecordDecl(const clang::RecordDecl* D)
         return;
 
     // TODO: Insert record (struct/class/union) declaration node
-    std::string recordName = D->getNameAsString();
-    std::string recordKind = D->getKindName().str();  // struct, class, union
+    // std::string recordName = D->getNameAsString();
+    // std::string recordKind = D->getKindName().str();  // struct, class, union
 
     // insertASTNode("RecordDecl", getNodeId(D), recordName, getSourceLocation(D->getLocation()));
 
@@ -165,7 +165,7 @@ void KuzuDump::VisitCXXRecordDecl(const clang::CXXRecordDecl* D)
         return;
 
     // TODO: Insert C++ class declaration with inheritance information
-    std::string className = D->getNameAsString();
+    // std::string className = D->getNameAsString();
 
     // insertASTNode("CXXRecordDecl", getNodeId(D), className, getSourceLocation(D->getLocation()));
 
@@ -196,8 +196,8 @@ void KuzuDump::VisitFieldDecl(const clang::FieldDecl* D)
         return;
 
     // TODO: Insert field declaration node
-    std::string fieldName = D->getNameAsString();
-    std::string typeStr = getTypeString(D->getType());
+    // std::string fieldName = D->getNameAsString();
+    // std::string typeStr = getTypeString(D->getType());
 
     // insertASTNode("FieldDecl", getNodeId(D), fieldName, getSourceLocation(D->getLocation()));
     // createTypeRelationship(D, D->getType().getTypePtr());
@@ -211,8 +211,8 @@ void KuzuDump::VisitParmVarDecl(const clang::ParmVarDecl* D)
         return;
 
     // TODO: Insert parameter declaration node
-    std::string paramName = D->getNameAsString();
-    std::string typeStr = getTypeString(D->getType());
+    // std::string paramName = D->getNameAsString();
+    // std::string typeStr = getTypeString(D->getType());
 
     // insertASTNode("ParmVarDecl", getNodeId(D), paramName, getSourceLocation(D->getLocation()));
     // createTypeRelationship(D, D->getType().getTypePtr());
@@ -226,8 +226,8 @@ void KuzuDump::VisitTypedefDecl(const clang::TypedefDecl* D)
         return;
 
     // TODO: Insert typedef declaration node
-    std::string typedefName = D->getNameAsString();
-    std::string underlyingType = getTypeString(D->getUnderlyingType());
+    // std::string typedefName = D->getNameAsString();
+    // std::string underlyingType = getTypeString(D->getUnderlyingType());
 
     // insertASTNode("TypedefDecl", getNodeId(D), typedefName, getSourceLocation(D->getLocation()));
     // createTypeRelationship(D, D->getUnderlyingType().getTypePtr());
@@ -241,7 +241,7 @@ void KuzuDump::VisitNamespaceDecl(const clang::NamespaceDecl* D)
         return;
 
     // TODO: Insert namespace declaration node
-    std::string namespaceName = D->getNameAsString();
+    // std::string namespaceName = D->getNameAsString();
 
     // insertASTNode("NamespaceDecl", getNodeId(D), namespaceName, getSourceLocation(D->getLocation()));
 
@@ -261,7 +261,7 @@ void KuzuDump::VisitUsingDecl(const clang::UsingDecl* D)
         return;
 
     // TODO: Insert using declaration node
-    std::string usingName = D->getNameAsString();
+    // std::string usingName = D->getNameAsString();
 
     // insertASTNode("UsingDecl", getNodeId(D), usingName, getSourceLocation(D->getLocation()));
 
@@ -274,7 +274,7 @@ void KuzuDump::VisitCXXMethodDecl(const clang::CXXMethodDecl* D)
         return;
 
     // TODO: Insert C++ method declaration with method-specific attributes
-    std::string methodName = D->getNameAsString();
+    // std::string methodName = D->getNameAsString();
     bool isVirtual = D->isVirtual();
     bool isStatic = D->isStatic();
 
@@ -289,7 +289,7 @@ void KuzuDump::VisitCXXConstructorDecl(const clang::CXXConstructorDecl* D)
         return;
 
     // TODO: Insert constructor declaration node
-    std::string constructorName = D->getNameAsString();
+    // std::string constructorName = D->getNameAsString();
 
     // insertASTNode("CXXConstructorDecl", getNodeId(D), constructorName, getSourceLocation(D->getLocation()));
 
@@ -302,7 +302,7 @@ void KuzuDump::VisitCXXDestructorDecl(const clang::CXXDestructorDecl* D)
         return;
 
     // TODO: Insert destructor declaration node
-    std::string destructorName = D->getNameAsString();
+    // std::string destructorName = D->getNameAsString();
 
     // insertASTNode("CXXDestructorDecl", getNodeId(D), destructorName, getSourceLocation(D->getLocation()));
 
@@ -327,7 +327,7 @@ void KuzuDump::VisitExpr(const clang::Expr* E)
         return;
 
     // TODO: Insert expression node with type information
-    std::string typeStr = getTypeString(E->getType());
+    // std::string typeStr = getTypeString(E->getType());
 
     // insertASTNode("Expr", getNodeId(E), E->getStmtClassName(), getSourceLocation(E->getBeginLoc()));
     // createTypeRelationship(E, E->getType().getTypePtr());
@@ -366,7 +366,7 @@ void KuzuDump::VisitDeclRefExpr(const clang::DeclRefExpr* E)
         return;
 
     // TODO: Insert declaration reference expression node
-    std::string declName = E->getDecl()->getNameAsString();
+    // std::string declName = E->getDecl()->getNameAsString();
 
     // insertASTNode("DeclRefExpr", getNodeId(E), declName, getSourceLocation(E->getBeginLoc()));
     // createUsageRelationship(E, E->getDecl());
@@ -380,7 +380,7 @@ void KuzuDump::VisitMemberExpr(const clang::MemberExpr* E)
         return;
 
     // TODO: Insert member access expression node
-    std::string memberName = E->getMemberDecl()->getNameAsString();
+    // std::string memberName = E->getMemberDecl()->getNameAsString();
 
     // insertASTNode("MemberExpr", getNodeId(E), memberName, getSourceLocation(E->getBeginLoc()));
     // createUsageRelationship(E, E->getMemberDecl());
@@ -530,7 +530,7 @@ void KuzuDump::VisitType(const clang::Type* T)
         return;
 
     // TODO: Insert type node
-    std::string typeName = T->getTypeClassName();
+    // std::string typeName = T->getTypeClassName();
 
     // insertASTNode("Type", getNodeId(T), typeName, "");
 }
@@ -541,7 +541,7 @@ void KuzuDump::VisitQualType(clang::QualType T)
         return;
 
     // TODO: Insert qualified type node
-    std::string typeStr = getTypeString(T);
+    // std::string typeStr = getTypeString(T);
 
     // insertASTNode("QualType", getNodeId(T.getAsOpaquePtr()), typeStr, "");
 
@@ -614,7 +614,7 @@ auto KuzuDump::getQualifiedName(const clang::NamedDecl* decl) -> std::string
     if (decl == nullptr)
         return "";
 
-    std::string qualifiedName;
+    std::string qualifiedName{};
     llvm::raw_string_ostream OS(qualifiedName);
     decl->printQualifiedName(OS);
     OS.flush();

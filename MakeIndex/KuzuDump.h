@@ -142,10 +142,10 @@ private:
     void insertRelationship(const std::string& fromId, const std::string& toId, const std::string& relationshipType);
 
     // Helper methods for AST processing
-    std::string getNodeId(const void* ptr);
-    std::string getSourceLocation(clang::SourceLocation loc);
-    std::string getQualifiedName(const clang::NamedDecl* decl);
-    std::string getTypeString(clang::QualType type);
+    auto getNodeId(const void* ptr) -> std::string;
+    auto getSourceLocation(clang::SourceLocation loc) -> std::string;
+    auto getQualifiedName(const clang::NamedDecl* decl) -> std::string;
+    auto getTypeString(clang::QualType type) -> std::string;
 
     // Relationship tracking
     void createParentChildRelationship(const void* parent, const void* child);

@@ -139,12 +139,20 @@ target("lint")
         if f_read then
             local content = f_read:read("*a")
             f_read:close()
-
+        
+            -- Remove unwanted flags
             content = content:gsub("%%s?-Wno%%-unused%%-command%%-line%%-argument", "")
             content = content:gsub("%%s?-Werror", "")
-            content = content:gsub('"([^"]*)"', function(match)
-                return '"' .. match .. ' -Wno-deprecated-this-capture -Wno-deprecated-anon-enum-enum-conversion"'
+            
+            -- Add flags by finding each arguments array and modifying it
+            content = content:gsub('("arguments": %[[^%]]*)', function(args_section)
+                -- Only add if the flags aren't already present
+                if not args_section:find("-Wno%-deprecated%-this%-capture") then
+                    return args_section .. ', "-Wno-deprecated-this-capture", "-Wno-deprecated-anon-enum-enum-conversion"'
+                end
+                return args_section
             end)
+        
             local f_write = io.open(db_path, "w")
             if f_write then
                 f_write:write(content)
@@ -152,7 +160,7 @@ target("lint")
                 print("Temporarily sanitized compile_commands.json for linting.")
             end
         end
-
+        
         local fix_command_args = {"-p", "build", "--fix", "--fix-errors", "--quiet"}
         for _, file in ipairs(files) do
             table.insert(fix_command_args, file)
@@ -177,7 +185,7 @@ target("lint")
         local function filter_clang_tidy_output(output)
             local filtered = {}
             for line in output:gmatch("[^\r\n]+") do
-                if not line:match("Suppressed %d+ warnings %(%d+ in non%-user code, %d+ NOLINT%)") and
+                if not line:match("Suppressed %d+ warnings") and
                    not line:match("Use %-header%-filter=%.%* to display errors from all non%-system headers. Use %-system%-headers to display errors from system headers as well.") then
                     table.insert(filtered, line)
                 end
@@ -190,7 +198,7 @@ target("lint")
             print(filter_clang_tidy_output(lint_output))
         end
 
-        os.run("xmake project -k compile_commands build")
+        -- os.run("xmake project -k compile_commands build")
 
         if ok == 0 then
             print("\nCode linting completed successfully!")
