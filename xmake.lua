@@ -1,14 +1,22 @@
-add_moduledirs("xmake_modules")
-
-add_rules("mode.debug")
+add_rules("mode.debug", "mode.release")
 set_defaultmode("debug")
 
+add_moduledirs("xmake_modules")
+
+add_repositories("myrepo https://github.com/bitmonk8/xmake-repo.git")
+add_requires("libllvm 19.1.7", {
+    system = false,   -- don’t search the host
+    external = false, -- don’t download pre-built archives
+    build = true,     -- build from source
+    debug = is_mode("debug")
+    })
+
 if is_mode("debug") then
+    set_runtimes("MDd")
     set_symbols("debug")
     set_optimize("none")
-end
-
-if is_mode("release") then
+elseif is_mode("release") then
+    set_runtimes("MT")
     set_symbols("hidden")
     set_optimize("fastest")
     set_strip("all")
@@ -25,6 +33,8 @@ end
 target("MakeIndex")
     set_kind("binary")
     add_files("MakeIndex/MakeIndex.cpp")
+    add_files("MakeIndex/KuzuDump.cpp")
+    add_packages("libllvm")
     add_includedirs("3rdParty/include", {public = true})
     apply_common_flags()
     
