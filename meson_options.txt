@@ -1,0 +1,27 @@
+# Build options for CppGraphIndex project
+# Using meson_options.txt format for better compatibility
+# Matching xmake configuration capabilities
+
+option('enable_tests', 
+  type : 'boolean', 
+  value : true, 
+  description : 'Enable building and running tests'
+)
+
+option('enable_format', 
+  type : 'boolean', 
+  value : true, 
+  description : 'Enable clang-format target'
+)
+
+option('enable_lint', 
+  type : 'boolean', 
+  value : true, 
+  description : 'Enable clang-tidy linting target'
+)
+
+option('llvm_version', 
+  type : 'string', 
+  value : '19.1.7', 
+  description : 'LLVM version to use'
+)
