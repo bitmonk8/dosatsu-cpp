@@ -28,14 +28,55 @@ endif
 # Build configuration - match xmake runtime settings
 # Debug: MDd runtime (dynamic CRT, debug)
 # Release: MT runtime (static CRT, release)
-if get_option('buildtype') == 'debug'
+
+# Get the build type
+build_type = get_option('buildtype')
+
+# Configure debug/release specific settings
+if build_type == 'debug' or build_type == 'debugoptimized'
+  # Debug build configuration
   if target_machine.system() == 'windows' and cpp.get_id() == 'msvc'
     add_project_arguments('/MDd', language : 'cpp')
+    if get_option('debug_symbols')
+      add_project_arguments('/Zi', language : 'cpp')  # Generate debug info
+    endif
+  elif cpp.get_id() == 'gcc' or cpp.get_id() == 'clang'
+    if get_option('debug_symbols')
+      add_project_arguments('-g', language : 'cpp')  # Generate debug info
+    endif
   endif
-elif get_option('buildtype') == 'release'
+  
+elif build_type == 'release' or build_type == 'minsize'
+  # Release build configuration
   if target_machine.system() == 'windows' and cpp.get_id() == 'msvc'
     add_project_arguments('/MT', language : 'cpp')
+    # Set optimization level
+    opt_level = get_option('optimization_level')
+    if opt_level == '0'
+      add_project_arguments('/Od', language : 'cpp')
+    elif opt_level == '1'
+      add_project_arguments('/O1', language : 'cpp')
+    elif opt_level == '2'
+      add_project_arguments('/O2', language : 'cpp')
+    elif opt_level == '3' or opt_level == 's'
+      add_project_arguments('/Ox', language : 'cpp')  # Maximum optimization
+    endif
+  elif cpp.get_id() == 'gcc' or cpp.get_id() == 'clang'
+    # GCC/Clang optimization levels
+    opt_level = get_option('optimization_level')
+    if opt_level == '0'
+      add_project_arguments('-O0', language : 'cpp')
+    elif opt_level == '1'
+      add_project_arguments('-O1', language : 'cpp')
+    elif opt_level == '2'
+      add_project_arguments('-O2', language : 'cpp')
+    elif opt_level == '3'
+      add_project_arguments('-O3', language : 'cpp')
+    elif opt_level == 's'
+      add_project_arguments('-Os', language : 'cpp')  # Optimize for size
+    endif
   endif
+  
 endif
 
 # Include directories

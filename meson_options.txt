@@ -25,3 +25,17 @@ option('llvm_version',
   value : '19.1.7', 
   description : 'LLVM version to use'
 )
+
+# Build mode configuration options
+option('debug_symbols', 
+  type : 'boolean', 
+  value : true, 
+  description : 'Include debug symbols in debug builds'
+)
+
+option('optimization_level',
+  type : 'combo',
+  choices : ['0', '1', '2', '3', 's'],
+  value : '2',
+  description : 'Optimization level for release builds (0=none, 1=basic, 2=default, 3=aggressive, s=size)'
+)
