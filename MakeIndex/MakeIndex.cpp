@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-auto RealMain(int argc, char** argv) -> int
+auto RealMain(int /*argc*/, char** /*argv*/) -> int
 {
     return 0;
 }
