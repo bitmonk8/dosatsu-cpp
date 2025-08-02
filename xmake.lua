@@ -24,6 +24,59 @@ end
 
 set_languages("cxx20")
 set_warnings("error")
+
+-- Platform and toolchain validation
+function validate_platform_toolchain()
+    local platform = get_config("plat") or os.host()
+    local toolchain = get_config("toolchain")
+    
+    -- Define supported combinations
+    local supported_combinations = {
+        windows = {"msvc"},
+        macosx = {"clang"},
+        linux = {"gcc"}
+    }
+    
+    -- If no specific toolchain is set, try to detect the default
+    if not toolchain then
+        if platform == "windows" then
+            toolchain = "msvc"
+        elseif platform == "macosx" then
+            toolchain = "clang"
+        elseif platform == "linux" then
+            toolchain = "gcc"  -- Default to GCC on Linux
+        end
+    end
+    
+    -- Check if the combination is supported
+    local platform_toolchains = supported_combinations[platform]
+    if not platform_toolchains then
+        raise("Unsupported platform: " .. platform .. 
+              "\nSupported platforms: Windows (with MSVC), macOS (with Clang), Linux (with GCC)")
+    end
+    
+    local is_supported = false
+    for _, supported_toolchain in ipairs(platform_toolchains) do
+        if toolchain == supported_toolchain then
+            is_supported = true
+            break
+        end
+    end
+    
+    if not is_supported then
+        raise("Unsupported toolchain '" .. toolchain .. "' for platform '" .. platform .. "'" ..
+              "\nSupported combinations:" ..
+              "\n  - Windows with MSVC" ..
+              "\n  - macOS with Clang" .. 
+              "\n  - Linux with GCC")
+    end
+    
+    print("✓ Platform: " .. platform .. ", Toolchain: " .. toolchain .. " (supported)")
+end
+
+-- Run validation
+validate_platform_toolchain()
+
 function apply_common_flags()
     if is_plat("windows") then
         add_cxxflags("/wd4146")

@@ -18,11 +18,15 @@ The project consists of two main components:
 - **XMake**: Build system (version: latest)
 - **C++20 compatible compiler**
 
-### Supported Platforms
+### Supported Platforms and Toolchains
 
-- Ubuntu (latest)
-- macOS (latest) 
-- Windows (latest)
+CppGraphIndex supports the following platform and toolchain combinations:
+
+- **Windows** with **MSVC** (Microsoft Visual C++)
+- **macOS** with **Clang** (Apple Clang or LLVM Clang)
+- **Linux** with **GCC** (GNU Compiler Collection)
+
+> **Note**: Other platform/toolchain combinations are not currently supported and will result in build errors. Please ensure you are using one of the supported combinations above.
 
 ## 🔧 Building the Project
 
