@@ -3,7 +3,7 @@ from conan import ConanFile
 
 class CppGraphIndexConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
-    generators = "MesonToolchain", "PkgConfigDeps"
+    generators = "MesonToolchain", "PkgConfigDeps", "CMakeDeps"
     
     # Performance optimizations
     default_options = {

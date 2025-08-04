@@ -10,7 +10,7 @@ makeindex_sources = [
 makeindex_exe = executable('MakeIndex',
   makeindex_sources,
   include_directories : inc_dir,
-  dependencies : [llvm_dep],
+  dependencies : all_deps,
   install : false
 )
 

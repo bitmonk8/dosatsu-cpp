@@ -11,19 +11,72 @@ import sys
 import argparse
 import subprocess
 import time
+import platform
 from pathlib import Path
 
 
-def run_command(cmd, cwd=None, check=True, show_output=True):
+def setup_vs_environment():
+    """Set up Visual Studio environment on Windows."""
+    if platform.system() != "Windows":
+        return {}  # No environment changes needed on non-Windows
+    
+    project_root = Path(__file__).parent.parent
+    conanbuild_script = project_root / "conanbuild.bat"
+    
+    if not conanbuild_script.exists():
+        print("[WARNING] conanbuild.bat not found. VS environment may not be set up properly.")
+        return {}
+    
+    # Run conanbuild.bat and capture environment variables
+    try:
+        # Create a batch script to call conanbuild.bat and then echo all environment variables
+        temp_script = project_root / "temp_env_capture.bat"
+        with open(temp_script, 'w') as f:
+            f.write('@echo off\n')
+            f.write(f'call "{conanbuild_script}"\n')
+            f.write('set\n')  # Output all environment variables
+        
+        result = subprocess.run([str(temp_script)], capture_output=True, text=True, 
+                              cwd=project_root, shell=True)
+        
+        # Clean up temp script
+        temp_script.unlink(missing_ok=True)
+        
+        if result.returncode != 0:
+            print(f"[WARNING] Failed to set up VS environment: {result.stderr}")
+            return {}
+        
+        # Parse environment variables from output
+        env_vars = {}
+        for line in result.stdout.split('\n'):
+            if '=' in line and not line.startswith('echo '):
+                key, _, value = line.partition('=')
+                env_vars[key.strip()] = value.strip()
+        
+        print("[INFO] Visual Studio environment configured")
+        return env_vars
+        
+    except Exception as e:
+        print(f"[WARNING] Error setting up VS environment: {e}")
+        return {}
+
+
+def run_command(cmd, cwd=None, check=True, show_output=True, use_vs_env=True):
     """Run a command and return the result."""
     if show_output:
         print(f"Running: {' '.join(cmd)}")
+    
+    # Set up environment with Visual Studio tools if on Windows
+    env = os.environ.copy()
+    if use_vs_env and platform.system() == "Windows":
+        vs_env = setup_vs_environment()
+        env.update(vs_env)
     
     try:
         if show_output:
             # Stream output in real-time
             process = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, 
-                                     stderr=subprocess.STDOUT, text=True, bufsize=1)
+                                     stderr=subprocess.STDOUT, text=True, bufsize=1, env=env)
             
             output_lines = []
             for line in process.stdout:
@@ -37,7 +90,7 @@ def run_command(cmd, cwd=None, check=True, show_output=True):
             return subprocess.CompletedProcess(cmd, process.returncode, 
                                              stdout=''.join(output_lines), stderr='')
         else:
-            return subprocess.run(cmd, cwd=cwd, check=check, capture_output=True, text=True)
+            return subprocess.run(cmd, cwd=cwd, check=check, capture_output=True, text=True, env=env)
             
     except subprocess.CalledProcessError as e:
         print(f"\n❌ Command failed: {' '.join(cmd)}")
