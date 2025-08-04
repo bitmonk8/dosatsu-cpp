@@ -127,5 +127,15 @@ endif
 # DocTest dependency (header-only, just need include path)
 doctest_dep = declare_dependency()
 
+# Development tools targets
+
+# Format target - code formatting with clang-format
+python3 = find_program('python3', 'python', required : true)
+format_script = files('tools/format.py')
+
+run_target('format',
+  command : [python3, format_script]
+)
+
 # Add subdirectories
 subdir('MakeIndex')
