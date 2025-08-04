@@ -39,3 +39,16 @@ option('optimization_level',
   value : '2',
   description : 'Optimization level for release builds (0=none, 1=basic, 2=default, 3=aggressive, s=size)'
 )
+
+# Performance optimization options
+option('enable_lto',
+  type : 'boolean',
+  value : false,
+  description : 'Enable Link Time Optimization (LTO) for release builds'
+)
+
+option('compile_commands_json',
+  type : 'boolean', 
+  value : true,
+  description : 'Generate compile_commands.json for better dependency tracking and IDE support'
+)

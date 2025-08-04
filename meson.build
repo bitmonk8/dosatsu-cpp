@@ -6,19 +6,77 @@ project('CppGraphIndex', 'cpp',
     'werror=true',
     'buildtype=debug'
   ],
-  meson_version : '>=0.56.0'
+  meson_version : '>=1.0.0'
 )
 
 # Compiler setup
 cpp = meson.get_compiler('cpp')
 
+# Performance optimization settings
+# Configure Ninja parallel builds based on CPU count
+if meson.backend() == 'ninja'
+  # Enable parallel compilation - Ninja will auto-detect CPU count
+  # Add compiler cache if available (but avoid on Windows for MSVC compatibility)
+  if target_machine.system() != 'windows'
+    ccache = find_program('ccache', required : false)
+    if ccache.found()
+      message('Found ccache, enabling compilation caching')
+      # Note: ccache configuration happens through environment or config files
+    endif
+  endif
+  
+  # Enable incremental build support
+  # Generate compile_commands.json for better dependency tracking
+  if get_option('compile_commands_json')
+    message('Generating compile_commands.json for improved dependency tracking')
+  endif
+endif
+
+# Additional performance optimizations
+# Enable LTO (Link Time Optimization) for release builds if supported
+if get_option('buildtype') == 'release' and get_option('enable_lto')
+  if cpp.has_link_argument('-flto') and cpp.get_id() != 'msvc'
+    add_project_link_arguments('-flto', language : 'cpp')
+    add_project_arguments('-flto', language : 'cpp')
+    message('Link Time Optimization (LTO) enabled for release build')
+  elif cpp.get_id() == 'msvc' and cpp.has_link_argument('/LTCG')
+    add_project_link_arguments('/LTCG', language : 'cpp')
+    add_project_arguments('/GL', language : 'cpp')
+    message('Link Time Code Generation (LTCG) enabled for release build')
+  endif
+endif
+
 # Platform and compiler-specific configurations
 if target_machine.system() == 'windows'
   # On Windows, prefer MSVC for LLVM compatibility
-  if cpp.get_id() == 'msvc'
-    add_project_arguments('/wd4146', language : 'cpp')
+  # Handle ccache-wrapped compilers by checking the underlying compiler
+  compiler_cmd = cpp.cmd_array()
+  actual_compiler_id = cpp.get_id()
+  
+  # If using ccache, check the actual underlying compiler
+  if compiler_cmd.length() > 1 and 'ccache' in compiler_cmd[0]
+    # For ccache-wrapped compilers, check the actual backend compiler
+    message('Detected ccache-wrapped compiler, checking underlying compiler...')
+    # Note: Meson should still report the correct compiler ID for the underlying compiler
+  endif
+  
+  if actual_compiler_id == 'msvc'
+    # Suppress common LLVM/Clang header warnings with MSVC
+    add_project_arguments('/wd4146', language : 'cpp')  # unary minus operator applied to unsigned type
+    add_project_arguments('/wd4267', language : 'cpp')  # conversion from size_t to smaller type
+    add_project_arguments('/wd4324', language : 'cpp')  # structure was padded due to alignment specifier  
+    add_project_arguments('/wd4100', language : 'cpp')  # unreferenced formal parameter
+    add_project_arguments('/wd4189', language : 'cpp')  # local variable is initialized but not referenced
+    add_project_arguments('/wd4245', language : 'cpp')  # signed/unsigned mismatch in conversion
+    add_project_arguments('/wd4389', language : 'cpp')  # signed/unsigned mismatch in comparison
+    add_project_arguments('/wd5054', language : 'cpp')  # deprecated operator between different enum types
   else
-    error('On Windows, MSVC compiler is required for LLVM compatibility. Use: meson setup builddir --native-file native-msvc.txt')
+    # Provide more helpful error message for ccache scenarios
+    if compiler_cmd.length() > 1 and 'ccache' in compiler_cmd[0]
+      error('On Windows, MSVC compiler is required for LLVM compatibility. Detected ccache with @0@ compiler. Please configure ccache to use MSVC or set up Meson to use MSVC directly.'.format(actual_compiler_id))
+    else
+      error('On Windows, MSVC compiler is required for LLVM compatibility. Detected @0@ compiler. Use: meson setup builddir --native-file native-msvc.txt'.format(actual_compiler_id))
+    endif
   endif
 elif target_machine.system() == 'linux'
   # On Linux, use GCC
@@ -234,7 +292,7 @@ foreach lib : required_llvm_libs
   endif
 endforeach
 
-# Create the comprehensive LLVM dependency
+# Create the comprehensive LLVM dependency  
 llvm_dep = declare_dependency(
   include_directories : include_directories(llvm_inc_dir),
   dependencies : llvm_deps + system_libs

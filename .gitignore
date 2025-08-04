@@ -11,3 +11,14 @@ conanbuild.*
 conanrun.*
 deactivate_conan*
 conanvcvars.*
+
+# Build optimization artifacts
+.ninja_deps
+.ninja_log
+compile_commands.json
+.ccache/
+*.gcno
+*.gcda
+
+# Ninja build artifacts
+.ninja/
