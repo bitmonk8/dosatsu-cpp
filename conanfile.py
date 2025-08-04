@@ -1,5 +1,4 @@
 from conan import ConanFile
-from conan.tools.cmake import cmake_layout
 
 
 class CppGraphIndexConan(ConanFile):
@@ -17,4 +16,5 @@ class CppGraphIndexConan(ConanFile):
         pass
     
     def layout(self):
-        cmake_layout(self)
+        # Configure generators folder to avoid cluttering root  
+        self.folders.generators = "conan"

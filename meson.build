@@ -12,16 +12,23 @@ project('CppGraphIndex', 'cpp',
 # Compiler setup
 cpp = meson.get_compiler('cpp')
 
-# Windows-specific warning suppressions (matching xmake /wd4146)
+# Platform and compiler-specific configurations
 if target_machine.system() == 'windows'
+  # On Windows, prefer MSVC for LLVM compatibility
   if cpp.get_id() == 'msvc'
     add_project_arguments('/wd4146', language : 'cpp')
-  elif cpp.get_id() == 'gcc'
-    # GCC equivalents for LLVM compatibility
-    add_project_arguments('-Wno-unused-parameter', language : 'cpp')
-    add_project_arguments('-Wno-unused-variable', language : 'cpp')
-    add_project_arguments('-Wno-deprecated-enum-enum-conversion', language : 'cpp')
-    add_project_arguments('-Wno-deprecated', language : 'cpp')
+  else
+    error('On Windows, MSVC compiler is required for LLVM compatibility. Use: meson setup builddir --native-file native-msvc.txt')
+  endif
+elif target_machine.system() == 'linux'
+  # On Linux, use GCC
+  if cpp.get_id() != 'gcc'
+    warning('On Linux, GCC is recommended')
+  endif
+elif target_machine.system() == 'darwin'
+  # On macOS, use Clang
+  if cpp.get_id() != 'clang'
+    warning('On macOS, Clang is recommended')
   endif
 endif
 
@@ -90,20 +97,135 @@ inc_dir = include_directories('3rdParty/include')
 llvm_inc_dir = 'C:/Users/thomasa/AppData/Local/.xmake/packages/l/libllvm/19.1.7/1846a5ba8f6f4ddfae98aa55f7f30064/include'
 llvm_lib_dir = 'C:/Users/thomasa/AppData/Local/.xmake/packages/l/libllvm/19.1.7/1846a5ba8f6f4ddfae98aa55f7f30064/lib'
 
-# Core LLVM libraries that MakeIndex needs (matching xmake output)
-llvm_libs = [
-  # Core LLVM support
-  'LLVMCore', 'LLVMSupport', 'LLVMDemangle',
-  # Clang AST libraries
-  'clangAST', 'clangBasic', 'clangLex', 'clangDriver', 'clangSema',
-  'clangAnalysis', 'clangEdit', 'clangFrontend', 'clangParse',
-  # Additional LLVM libraries used by the code
-  'LLVMBitReader', 'LLVMBitstreamReader', 'LLVMBinaryFormat'
+# Complete LLVM and Clang libraries (matching xmake linking output)
+clang_libs = [
+  'clangInterpreter', 'clangFrontendTool', 'clangStaticAnalyzerFrontend', 'clangStaticAnalyzerCheckers', 
+  'clangTransformer', 'clangStaticAnalyzerCore', 'clangToolingRefactoring', 'clangExtractAPI', 
+  'clangCrossTU', 'clangDependencyScanning', 'clangIndex', 'clangTooling', 'clangToolingSyntax', 
+  'clangRewriteFrontend', 'clangARCMigrate', 'clangCodeGen', 'clangFrontend', 'clangAnalysisFlowSensitiveModels', 
+  'clangSerialization', 'clangParse', 'clangFormat', 'clangAnalysisFlowSensitive', 'clangSema', 
+  'clangToolingInclusions', 'clangAnalysis', 'clangDynamicASTMatchers', 'clangToolingCore', 'clangInstallAPI', 
+  'clangToolingASTDiff', 'clangToolingInclusionsStdlib', 'clangEdit', 'clangASTMatchers', 'clangRewrite', 
+  'clangAST', 'clangIndexSerialization', 'clangDriver', 'clangLex', 'clangAPINotes', 'clangSupport', 
+  'clangDirectoryWatcher', 'clangBasic'
 ]
 
-# Find all required libraries
+llvm_libs = [
+  'LLVMExegesisMips', 'LLVMExegesisPowerPC', 'LLVMExegesisAArch64', 'LLVMExegesisX86', 'LLVMOptDriver', 
+  'LLVMExegesis', 'LLVMOrcDebugging', 'LLVMBPFCodeGen', 'LLVMAMDGPUCodeGen', 'LLVMOrcJIT', 'LLVMLTO', 
+  'LLVMPasses', 'LLVMX86CodeGen', 'LLVMRISCVCodeGen', 'LLVMPowerPCCodeGen', 'LLVMMipsCodeGen', 'LLVMARMCodeGen', 
+  'LLVMAArch64CodeGen', 'LLVMNVPTXCodeGen', 'LLVMHexagonCodeGen', 'LLVMCoroutines', 'LLVMWebAssemblyCodeGen', 
+  'LLVMDWARFLinkerParallel', 'LLVMDWARFLinkerClassic', 'LLVMXCoreCodeGen', 'LLVMVECodeGen', 'LLVMSystemZCodeGen', 
+  'LLVMSparcCodeGen', 'LLVMMSP430CodeGen', 'LLVMLoongArchCodeGen', 'LLVMLanaiCodeGen', 'LLVMAVRCodeGen', 
+  'LLVMGlobalISel', 'LLVMipo', 'LLVMWebAssemblyUtils', 'LLVMInterpreter', 'LLVMDWARFLinker', 'LLVMMIRParser', 
+  'LLVMAsmPrinter', 'LLVMSelectionDAG', 'LLVMFrontendOpenMP', 'LLVMCodeGen', 'LLVMFuzzMutate', 'LLVMAMDGPUTargetMCA', 
+  'LLVMAMDGPUDisassembler', 'LLVMAMDGPUAsmParser', 'LLVMMCJIT', 'LLVMScalarOpts', 'LLVMAMDGPUDesc', 'LLVMExecutionEngine', 
+  'LLVMLinker', 'LLVMHipStdPar', 'LLVMObjCARCOpts', 'LLVMVectorize', 'LLVMInstCombine', 'LLVMAggressiveInstCombine', 
+  'LLVMInstrumentation', 'LLVMFrontendOffloading', 'LLVMAMDGPUUtils', 'LLVMTarget', 'LLVMTransformUtils', 
+  'LLVMFrontendDriver', 'LLVMBitWriter', 'LLVMIRPrinter', 'LLVMCoverage', 'LLVMAnalysis', 'LLVMCFIVerify', 
+  'LLVMProfileData', 'LLVMDebuginfod', 'LLVMARMDisassembler', 'LLVMARMAsmParser', 'LLVMSymbolize', 
+  'LLVMDebugInfoLogicalView', 'LLVMTextAPIBinaryReader', 'LLVMDWP', 'LLVMDebugInfoGSYM', 'LLVMXRay', 'LLVMLibDriver', 
+  'LLVMDlltoolDriver', 'LLVMARMDesc', 'LLVMRuntimeDyld', 'LLVMJITLink', 'LLVMDebugInfoPDB', 'LLVMDebugInfoDWARF', 
+  'LLVMObjectYAML', 'LLVMObjCopy', 'LLVMCodeGenData', 'LLVMInterfaceStub', 'LLVMX86TargetMCA', 'LLVMX86AsmParser', 
+  'LLVMWebAssemblyDisassembler', 'LLVMWebAssemblyAsmParser', 'LLVMVEAsmParser', 'LLVMSystemZDisassembler', 
+  'LLVMSystemZAsmParser', 'LLVMSparcAsmParser', 'LLVMRISCVTargetMCA', 'LLVMRISCVDisassembler', 'LLVMRISCVAsmParser', 
+  'LLVMPowerPCAsmParser', 'LLVMMSP430AsmParser', 'LLVMMipsAsmParser', 'LLVMLoongArchDisassembler', 
+  'LLVMLoongArchAsmParser', 'LLVMLanaiDisassembler', 'LLVMLanaiAsmParser', 'LLVMHexagonDisassembler', 
+  'LLVMHexagonAsmParser', 'LLVMBPFAsmParser', 'LLVMAVRAsmParser', 'LLVMAArch64Disassembler', 'LLVMAArch64AsmParser', 
+  'LLVMObject', 'LLVMXCoreDesc', 'LLVMXCoreDisassembler', 'LLVMX86Desc', 'LLVMX86Disassembler', 'LLVMWebAssemblyDesc', 
+  'LLVMVEDesc', 'LLVMVEDisassembler', 'LLVMSystemZDesc', 'LLVMSparcDesc', 'LLVMSparcDisassembler', 'LLVMRISCVDesc', 
+  'LLVMPowerPCDesc', 'LLVMPowerPCDisassembler', 'LLVMNVPTXDesc', 'LLVMMSP430Disassembler', 'LLVMMSP430Desc', 
+  'LLVMMipsDesc', 'LLVMMipsDisassembler', 'LLVMLoongArchDesc', 'LLVMLanaiDesc', 'LLVMHexagonDesc', 'LLVMBPFDesc', 
+  'LLVMBPFDisassembler', 'LLVMAVRDesc', 'LLVMAVRDisassembler', 'LLVMAArch64Desc', 'LLVMIRReader', 'LLVMXCoreInfo', 
+  'LLVMX86Info', 'LLVMWebAssemblyInfo', 'LLVMVEInfo', 'LLVMSystemZInfo', 'LLVMSparcInfo', 'LLVMRISCVInfo', 
+  'LLVMPowerPCInfo', 'LLVMNVPTXInfo', 'LLVMMSP430Info', 'LLVMMipsInfo', 'LLVMLoongArchInfo', 'LLVMLanaiInfo', 
+  'LLVMHexagonInfo', 'LLVMBPFInfo', 'LLVMAVRInfo', 'LLVMARMInfo', 'LLVMAMDGPUInfo', 'LLVMAArch64Info', 'LLVMMCA', 
+  'LLVMMCDisassembler', 'LLVMMCParser', 'LLVMDiff', 'LLVMAsmParser', 'LLVMSandboxIR', 'LLVMAArch64Utils', 
+  'LLVMCFGuard', 'LLVMFrontendHLSL', 'LLVMBitReader', 'LLVMTextAPI', 'LLVMMC', 'LLVMCore', 'LLVMTableGenCommon', 
+  'LLVMWindowsDriver', 'LLVMOrcTargetProcess', 'LLVMBinaryFormat', 'LLVMFuzzerCLI', 'LLVMRemarks', 'LLVMTableGenBasic', 
+  'LLVMWindowsManifest', 'LLVMTargetParser', 'LLVMLineEditor', 'LLVMARMUtils', 'LLVMOrcShared', 'LLVMDebugInfoBTF', 
+  'LLVMDebugInfoCodeView', 'LLVMDebugInfoMSF', 'LLVMOption', 'LLVMFrontendOpenACC', 'LLVMExtensions', 
+  'LLVMBitstreamReader', 'LLVMCodeGenTypes', 'LLVMFileCheck', 'LLVMTableGen', 'LLVMSupport', 'LLVMDemangle'
+]
+
+# Additional LLVM libraries
+additional_llvm_libs = ['Remarks', 'LTO', 'LLVM-C']
+
+# Combine all libraries
+all_libs = clang_libs + llvm_libs + additional_llvm_libs
+
+# Create LLVM dependency using library directories (like xmake)
+# This avoids individual library resolution and lets the linker handle it
+system_libs = []
+if target_machine.system() == 'windows'
+  system_deps = [
+    'psapi', 'shell32', 'ole32', 'uuid', 'advapi32', 
+    'ws2_32', 'ntdll', 'version'
+  ]
+  
+  foreach lib : system_deps
+    dep = cpp.find_library(lib, required : false)
+    if dep.found()
+      system_libs += dep
+    endif
+  endforeach
+endif
+
+# Create LLVM dependency using MSVC-compatible approach
+# Find individual libraries needed by MakeIndex
+required_llvm_libs = [
+  'clangInterpreter', 'clangFrontendTool', 'clangStaticAnalyzerFrontend', 'clangStaticAnalyzerCheckers',
+  'clangTransformer', 'clangStaticAnalyzerCore', 'clangToolingRefactoring', 'clangExtractAPI',
+  'clangCrossTU', 'clangDependencyScanning', 'clangIndex', 'clangTooling', 'clangToolingSyntax',
+  'clangRewriteFrontend', 'clangARCMigrate', 'clangCodeGen', 'clangFrontend', 'clangAnalysisFlowSensitiveModels',
+  'clangSerialization', 'clangParse', 'clangFormat', 'clangAnalysisFlowSensitive', 'clangSema',
+  'clangToolingInclusions', 'clangAnalysis', 'clangDynamicASTMatchers', 'clangToolingCore', 'clangInstallAPI',
+  'clangToolingASTDiff', 'clangToolingInclusionsStdlib', 'clangEdit', 'clangASTMatchers', 'clangRewrite',
+  'clangAST', 'clangIndexSerialization', 'clangDriver', 'clangLex', 'clangAPINotes', 'clangSupport',
+  'clangDirectoryWatcher', 'clangBasic',
+  'LLVMExegesisMips', 'LLVMExegesisPowerPC', 'LLVMExegesisAArch64', 'LLVMExegesisX86', 'LLVMOptDriver',
+  'LLVMExegesis', 'LLVMOrcDebugging', 'LLVMBPFCodeGen', 'LLVMAMDGPUCodeGen', 'LLVMOrcJIT', 'LLVMLTO',
+  'LLVMPasses', 'LLVMX86CodeGen', 'LLVMRISCVCodeGen', 'LLVMPowerPCCodeGen', 'LLVMMipsCodeGen', 'LLVMARMCodeGen',
+  'LLVMAArch64CodeGen', 'LLVMNVPTXCodeGen', 'LLVMHexagonCodeGen', 'LLVMCoroutines', 'LLVMWebAssemblyCodeGen',
+  'LLVMDWARFLinkerParallel', 'LLVMDWARFLinkerClassic', 'LLVMXCoreCodeGen', 'LLVMVECodeGen', 'LLVMSystemZCodeGen',
+  'LLVMSparcCodeGen', 'LLVMMSP430CodeGen', 'LLVMLoongArchCodeGen', 'LLVMLanaiCodeGen', 'LLVMAVRCodeGen',
+  'LLVMGlobalISel', 'LLVMipo', 'LLVMWebAssemblyUtils', 'LLVMInterpreter', 'LLVMDWARFLinker', 'LLVMMIRParser',
+  'LLVMAsmPrinter', 'LLVMSelectionDAG', 'LLVMFrontendOpenMP', 'LLVMCodeGen', 'LLVMFuzzMutate', 'LLVMAMDGPUTargetMCA',
+  'LLVMAMDGPUDisassembler', 'LLVMAMDGPUAsmParser', 'LLVMMCJIT', 'LLVMScalarOpts', 'LLVMAMDGPUDesc',
+  'LLVMExecutionEngine', 'LLVMLinker', 'LLVMHipStdPar', 'LLVMObjCARCOpts', 'LLVMVectorize', 'LLVMInstCombine',
+  'LLVMAggressiveInstCombine', 'LLVMInstrumentation', 'LLVMFrontendOffloading', 'LLVMAMDGPUUtils', 'LLVMTarget',
+  'LLVMTransformUtils', 'LLVMFrontendDriver', 'LLVMBitWriter', 'LLVMIRPrinter', 'LLVMCoverage', 'LLVMAnalysis',
+  'LLVMCFIVerify', 'LLVMProfileData', 'LLVMDebuginfod', 'LLVMARMDisassembler', 'LLVMARMAsmParser', 'LLVMSymbolize',
+  'LLVMDebugInfoLogicalView', 'LLVMTextAPIBinaryReader', 'LLVMDWP', 'LLVMDebugInfoGSYM', 'LLVMXRay',
+  'LLVMLibDriver', 'LLVMDlltoolDriver', 'LLVMARMDesc', 'LLVMRuntimeDyld', 'LLVMJITLink', 'LLVMDebugInfoPDB',
+  'LLVMDebugInfoDWARF', 'LLVMObjectYAML', 'LLVMObjCopy', 'LLVMCodeGenData', 'LLVMInterfaceStub', 'LLVMX86TargetMCA',
+  'LLVMX86AsmParser', 'LLVMWebAssemblyDisassembler', 'LLVMWebAssemblyAsmParser', 'LLVMVEAsmParser',
+  'LLVMSystemZDisassembler', 'LLVMSystemZAsmParser', 'LLVMSparcAsmParser', 'LLVMRISCVTargetMCA',
+  'LLVMRISCVDisassembler', 'LLVMRISCVAsmParser', 'LLVMPowerPCAsmParser', 'LLVMMSP430AsmParser', 'LLVMMipsAsmParser',
+  'LLVMLoongArchDisassembler', 'LLVMLoongArchAsmParser', 'LLVMLanaiDisassembler', 'LLVMLanaiAsmParser',
+  'LLVMHexagonDisassembler', 'LLVMHexagonAsmParser', 'LLVMBPFAsmParser', 'LLVMAVRAsmParser',
+  'LLVMAArch64Disassembler', 'LLVMAArch64AsmParser', 'LLVMObject', 'LLVMXCoreDesc', 'LLVMXCoreDisassembler',
+  'LLVMX86Desc', 'LLVMX86Disassembler', 'LLVMWebAssemblyDesc', 'LLVMVEDesc', 'LLVMVEDisassembler',
+  'LLVMSystemZDesc', 'LLVMSparcDesc', 'LLVMSparcDisassembler', 'LLVMRISCVDesc', 'LLVMPowerPCDesc',
+  'LLVMPowerPCDisassembler', 'LLVMNVPTXDesc', 'LLVMMSP430Disassembler', 'LLVMMSP430Desc', 'LLVMMipsDesc',
+  'LLVMMipsDisassembler', 'LLVMLoongArchDesc', 'LLVMLanaiDesc', 'LLVMHexagonDesc', 'LLVMBPFDesc',
+  'LLVMBPFDisassembler', 'LLVMAVRDesc', 'LLVMAVRDisassembler', 'LLVMAArch64Desc', 'LLVMIRReader',
+  'LLVMXCoreInfo', 'LLVMX86Info', 'LLVMWebAssemblyInfo', 'LLVMVEInfo', 'LLVMSystemZInfo', 'LLVMSparcInfo',
+  'LLVMRISCVInfo', 'LLVMPowerPCInfo', 'LLVMNVPTXInfo', 'LLVMMSP430Info', 'LLVMMipsInfo', 'LLVMLoongArchInfo',
+  'LLVMLanaiInfo', 'LLVMHexagonInfo', 'LLVMBPFInfo', 'LLVMAVRInfo', 'LLVMARMInfo', 'LLVMAMDGPUInfo',
+  'LLVMAArch64Info', 'LLVMMCA', 'LLVMMCDisassembler', 'LLVMMCParser', 'LLVMDiff', 'LLVMAsmParser',
+  'LLVMSandboxIR', 'LLVMAArch64Utils', 'LLVMCFGuard', 'LLVMFrontendHLSL', 'LLVMBitReader', 'LLVMTextAPI',
+  'LLVMMC', 'LLVMCore', 'LLVMTableGenCommon', 'LLVMWindowsDriver', 'LLVMOrcTargetProcess', 'LLVMBinaryFormat',
+  'LLVMFuzzerCLI', 'LLVMRemarks', 'LLVMTableGenBasic', 'LLVMWindowsManifest', 'LLVMTargetParser',
+  'LLVMLineEditor', 'LLVMARMUtils', 'LLVMOrcShared', 'LLVMDebugInfoBTF', 'LLVMDebugInfoCodeView',
+  'LLVMDebugInfoMSF', 'LLVMOption', 'LLVMFrontendOpenACC', 'LLVMExtensions', 'LLVMBitstreamReader',
+  'LLVMCodeGenTypes', 'LLVMFileCheck', 'LLVMTableGen', 'LLVMSupport', 'LLVMDemangle',
+  'Remarks', 'LTO', 'LLVM-C'
+]
+
+# Find all LLVM libraries
 llvm_deps = []
-foreach lib : llvm_libs
+foreach lib : required_llvm_libs
   dep = cpp.find_library(lib, dirs : llvm_lib_dir, required : false)
   if dep.found()
     llvm_deps += dep
@@ -112,17 +234,11 @@ foreach lib : llvm_libs
   endif
 endforeach
 
-# Create the LLVM dependency
-if llvm_deps.length() > 0
-  llvm_dep = declare_dependency(
-    dependencies : llvm_deps,
-    include_directories : include_directories(llvm_inc_dir)
-  )
-else
-  # Fallback for when libraries aren't found
-  warning('No LLVM libraries found, creating dummy dependency')
-  llvm_dep = declare_dependency()
-endif
+# Create the comprehensive LLVM dependency
+llvm_dep = declare_dependency(
+  include_directories : include_directories(llvm_inc_dir),
+  dependencies : llvm_deps + system_libs
+)
 
 # DocTest dependency (header-only, just need include path)
 doctest_dep = declare_dependency()

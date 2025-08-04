@@ -2,3 +2,12 @@
 .xmake/
 build/
 .conan/
+conan/
+builddir/
+builddir_*/
+
+# Conan generated files
+conanbuild.*
+conanrun.*
+deactivate_conan*
+conanvcvars.*
