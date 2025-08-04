@@ -15,7 +15,9 @@ The project consists of two main components:
 
 - **Clang**: For parsing C++ code and generating AST
 - **Kuzu**: Graph database for storing the AST data
-- **XMake**: Build system (version: latest)
+- **Build System**: Choose one of:
+  - **XMake**: Traditional build system (version: latest)
+  - **Meson**: Modern build system with Conan package management (version: 1.8.3+)
 - **C++20 compatible compiler**
 
 ### Supported Platforms and Toolchains
@@ -30,13 +32,24 @@ CppGraphIndex supports the following platform and toolchain combinations:
 
 ## 🔧 Building the Project
 
-### Prerequisites
+### Build System Options
+
+CppGraphIndex supports two build systems with complete feature parity:
+
+- **XMake**: Traditional Lua-based build system (established)
+- **Meson**: Modern Python-based build system with Conan integration (new)
+
+Choose the build system that best fits your development environment and workflow.
+
+### Option 1: XMake Build (Traditional)
+
+#### Prerequisites
 
 1. Install [XMake](https://xmake.io/#/getting_started?id=installation)
 2. Install Clang
 3. Install Kuzu database
 
-### Build Commands
+#### Build Commands
 
 ```bash
 # Configure and build the project
@@ -46,10 +59,7 @@ xmake
 xmake build
 ```
 
-### Build Modes
-
-- **Debug Mode** (default): Includes debug symbols, no optimization
-- **Release Mode**: Optimized build with symbols stripped
+#### Build Modes
 
 ```bash
 # Debug build (default)
@@ -61,9 +71,55 @@ xmake f -m release
 xmake
 ```
 
+### Option 2: Meson Build (Modern)
+
+#### Prerequisites
+
+1. Install [Meson](https://mesonbuild.com/Getting-meson.html) (≥1.8.3)
+2. Install [Ninja](https://ninja-build.org/) (≥1.12.0)
+3. Install [Conan](https://conan.io/downloads) (≥2.0) for dependency management
+4. Ensure you have the correct compiler:
+   - **Windows**: MSVC (required for LLVM compatibility)
+   - **Linux**: GCC (recommended)
+   - **macOS**: Clang (recommended)
+
+#### Quick Start
+
+```bash
+# Windows only: Setup MSVC environment (REQUIRED first step)
+conanvcvars.bat
+
+# Setup dependencies and build (automated)
+python tools/build.py full
+
+# Or step by step:
+python tools/setup-deps.py        # Install dependencies
+meson setup builddir              # Configure build
+ninja -C builddir                 # Build project
+```
+
+#### Build Modes
+
+```bash
+# Windows only: Setup MSVC environment (REQUIRED first step)
+conanvcvars.bat
+
+# Debug build (default)
+meson setup builddir --buildtype=debug
+ninja -C builddir
+
+# Release build
+meson setup builddir_release --buildtype=release
+ninja -C builddir_release
+```
+
+> **📖 Detailed Documentation**: For comprehensive Meson build instructions, troubleshooting, and advanced features, see [docs/MESON_BUILD.md](docs/MESON_BUILD.md)
+
 ## 🧪 Running Tests
 
 The project uses [doctest](https://github.com/doctest/doctest) for unit testing.
+
+### XMake Tests
 
 ```bash
 # Run all tests
@@ -71,6 +127,16 @@ xmake test -v
 
 # Or run the executable with selftest flag
 xmake run MakeIndex --selftest
+```
+
+### Meson Tests
+
+```bash
+# Run all tests
+meson test -C builddir
+
+# Or run the executable with selftest flag
+./builddir/MakeIndex/makeindex_exe --selftest
 ```
 
 ## 🎯 Usage
@@ -94,14 +160,22 @@ xmake run MakeIndex [options]
 
 Format all source code using clang-format:
 
+#### XMake
 ```bash
 xmake run format
+```
+
+#### Meson
+```bash
+ninja -C builddir format
+# Or directly: python tools/format.py
 ```
 
 ### Code Linting
 
 Run clang-tidy on the project:
 
+#### XMake
 ```bash
 # Lint all files
 xmake run lint
@@ -110,16 +184,52 @@ xmake run lint
 xmake run lint path/to/file.cpp
 ```
 
+#### Meson
+```bash
+ninja -C builddir lint
+# Or directly: python tools/lint.py
+```
+
+### Development Workflows
+
+Both build systems support comprehensive development workflows:
+
+#### XMake Workflow
+```bash
+xmake            # Build
+xmake test       # Test
+xmake run format # Format
+xmake run lint   # Lint
+```
+
+#### Meson Workflow
+```bash
+ninja -C builddir        # Build
+meson test -C builddir   # Test
+ninja -C builddir format # Format
+ninja -C builddir lint   # Lint
+```
+
+For Meson development convenience scripts, see [docs/MESON_BUILD.md#development-scripts](docs/MESON_BUILD.md#development-scripts)
+
 ## 🏗️ Project Structure
 
 ```
 CppGraphIndex/
 ├── MakeIndex/           # Source code for the indexing tool
-├── 3rdParty/           # Third-party dependencies
+├── 3rdParty/           # Third-party dependencies (XMake)
 │   └── include/
 │       └── doctest/    # Testing framework
+├── tools/              # Build and development tools (Meson)
+├── scripts/            # Development convenience scripts (Meson)
+├── docs/               # Documentation
+│   ├── MESON_BUILD.md  # Detailed Meson build guide
+│   └── MIGRATION_GUIDE.md # XMake to Meson migration
+├── conan/              # Conan profiles and configuration (Meson)
 ├── .github/            # GitHub Actions workflows
-├── xmake.lua          # Build configuration
+├── xmake.lua          # XMake build configuration
+├── meson.build        # Meson build configuration
+├── conanfile.py       # Conan dependencies (Meson)
 ├── .clang-format      # Code formatting rules
 └── .clang-tidy        # Static analysis configuration
 ```
@@ -127,6 +237,34 @@ CppGraphIndex/
 ## 📝 Programming Language
 
 This project is written in **C++20**.
+
+## 🔄 Build System Comparison
+
+Both build systems provide complete feature parity:
+
+| Feature | XMake | Meson |
+|---------|-------|-------|
+| Build Speed | Fast | Fast (with Ninja) |
+| Dependency Management | Built-in | Conan integration |
+| Cross-platform | ✅ | ✅ |
+| C++20 Support | ✅ | ✅ |
+| Development Tools | ✅ | ✅ |
+| IDE Integration | Good | Excellent |
+| Package Management | Manual | Automated (Conan) |
+| Learning Curve | Moderate | Gentle |
+
+### When to Choose XMake
+- You prefer Lua-based configuration
+- You want minimal external dependencies
+- You're familiar with existing XMake workflow
+
+### When to Choose Meson
+- You prefer Python-based tooling
+- You want automated dependency management
+- You need advanced IDE integration
+- You're starting a new development setup
+
+> **📖 Migration Guide**: To migrate from XMake to Meson, see [docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)
 
 ## 📄 License
 
@@ -143,12 +281,20 @@ This project is in the very initial stages of development. Contributions, ideas,
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes
-4. Format your code (`xmake run format`)
-5. Run linting (`xmake run lint`)
-6. Run tests (`xmake test`)
+4. Format your code:
+   - XMake: `xmake run format`
+   - Meson: `ninja -C builddir format`
+5. Run linting:
+   - XMake: `xmake run lint`
+   - Meson: `ninja -C builddir lint`
+6. Run tests:
+   - XMake: `xmake test`
+   - Meson: `meson test -C builddir`
 7. Commit your changes (`git commit -m 'Add amazing feature'`)
 8. Push to the branch (`git push origin feature/amazing-feature`)
 9. Open a Pull Request
+
+> **Note**: Both build systems are supported for development. Choose the one that fits your workflow best.
 
 ## 📞 Support
 
