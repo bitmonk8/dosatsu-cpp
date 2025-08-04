@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import time
 import json
+import argparse
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
@@ -374,24 +375,31 @@ class ParityValidator:
 
 def main():
     """Main entry point."""
-    if len(sys.argv) > 1:
-        project_root = sys.argv[1]
-    else:
-        project_root = os.getcwd()
+    parser = argparse.ArgumentParser(description="Validate feature parity between xmake and Meson build systems")
+    parser.add_argument("project_root", nargs="?", default=os.getcwd(), 
+                       help="Project root directory (default: current directory)")
+    parser.add_argument("--ci-mode", action="store_true",
+                       help="CI mode: simplified output, no report file generation")
     
-    validator = ParityValidator(project_root)
+    args = parser.parse_args()
+    
+    validator = ParityValidator(args.project_root)
     
     try:
         success = validator.run_full_validation()
         
-        # Generate report
-        report = validator.generate_report()
-        report_file = Path(project_root) / "PARITY_VALIDATION_REPORT.md"
-        
-        with open(report_file, 'w') as f:
-            f.write(report)
-        
-        print(f"\n[REPORT] Detailed report written to: {report_file}")
+        if not args.ci_mode:
+            # Generate report file in non-CI mode
+            report = validator.generate_report()
+            report_file = Path(args.project_root) / "PARITY_VALIDATION_REPORT.md"
+            
+            with open(report_file, 'w') as f:
+                f.write(report)
+            
+            print(f"\n[REPORT] Detailed report written to: {report_file}")
+        else:
+            # CI mode: just print summary
+            print(f"\n[CI] Feature parity validation: {'PASSED' if success else 'FAILED'}")
         
         sys.exit(0 if success else 1)
         

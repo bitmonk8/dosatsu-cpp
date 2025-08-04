@@ -1,0 +1,183 @@
+name: Meson Build and Test
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  # Allow manual triggering for testing
+  workflow_dispatch:
+
+jobs:
+  meson-build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        build_type: [debug, release]
+        include:
+          # Platform-specific configurations
+          - os: ubuntu-latest
+            compiler: gcc
+            conan_profile: linux-gcc
+          - os: macos-latest
+            compiler: clang
+            conan_profile: macos-clang
+          - os: windows-latest
+            compiler: msvc
+            conan_profile: windows-msvc
+    
+    runs-on: ${{ matrix.os }}
+    
+    env:
+      BUILD_DIR: builddir_${{ matrix.build_type }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      # Platform-specific setup
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Setup MSVC (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+          
+      # Install build tools
+      - name: Install Meson and Ninja
+        run: |
+          python -m pip install --upgrade pip
+          pip install meson ninja
+          
+      - name: Install Conan
+        run: |
+          pip install conan
+          
+      - name: Verify tools
+        run: |
+          meson --version
+          ninja --version
+          conan --version
+          
+      # Setup Conan profile and dependencies
+      - name: Setup Conan profile
+        run: |
+          conan profile detect --force
+          
+      - name: Cache Conan dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.conan2
+          key: conan-${{ matrix.os }}-${{ hashFiles('conanfile.py') }}
+          restore-keys: |
+            conan-${{ matrix.os }}-
+            
+      - name: Install dependencies
+        run: |
+          python tools/setup-deps.py --profile-detect
+          
+      # Configure and build
+      - name: Configure Meson
+        run: |
+          meson setup ${{ env.BUILD_DIR }} --buildtype=${{ matrix.build_type }}
+          
+      - name: Build project
+        run: |
+          ninja -C ${{ env.BUILD_DIR }}
+          
+      # Run tests
+      - name: Run tests
+        run: |
+          meson test -C ${{ env.BUILD_DIR }} --verbose
+          
+      # Run development tools
+      - name: Run format check
+        run: |
+          ninja -C ${{ env.BUILD_DIR }} format
+          
+      - name: Run lint check
+        if: matrix.build_type == 'debug'  # Only run lint once per platform
+        run: |
+          ninja -C ${{ env.BUILD_DIR }} lint
+          
+      # Generate artifacts
+      - name: Prepare artifacts
+        run: |
+          mkdir -p artifacts/${{ matrix.os }}-${{ matrix.build_type }}
+          cp ${{ env.BUILD_DIR }}/MakeIndex/makeindex* artifacts/${{ matrix.os }}-${{ matrix.build_type }}/
+          
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: meson-build-${{ matrix.os }}-${{ matrix.build_type }}
+          path: artifacts/
+          retention-days: 7
+          
+      # Performance timing
+      - name: Build performance timing
+        run: |
+          echo "=== Meson Build Performance ===" > timing.txt
+          echo "OS: ${{ matrix.os }}" >> timing.txt
+          echo "Build Type: ${{ matrix.build_type }}" >> timing.txt
+          echo "Compiler: ${{ matrix.compiler }}" >> timing.txt
+          time ninja -C ${{ env.BUILD_DIR }} clean
+          time ninja -C ${{ env.BUILD_DIR }}
+          
+      - name: Upload timing results
+        uses: actions/upload-artifact@v3
+        with:
+          name: meson-timing-${{ matrix.os }}-${{ matrix.build_type }}
+          path: timing.txt
+          retention-days: 7
+
+  # Feature parity validation job
+  feature-parity:
+    needs: meson-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install meson ninja conan
+          
+      - name: Setup XMake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+          
+      - name: Run feature parity validation
+        run: |
+          python scripts/validate-parity.py --ci-mode
+          
+  # Report results
+  ci-summary:
+    needs: [meson-build, feature-parity]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Report CI Results
+        run: |
+          echo "=== Meson CI Summary ==="
+          echo "Meson builds: ${{ needs.meson-build.result }}"
+          echo "Feature parity: ${{ needs.feature-parity.result }}"
+          
+          if [[ "${{ needs.meson-build.result }}" == "success" && "${{ needs.feature-parity.result }}" == "success" ]]; then
+            echo "✅ All Meson CI checks passed!"
+            exit 0
+          else
+            echo "❌ Some Meson CI checks failed!"
+            exit 1
+          fi
