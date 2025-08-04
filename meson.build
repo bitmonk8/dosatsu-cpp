@@ -137,5 +137,12 @@ run_target('format',
   command : [python3, format_script]
 )
 
+# Lint target - code linting with clang-tidy
+lint_script = files('tools/lint.py')
+
+run_target('lint',
+  command : [python3, lint_script, '--build-dir', meson.current_build_dir()]
+)
+
 # Add subdirectories
 subdir('MakeIndex')
