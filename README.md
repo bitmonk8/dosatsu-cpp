@@ -17,7 +17,7 @@ The project consists of two main components:
 - **Kuzu**: Graph database for storing the AST data
 - **Build System**: Choose one of:
   - **XMake**: Traditional build system (version: latest)
-  - **Meson**: Modern build system with Conan package management (version: 1.8.3+)
+  - **Meson**: Modern build system with git subproject dependencies (version: 1.8.3+)
 - **C++20 compatible compiler**
 
 ### Supported Platforms and Toolchains
@@ -37,7 +37,7 @@ CppGraphIndex supports the following platform and toolchain combinations:
 CppGraphIndex supports two build systems with complete feature parity:
 
 - **XMake**: Traditional Lua-based build system (established)
-- **Meson**: Modern Python-based build system with Conan integration (new)
+- **Meson**: Modern Python-based build system with git subproject integration (new)
 
 Choose the build system that best fits your development environment and workflow.
 
@@ -77,7 +77,7 @@ xmake
 
 1. Install [Meson](https://mesonbuild.com/Getting-meson.html) (≥1.8.3)
 2. Install [Ninja](https://ninja-build.org/) (≥1.12.0)
-3. Install [Conan](https://conan.io/downloads) (≥2.0) for dependency management
+3. Install [CMake](https://cmake.org/download/) (≥3.20) for LLVM subproject building
 4. Ensure you have the correct compiler:
    - **Windows**: MSVC (required for LLVM compatibility)
    - **Linux**: GCC (recommended)
@@ -86,24 +86,17 @@ xmake
 #### Quick Start
 
 ```bash
-# Windows only: Setup MSVC environment (REQUIRED first step)
-conanvcvars.bat
-
-# Setup dependencies and build (automated)
+# Setup and build (automated)
 python tools/build.py full
 
 # Or step by step:
-python tools/setup-deps.py        # Install dependencies
-meson setup builddir              # Configure build
+meson setup builddir              # Configure build (includes LLVM git subproject)
 ninja -C builddir                 # Build project
 ```
 
 #### Build Modes
 
 ```bash
-# Windows only: Setup MSVC environment (REQUIRED first step)
-conanvcvars.bat
-
 # Debug build (default)
 meson setup builddir --buildtype=debug
 ninja -C builddir

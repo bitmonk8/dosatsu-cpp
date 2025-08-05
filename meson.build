@@ -147,97 +147,21 @@ endif
 # Include directories
 inc_dir = include_directories('3rdParty/include')
 
-# Dependencies from Conan using direct library paths
-# Since pkg-config has issues on Windows, use find_library with Conan paths
+# Dependencies - LLVM from git subproject, doctest from 3rdParty folder
 
-# Hybrid approach: Use Conan for zlib/zstd, xmake for LLVM/Clang (has complete headers)
-zlib_lib_dir = 'C:/Users/thomasa/.conan2/p/zlib0e715158c1dfd/p/lib'
-zstd_lib_dir = 'C:/Users/thomasa/.conan2/p/zstdf3692c72a3d69/p/lib'
-llvm_lib_dir = 'C:/Users/thomasa/AppData/Local/.xmake/packages/l/libllvm/19.1.7/1846a5ba8f6f4ddfae98aa55f7f30064/lib'
+# LLVM dependency from git subproject
+# Try to find system LLVM first, fallback to subproject
+llvm_dep = dependency('llvm', version: '>=19.0', required: false)
 
-zlib_inc_dir = 'C:/Users/thomasa/.conan2/p/zlib0e715158c1dfd/p/include'
-zstd_inc_dir = 'C:/Users/thomasa/.conan2/p/zstdf3692c72a3d69/p/include'
-llvm_inc_dir = 'C:/Users/thomasa/AppData/Local/.xmake/packages/l/libllvm/19.1.7/1846a5ba8f6f4ddfae98aa55f7f30064/include'
-
-# Find individual libraries
-zlib_lib = cpp.find_library('zlib', dirs : zlib_lib_dir, required : true)
-zstd_lib = cpp.find_library('zstd_static', dirs : zstd_lib_dir, required : true)
-
-# Find all LLVM/Clang libraries - include comprehensive set to resolve all symbols
-llvm_libs = []
-
-# Complete LLVM library set based on linking errors and xmake configuration
-complete_llvm_libs = [
-  # Core LLVM libraries
-  'LLVMCore', 'LLVMSupport', 'LLVMBinaryFormat', 'LLVMDemangle', 
-  'LLVMAsmParser', 'LLVMBitReader', 'LLVMAnalysis', 'LLVMTarget',
-  'LLVMTransformUtils', 'LLVMInstCombine', 'LLVMScalarOpts', 'LLVMipo',
-  'LLVMVectorize', 'LLVMCodeGen', 'LLVMSelectionDAG', 'LLVMAsmPrinter',
-  'LLVMMC', 'LLVMMCParser', 'LLVMObject', 'LLVMOption',
-  
-  # Target architecture libraries (to resolve Triple, AArch64, ARM, etc. symbols)
-  'LLVMTargetParser', 'LLVMAArch64Utils', 'LLVMARMUtils', 
-  'LLVMAArch64Info', 'LLVMARMInfo', 'LLVMX86Info', 'LLVMAMDGPUInfo',
-  'LLVMRISCVInfo', 'LLVMPowerPCInfo', 'LLVMMipsInfo', 'LLVMSparcInfo',
-  'LLVMSystemZInfo', 'LLVMHexagonInfo', 'LLVMBPFInfo', 'LLVMVEInfo',
-  'LLVMAVRInfo', 'LLVMWebAssemblyInfo', 'LLVMXCoreInfo', 'LLVMNVPTXInfo',
-  'LLVMMSP430Info', 'LLVMLanaiInfo', 'LLVMLoongArchInfo',
-  
-  # Architecture descriptors
-  'LLVMAArch64Desc', 'LLVMARMDesc', 'LLVMX86Desc', 'LLVMAMDGPUDesc',
-  'LLVMRISCVDesc', 'LLVMPowerPCDesc', 'LLVMMipsDesc', 'LLVMSparcDesc',
-  'LLVMSystemZDesc', 'LLVMHexagonDesc', 'LLVMBPFDesc', 'LLVMVEDesc',
-  'LLVMAVRDesc', 'LLVMWebAssemblyDesc', 'LLVMXCoreDesc', 'LLVMNVPTXDesc',
-  'LLVMMSP430Desc', 'LLVMLanaiDesc', 'LLVMLoongArchDesc',
-  
-  # OpenMP and other missing components  
-  'LLVMFrontendOpenMP', 'LLVMFrontendOffloading', 'LLVMRemarks', 'LLVMTextAPI',
-  'LLVMFrontendHLSL', 'LLVMFrontendDriver', 'LLVMProfileData',
-  'LLVMCoverage', 'LLVMFuzzerCLI', 'LLVMExtensions',
-  
-  # Additional libraries
-  'LLVMTableGen', 'LLVMTableGenBasic', 'LLVMTableGenCommon',
-  'LLVMBitstreamReader', 'LLVMCodeGenTypes', 'LLVMWindowsDriver',
-  'LLVMWindowsManifest', 'LLVMLineEditor', 'LLVMFrontendOpenACC',
-  'LLVMOrcShared', 'LLVMOrcTargetProcess', 'LLVMDebugInfoBTF',
-  'LLVMDebugInfoCodeView', 'LLVMDebugInfoMSF', 'LLVMFileCheck'
-]
-
-# Complete Clang library set
-complete_clang_libs = [
-  'clangBasic', 'clangLex', 'clangParse', 'clangAST', 'clangSema',
-  'clangCodeGen', 'clangAnalysis', 'clangEdit', 'clangRewrite',
-  'clangDriver', 'clangSerialization', 'clangFrontend', 'clangTooling',
-  'clangASTMatchers', 'clangToolingCore', 'clangFormat', 
-  'clangToolingSyntax', 'clangSupport', 'clangDirectoryWatcher'
-]
-
-all_required_libs = complete_llvm_libs + complete_clang_libs
-
-foreach lib : all_required_libs
-  dep = cpp.find_library(lib, dirs : llvm_lib_dir, required : false)
-  if dep.found()
-    llvm_libs += dep
-  else
-    message('Warning: Library @0@ not found, continuing anyway'.format(lib))
-  endif
-endforeach
+if not llvm_dep.found()
+  message('System LLVM not found, building from git subproject...')
+  llvm_proj = subproject('llvm')
+  llvm_dep = llvm_proj.get_variable('llvm_dep')
+endif
 
 # Create dependency declarations
-zlib_dep = declare_dependency(
-  dependencies : zlib_lib,
-  include_directories : include_directories(zlib_inc_dir)
-)
 
-zstd_dep = declare_dependency(
-  dependencies : zstd_lib,
-  include_directories : include_directories(zstd_inc_dir)
-)
 
-llvm_dep = declare_dependency(
-  dependencies : llvm_libs,
-  include_directories : include_directories(llvm_inc_dir)
-)
 
 doctest_dep = declare_dependency(
   include_directories : include_directories('3rdParty/include')
@@ -261,9 +185,8 @@ if target_machine.system() == 'windows'
   endforeach
 endif
 
-# Combine all dependencies - Conan provides LLVM with all required libraries
-# and proper linking to zlib/zstd
-all_deps = [llvm_dep, zlib_dep, zstd_dep] + system_deps
+# Combine all dependencies - git subproject provides LLVM with all required libraries
+all_deps = [llvm_dep] + system_deps
 
 # Development tools targets
 

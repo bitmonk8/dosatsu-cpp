@@ -2,8 +2,8 @@
 """
 CppGraphIndex Integrated Build Script
 
-This script provides a comprehensive build wrapper that integrates Conan dependency 
-management with Meson builds, providing convenient commands for development workflow.
+This script provides a comprehensive build wrapper for CppGraphIndex using 
+Meson with git subproject dependencies, providing convenient commands for development workflow.
 """
 
 import os
@@ -15,176 +15,108 @@ import platform
 from pathlib import Path
 
 
-def setup_vs_environment():
-    """Set up Visual Studio environment on Windows."""
-    if platform.system() != "Windows":
-        return {}  # No environment changes needed on non-Windows
-    
-    project_root = Path(__file__).parent.parent
-    conanbuild_script = project_root / "conanbuild.bat"
-    
-    if not conanbuild_script.exists():
-        print("[WARNING] conanbuild.bat not found. VS environment may not be set up properly.")
-        return {}
-    
-    # Run conanbuild.bat and capture environment variables
+def run_command(cmd, cwd=None, check=True, env=None):
+    """Run a command and return success status."""
+    print(f"Running: {' '.join(cmd)}")
     try:
-        # Create a batch script to call conanbuild.bat and then echo all environment variables
-        temp_script = project_root / "temp_env_capture.bat"
-        with open(temp_script, 'w') as f:
-            f.write('@echo off\n')
-            f.write(f'call "{conanbuild_script}"\n')
-            f.write('set\n')  # Output all environment variables
-        
-        result = subprocess.run([str(temp_script)], capture_output=True, text=True, 
-                              cwd=project_root, shell=True)
-        
-        # Clean up temp script
-        temp_script.unlink(missing_ok=True)
-        
-        if result.returncode != 0:
-            print(f"[WARNING] Failed to set up VS environment: {result.stderr}")
-            return {}
-        
-        # Parse environment variables from output
-        env_vars = {}
-        for line in result.stdout.split('\n'):
-            if '=' in line and not line.startswith('echo '):
-                key, _, value = line.partition('=')
-                env_vars[key.strip()] = value.strip()
-        
-        print("[INFO] Visual Studio environment configured")
-        return env_vars
-        
-    except Exception as e:
-        print(f"[WARNING] Error setting up VS environment: {e}")
-        return {}
-
-
-def run_command(cmd, cwd=None, check=True, show_output=True, use_vs_env=True):
-    """Run a command and return the result."""
-    if show_output:
-        print(f"Running: {' '.join(cmd)}")
-    
-    # Set up environment with Visual Studio tools if on Windows
-    env = os.environ.copy()
-    if use_vs_env and platform.system() == "Windows":
-        vs_env = setup_vs_environment()
-        env.update(vs_env)
-    
-    try:
-        if show_output:
-            # Stream output in real-time
-            process = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, 
-                                     stderr=subprocess.STDOUT, text=True, bufsize=1, env=env)
-            
-            output_lines = []
-            for line in process.stdout:
-                print(line, end='')
-                output_lines.append(line)
-            
-            process.wait()
-            if check and process.returncode != 0:
-                raise subprocess.CalledProcessError(process.returncode, cmd)
-            
-            return subprocess.CompletedProcess(cmd, process.returncode, 
-                                             stdout=''.join(output_lines), stderr='')
-        else:
-            return subprocess.run(cmd, cwd=cwd, check=check, capture_output=True, text=True, env=env)
-            
+        result = subprocess.run(cmd, cwd=cwd, check=check, env=env)
+        return result.returncode == 0
     except subprocess.CalledProcessError as e:
-        print(f"\n❌ Command failed: {' '.join(cmd)}")
+        print(f"Error running command: {' '.join(cmd)}")
         print(f"Exit code: {e.returncode}")
-        if hasattr(e, 'stdout') and e.stdout:
-            print(f"Stdout: {e.stdout}")
-        if hasattr(e, 'stderr') and e.stderr:
-            print(f"Stderr: {e.stderr}")
-        raise
+        return False
+    except FileNotFoundError:
+        print(f"Command not found: {cmd[0]}")
+        return False
 
 
 def check_dependencies():
     """Check if required tools are available."""
     tools = {
-        "conan": ["conan", "--version"],
-        "meson": ["meson", "--version"], 
-        "ninja": ["ninja", "--version"]
+        "meson": ["meson", "--version"],
+        "ninja": ["ninja", "--version"],
+        "cmake": ["cmake", "--version"],
     }
     
-    missing = []
+    all_available = True
     for tool, cmd in tools.items():
         try:
-            result = run_command(cmd, show_output=False)
-            print(f"[OK] {tool}: {result.stdout.strip()}")
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            version = result.stdout.strip().split('\n')[0]
+            print(f"✓ {tool.capitalize()}: {version}")
         except (subprocess.CalledProcessError, FileNotFoundError):
-            print(f"[MISSING] {tool}: Not found")
-            missing.append(tool)
+            print(f"✗ {tool.capitalize()}: Not found")
+            all_available = False
     
-    if missing:
-        print(f"\nMissing required tools: {', '.join(missing)}")
-        print("Please install the missing tools before continuing.")
+    return all_available
+
+
+def setup_dependencies(build_type="Release", clean=False):
+    """Setup dependencies (now just verification since they're git subprojects)."""
+    project_root = Path(__file__).parent.parent
+    
+    if clean:
+        print("[INFO] Cleaning build files...")
+        clean_build(None, False)
+    
+    print("[INFO] Verifying subproject structure...")
+    
+    # Check subproject structure
+    subprojects_dir = project_root / "subprojects"
+    llvm_wrap = subprojects_dir / "llvm.wrap"
+    llvm_meson = subprojects_dir / "packagefiles" / "llvm-project" / "meson.build"
+    
+    if not subprojects_dir.exists():
+        print("[ERROR] subprojects directory not found")
         return False
     
+    if not llvm_wrap.exists():
+        print("[ERROR] LLVM wrap file not found")
+        return False
+    
+    if not llvm_meson.exists():
+        print("[ERROR] LLVM meson.build not found")
+        return False
+    
+    print("[INFO] ✓ Dependencies verified (git subprojects)")
     return True
 
 
-def setup_dependencies(force_build=False, build_type="Release", clean=False):
-    """Set up dependencies using the setup-deps script."""
-    project_root = Path(__file__).parent.parent
-    setup_script = project_root / "tools" / "setup-deps.py"
-    
-    if not setup_script.exists():
-        print("[ERROR] setup-deps.py script not found")
-        return False
-    
-    cmd = [sys.executable, str(setup_script), "--build-type", build_type]
-    
-    if force_build:
-        cmd.append("--force-build")
-    
-    if clean:
-        cmd.append("--clean")
-    
-    try:
-        run_command(cmd, cwd=project_root)
-        return True
-    except subprocess.CalledProcessError:
-        return False
-
-
-def setup_meson(build_dir="builddir", build_type="release", reconfigure=False):
+def setup_meson(build_dir="builddir", build_type="debug", reconfigure=False):
     """Set up Meson build directory."""
     project_root = Path(__file__).parent.parent
     build_path = project_root / build_dir
     
-    # Remove build directory if reconfiguring
     if reconfigure and build_path.exists():
-        print(f"Removing existing build directory: {build_path}")
+        print(f"[INFO] Reconfiguring build directory: {build_dir}")
         import shutil
         shutil.rmtree(build_path)
     
+    if build_path.exists():
+        print(f"[INFO] Build directory {build_dir} already exists")
+        return True
+    
     cmd = ["meson", "setup", build_dir, f"--buildtype={build_type}"]
     
-    # Use Conan-generated toolchain file if available (now in conan directory)
-    toolchain_file = project_root / "conan" / "conan_meson_native.ini"
-    if toolchain_file.exists():
-        cmd.extend(["--native-file", "conan/conan_meson_native.ini"])
-        print(f"Using Conan toolchain: {toolchain_file}")
+    # Add compiler-specific flags for Windows
+    if platform.system() == "Windows":
+        print("[INFO] Configuring for Windows with MSVC")
+        # Meson will auto-detect MSVC if available
     
-    try:
-        run_command(cmd, cwd=project_root)
-        return True
-    except subprocess.CalledProcessError:
-        return False
+    print(f"[INFO] Setting up Meson build ({build_type})...")
+    success = run_command(cmd, cwd=project_root)
+    
+    if success:
+        print(f"[INFO] ✓ Meson configured in {build_dir}")
+    else:
+        print(f"[ERROR] Failed to configure Meson")
+    
+    return success
 
 
 def build_project(build_dir="builddir", jobs=None, verbose=False):
     """Build the project using Ninja."""
     project_root = Path(__file__).parent.parent
-    build_path = project_root / build_dir
-    
-    if not build_path.exists():
-        print(f"[ERROR] Build directory {build_path} does not exist. Run setup first.")
-        return False
     
     cmd = ["ninja", "-C", build_dir]
     
@@ -194,109 +126,128 @@ def build_project(build_dir="builddir", jobs=None, verbose=False):
     if verbose:
         cmd.append("-v")
     
-    try:
-        start_time = time.time()
-        run_command(cmd, cwd=project_root)
-        build_time = time.time() - start_time
-        print(f"\n[SUCCESS] Build completed in {build_time:.2f} seconds")
-        return True
-    except subprocess.CalledProcessError:
-        print(f"\n[ERROR] Build failed")
-        return False
+    print(f"[INFO] Building project in {build_dir}...")
+    success = run_command(cmd, cwd=project_root)
+    
+    if success:
+        print("[INFO] ✓ Build completed successfully")
+    else:
+        print("[ERROR] Build failed")
+    
+    return success
 
 
 def run_tests(build_dir="builddir", verbose=False):
-    """Run tests using Meson."""
+    """Run tests using Meson test."""
     project_root = Path(__file__).parent.parent
-    build_path = project_root / build_dir
-    
-    if not build_path.exists():
-        print(f"[ERROR] Build directory {build_path} does not exist. Run setup and build first.")
-        return False
     
     cmd = ["meson", "test", "-C", build_dir]
     
     if verbose:
         cmd.append("-v")
     
-    try:
-        start_time = time.time()
-        run_command(cmd, cwd=project_root)
-        test_time = time.time() - start_time
-        print(f"\n[SUCCESS] Tests completed in {test_time:.2f} seconds")
-        return True
-    except subprocess.CalledProcessError:
-        print(f"\n[ERROR] Tests failed")
-        return False
+    print(f"[INFO] Running tests in {build_dir}...")
+    success = run_command(cmd, cwd=project_root)
+    
+    if success:
+        print("[INFO] ✓ All tests passed")
+    else:
+        print("[ERROR] Some tests failed")
+    
+    return success
 
 
 def run_format(build_dir="builddir"):
     """Run code formatting."""
     project_root = Path(__file__).parent.parent
     
-    cmd = ["ninja", "-C", build_dir, "format"]
+    cmd = ["meson", "compile", "-C", build_dir, "format"]
     
-    try:
-        run_command(cmd, cwd=project_root)
-        print(f"\n[SUCCESS] Code formatting completed")
-        return True
-    except subprocess.CalledProcessError:
-        print(f"\n[ERROR] Code formatting failed")
-        return False
+    print("[INFO] Running code formatting...")
+    success = run_command(cmd, cwd=project_root)
+    
+    if success:
+        print("[INFO] ✓ Code formatting completed")
+    else:
+        print("[ERROR] Code formatting failed")
+    
+    return success
 
 
 def run_lint(build_dir="builddir"):
     """Run code linting."""
     project_root = Path(__file__).parent.parent
     
-    cmd = ["ninja", "-C", build_dir, "lint"]
+    cmd = ["meson", "compile", "-C", build_dir, "lint"]
     
-    try:
-        run_command(cmd, cwd=project_root)
-        print(f"\n[SUCCESS] Code linting completed")
-        return True
-    except subprocess.CalledProcessError:
-        print(f"\n[ERROR] Code linting failed")
-        return False
+    print("[INFO] Running code linting...")
+    success = run_command(cmd, cwd=project_root)
+    
+    if success:
+        print("[INFO] ✓ Code linting completed")
+    else:
+        print("[ERROR] Code linting failed")
+    
+    return success
 
 
-def clean_build(build_dir="builddir", deps=False):
+def clean_build(build_dir=None, clean_deps=False):
     """Clean build artifacts."""
     project_root = Path(__file__).parent.parent
-    build_path = project_root / build_dir
     
-    if build_path.exists():
-        print(f"Removing build directory: {build_path}")
-        import shutil
-        shutil.rmtree(build_path)
+    if build_dir:
+        build_dirs = [build_dir]
+    else:
+        build_dirs = ["builddir", "builddir_debug", "builddir_release", "builddir_msvc"]
     
-    if deps:
-        # Clean Conan files
-        setup_script = project_root / "tools" / "setup-deps.py"
-        if setup_script.exists():
-            cmd = [sys.executable, str(setup_script), "--clean"]
-            try:
-                run_command(cmd, cwd=project_root)
-            except subprocess.CalledProcessError:
-                print("Warning: Failed to clean dependency files")
+    cleaned = []
+    for bd in build_dirs:
+        build_path = project_root / bd
+        if build_path.exists():
+            import shutil
+            shutil.rmtree(build_path)
+            cleaned.append(bd)
     
-    print("[SUCCESS] Clean completed")
+    if clean_deps:
+        # Clean subproject checkouts
+        subprojects_dir = project_root / "subprojects"
+        if subprojects_dir.exists():
+            for item in subprojects_dir.iterdir():
+                if item.is_dir() and item.name != "packagefiles":
+                    import shutil
+                    shutil.rmtree(item)
+                    cleaned.append(f"subprojects/{item.name}")
+    
+    if cleaned:
+        print(f"[INFO] Cleaned: {', '.join(cleaned)}")
+    else:
+        print("[INFO] Nothing to clean")
 
 
 def main():
-    """Main entry point."""
-    parser = argparse.ArgumentParser(description="Integrated build script for CppGraphIndex")
-    parser.add_argument("--build-dir", default="builddir", help="Build directory (default: builddir)")
-    parser.add_argument("--build-type", default="release", choices=["debug", "release"], 
-                        help="Build type (default: release)")
+    """Main function."""
+    parser = argparse.ArgumentParser(
+        description="Integrated build tool for CppGraphIndex",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python tools/build.py full              # Complete build workflow
+  python tools/build.py deps              # Setup dependencies only
+  python tools/build.py build             # Build only
+  python tools/build.py test              # Run tests only
+        """
+    )
+    
+    parser.add_argument("--build-dir", default="builddir", help="Build directory")
+    parser.add_argument("--build-type", choices=["debug", "release"], default="debug", 
+                       help="Build type")
     parser.add_argument("--jobs", "-j", type=int, help="Number of parallel jobs")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
     
     # Full build command
-    full_parser = subparsers.add_parser("full", help="Full build: deps + setup + build + test")
-    full_parser.add_argument("--force-build", action="store_true", help="Force rebuild dependencies")
+    full_parser = subparsers.add_parser("full", help="Complete build workflow")
     full_parser.add_argument("--reconfigure", action="store_true", help="Reconfigure Meson")
     
     # Individual commands
@@ -309,7 +260,7 @@ def main():
     
     # Clean command
     clean_parser = subparsers.add_parser("clean", help="Clean build artifacts")
-    clean_parser.add_argument("--deps", action="store_true", help="Also clean dependency files")
+    clean_parser.add_argument("--deps", action="store_true", help="Also clean subproject checkouts")
     
     # Status command
     subparsers.add_parser("status", help="Show build system status")
@@ -323,6 +274,7 @@ def main():
     # Check dependencies for most commands
     if args.command not in ["clean", "status"]:
         if not check_dependencies():
+            print("[ERROR] Missing required tools. Please install meson, ninja, and cmake.")
             return 1
     
     success = True
@@ -358,9 +310,8 @@ def main():
         print("[INFO] Starting full build process...")
         
         # Step 1: Dependencies
-        print("\n[STEP 1] Setting up dependencies...")
+        print("\n[STEP 1] Verifying dependencies...")
         success = setup_dependencies(
-            force_build=args.force_build, 
             build_type=args.build_type.capitalize(),
             clean=args.reconfigure
         )
@@ -382,6 +333,7 @@ def main():
         
         if success:
             print("\n[SUCCESS] Full build completed successfully!")
+            print("\nNote: LLVM was built from git subproject automatically")
         else:
             print("\n[ERROR] Full build failed!")
     

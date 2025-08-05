@@ -279,23 +279,25 @@ class ParityValidator:
         
         success = True
         
-        # Check if Conan dependencies are installed
-        ret, out, err = self.run_cmd(["conan", "install", ".", "--build=missing"], timeout=300)
-        conan_deps = ret == 0
-        if not conan_deps:
-            self.errors.append(f"Conan dependency installation failed: {err}")
+        # Dependencies are now managed through git subprojects
+        subprojects_dir = self.get_project_root() / "subprojects"
+        llvm_wrap = subprojects_dir / "llvm.wrap"
+        git_deps = llvm_wrap.exists()
+        
+        if not git_deps:
+            self.errors.append("LLVM subproject configuration missing")
         
         # Check if LLVM is properly linked in both builds
         # This is implicit if builds succeed, but we can check for key libraries
         
         self.results['dependencies'] = {
-            'conan_install': conan_deps,
-            'parity': conan_deps  # If conan works and builds work, deps are good
+            'git_subprojects': git_deps,
+            'parity': git_deps  # If subprojects work and builds work, deps are good
         }
         
-        status = "PASS" if conan_deps else "FAIL"
+        status = "PASS" if git_deps else "FAIL"
         print(f"  [SUCCESS] Dependencies: {status}")
-        return conan_deps
+        return git_deps
     
     def run_full_validation(self) -> bool:
         """Run complete feature parity validation."""

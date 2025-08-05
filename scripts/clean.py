@@ -37,7 +37,7 @@ def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Clean build artifacts convenience script")
     parser.add_argument("--deps", action="store_true", 
-                       help="Also clean dependency files (Conan cache)")
+                       help="Also clean dependency files (git subproject checkouts)")
     parser.add_argument("--build-dir", default="builddir",
                        help="Build directory to clean (default: builddir)")
     parser.add_argument("--all", action="store_true",

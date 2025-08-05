@@ -7,7 +7,7 @@ This guide helps you configure Cursor to automatically set up the Visual Studio 
 ### Option 1: Manual Activation (Use Immediately)
 Before running any build commands in the terminal:
 ```bash
-.\conanbuild.bat
+# Note: conanbuild.bat no longer needed - LLVM is built from git subproject
 ```
 Then run your commands normally:
 ```bash
@@ -65,7 +65,7 @@ We've created `dev-env.bat` for convenient development:
      "terminal.integrated.profiles.windows": {
        "CppGraphIndex PowerShell": {
          "source": "PowerShell",
-         "args": ["-NoExit", "-Command", "& { if (Test-Path './conanbuild.bat') { Write-Host 'Setting up VS environment...' -ForegroundColor Yellow; cmd /c './conanbuild.bat' >$null 2>&1; Write-Host 'VS environment ready!' -ForegroundColor Green } }"]
+         "args": ["-NoExit", "-Command", "& { Write-Host 'Environment ready for development!' -ForegroundColor Green }"]
        }
      },
      "terminal.integrated.defaultProfile.windows": "CppGraphIndex PowerShell"
@@ -90,13 +90,13 @@ xmake
 
 ### Environment Not Loading
 - Make sure you're in the project root directory
-- Verify `conanbuild.bat` exists and works: `.\conanbuild.bat`
+- Dependencies are now managed through git subprojects
 - Check that Visual Studio 2022 Professional is installed at the expected path
 
 ### Commands Not Found
 - The Python build scripts now automatically set up the VS environment
 - Use `.\dev-env.bat` for guaranteed environment setup
-- Manually run `.\conanbuild.bat` if needed
+- Build dependencies are automatically handled by meson subprojects
 
 ### Cursor Not Using the Profile
 - Check your PowerShell execution policy: `Get-ExecutionPolicy`
@@ -105,8 +105,9 @@ xmake
 
 ## What the Environment Setup Does
 
-The `conanbuild.bat` script calls:
-1. `conanvcvars.bat` - Sets up Visual Studio 2022 Professional environment
-2. `conanbuildenv-release-x86_64.bat` - Sets up build dependencies
+Build environment setup:
+1. MSVC is automatically detected by meson
+2. LLVM dependencies are built from git subproject
+3. No additional environment setup required
 
 This ensures all tools (compiler, linker, etc.) are available in the PATH and environment variables are correctly set for MSVC builds.
