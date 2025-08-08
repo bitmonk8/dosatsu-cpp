@@ -1,6 +1,15 @@
+# IDE and Editor files
 .vscode/
+.vs/
+
+# Old build system artifacts (xmake)
 .xmake/
 build/
+
+# New build system artifacts (all build outputs go here)
+artifacts/
+
+# Dependency management
 .conan/
 conan/
 builddir/
@@ -22,3 +31,21 @@ compile_commands.json
 
 # Ninja build artifacts
 .ninja/
+
+# CMake artifacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake.in
+
+# Temporary files
+*.tmp
+*.log
+*.swp
+*.swo
+*~
+
+# OS-specific files
+.DS_Store
+Thumbs.db
