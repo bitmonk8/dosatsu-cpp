@@ -149,61 +149,85 @@ inc_dir = include_directories('3rdParty/include')
 
 # Dependencies - LLVM from git subproject, doctest from 3rdParty folder
 
-# LLVM dependency from git subproject
-# Try to find system LLVM first, fallback to subproject
-llvm_dep = dependency('llvm', version: '>=19.0', required: false)
+message('Dependencies')
 
-if not llvm_dep.found()
-  message('System LLVM not found, building from git subproject...')
-  llvm_proj = subproject('llvm')
-  llvm_dep = llvm_proj.get_variable('llvm_dep')
-endif
+cmake = import('cmake')
 
-# Create dependency declarations
+llvm_cmake_opts = cmake.subproject_options()
+llvm_cmake_opts.add_cmake_defines({
+    'LLVM_ENABLE_PROJECTS': 'clang',
+    'LLVM_DISTRIBUTION_COMPONENTS': 'clang-libraries;LLVMSupport;LLVMCore;LLVMMC;LLVMOption;LLVMTargetParser;LLVMBinaryFormat;LLVMAnalysis;LLVMBitReader;LLVMBitWriter;LLVMTransformUtils;LLVMInstCombine;LLVMScalarOpts;LLVMipo;LLVMInstrumentation;LLVMVectorize;LLVMObjCARCOpts;LLVMCoroutines;LLVMCFGuard;LLVMLinker;LLVMIRReader;LLVMFrontendOpenMP;LLVMPasses;LLVMProfileData;LLVMObject;LLVMDebugInfoDWARF;LLVMDebugInfoCodeView;LLVMDebugInfoMSF;LLVMDebugInfoPDB;LLVMDebugInfoBTF;LLVMRemarks;LLVMTextAPI;LLVMWindowsDriver;LLVMDemangle;LLVMBitstreamReader;LLVMAsmParser;LLVMMCParser;LLVMSymbolize;LLVMAggressiveInstCombine;LLVMCodeGen;LLVMHipStdPar;LLVMIRPrinter;LLVMTarget;LLVMFrontendOffloading;LLVMSelectionDAG;LLVMCodeGenTypes;LLVMCoverage;LLVMExtensions;LLVMFrontendDriver;LLVMFrontendHLSL;LLVMLTO;LLVMTextAPIBinaryReader;LLVMOrcJIT;LLVMOrcDebugging;LLVMOrcShared;LLVMOrcTargetProcess;LLVMExecutionEngine;LLVMMCJIT;LLVMRuntimeDyld;LLVMJITLink;LLVMX86CodeGen;LLVMX86AsmParser;LLVMX86Desc;LLVMX86Disassembler;LLVMX86Info;LLVMAsmPrinter;LLVMGlobalISel;LLVMMCDisassembler',
+    'LLVM_BUILD_TOOLS': 'OFF',
+    'LLVM_BUILD_EXAMPLES': 'OFF',
+    'LLVM_INCLUDE_TESTS': 'OFF',
+    'LLVM_INCLUDE_DOCS': 'OFF',
+    'LLVM_BUILD_DOCS': 'OFF',
+    'LLVM_INCLUDE_UTILS': 'OFF',
+    'LLVM_BUILD_UTILS': 'OFF',
+    'LLVM_INCLUDE_BENCHMARKS': 'OFF',
+    'LLVM_BUILD_BENCHMARKS': 'OFF',
+    'LLVM_TARGETS_TO_BUILD': 'host',
+    'CLANG_BUILD_EXAMPLES': 'OFF',
+    'CLANG_BUILD_TOOLS': 'OFF',
+    'CLANG_INCLUDE_TESTS': 'OFF',
+    'LLVM_BUILD_RUNTIME': 'OFF',
+    'LLVM_BUILD_RUNTIMES': 'OFF', 
+    'LLVM_INCLUDE_EXAMPLES': 'OFF',
+    'LLVM_ENABLE_BINDINGS': 'OFF',
+    'LLVM_ENABLE_OCAMLDOC': 'OFF',
+    'LLVM_ENABLE_Z3_SOLVER': 'OFF',
+    'LLVM_ENABLE_ZLIB': 'OFF',
+    'LLVM_ENABLE_ZSTD': 'OFF',
+    'LLVM_INCLUDE_GO_TESTS': 'OFF',
+    'LLVM_ENABLE_DOXYGEN': 'OFF',
+    'LLVM_ENABLE_SPHINX': 'OFF',
+    'LLVM_ENABLE_RTTI': 'ON'
+})
+llvm_subproject = cmake.subproject('llvm', options: llvm_cmake_opts)
+
+message('Dependencies DONE')
+
+# message('CMake targets:\n - ' + '\n - '.join(llvm_subproject.target_list()))
+
+# llvm_dep = llvm_subproject.dependency('llvm')
 
 
-
-doctest_dep = declare_dependency(
-  include_directories : include_directories('3rdParty/include')
-)
+# doctest_dep = declare_dependency(include_directories : include_directories('3rdParty/include'))
 
 # System dependencies for Windows
-system_deps = []
+# system_deps = []
 
-if target_machine.system() == 'windows'
-  # Windows system libraries needed by LLVM
-  system_deps_names = [
-    'psapi', 'shell32', 'ole32', 'uuid', 'advapi32', 
-    'ws2_32', 'ntdll', 'version'
-  ]
-  
-  foreach lib : system_deps_names
-    dep = cpp.find_library(lib, required : false)
-    if dep.found()
-      system_deps += dep
-    endif
-  endforeach
-endif
+# if target_machine.system() == 'windows'
+#  # Windows system libraries needed by LLVM
+#  system_deps_names = [
+#    'psapi', 'shell32', 'ole32', 'uuid', 'advapi32', 
+#    'ws2_32', 'ntdll', 'version'
+#  ]
+#  
+#  foreach lib : system_deps_names
+#    dep = cpp.find_library(lib, required : false)
+#    if dep.found()
+#      system_deps += dep
+#    endif
+#  endforeach
+# endif
 
 # Combine all dependencies - git subproject provides LLVM with all required libraries
-all_deps = [llvm_dep] + system_deps
+#all_deps = [llvm_dep] + system_deps
+# all_deps = system_deps
 
 # Development tools targets
 
 # Format target - code formatting with clang-format
-python3 = find_program('python3', 'python', required : true)
-format_script = files('tools/format.py')
+# python3 = find_program('python3', 'python', required : true)
+# format_script = files('tools/format.py')
 
-run_target('format',
-  command : [python3, format_script]
-)
+# run_target('format', command : [python3, format_script])
 
 # Lint target - code linting with clang-tidy
-lint_script = files('tools/lint.py')
+# lint_script = files('tools/lint.py')
 
-run_target('lint',
-  command : [python3, lint_script, '--build-dir', meson.current_build_dir()]
-)
+# run_target('lint', command : [python3, lint_script, '--build-dir', meson.current_build_dir()])
 
 # Add subdirectories
-subdir('MakeIndex')
+# subdir('MakeIndex')
