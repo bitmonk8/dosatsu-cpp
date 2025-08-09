@@ -109,6 +109,10 @@ endif()
 # Configure compilation database for tools
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Enable testing support  
+include(CTest)
+enable_testing()
+
 # Add subdirectories
 message(STATUS "Adding source directories...")
 if(EXISTS "${CMAKE_SOURCE_DIR}/MakeIndex")

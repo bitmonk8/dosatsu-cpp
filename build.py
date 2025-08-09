@@ -1138,6 +1138,145 @@ exit 0
             self.logger.error(f"Failed to install pre-commit hook: {e}")
             return 1
 
+    def cmd_test(self, args):
+        """Run tests using CTest."""
+        self.logger.info("Running tests...")
+        
+        # Determine build directory based on build type
+        build_type = "debug" if args.debug else "release" if args.release else "debug"
+        build_dir = self.get_build_directory(build_type)
+        
+        if not build_dir.exists():
+            self.logger.error(f"Build directory not found: {build_dir}")
+            self.logger.info("Run 'python build.py configure' first")
+            return 1
+        
+        # Create test artifacts directory
+        test_log_dir = self.artifacts_dir / "test"
+        self.ensure_directory(test_log_dir)
+        
+        # Build CTest command
+        cmd = ["ctest"]
+        
+        # Add build directory
+        cmd.extend(["--test-dir", str(build_dir)])
+        
+        # Add parallel execution if specified
+        if hasattr(args, 'parallel') and args.parallel:
+            if args.parallel == "auto":
+                import multiprocessing
+                parallel_count = multiprocessing.cpu_count()
+            else:
+                try:
+                    parallel_count = int(args.parallel)
+                except ValueError:
+                    self.logger.error(f"Invalid parallel count: {args.parallel}")
+                    return 1
+            cmd.extend(["--parallel", str(parallel_count)])
+        
+        # Add verbosity
+        if hasattr(args, 'verbose') and args.verbose:
+            cmd.append("--verbose")
+        else:
+            cmd.append("--output-on-failure")
+        
+        # Add specific test target if specified
+        if hasattr(args, 'target') and args.target:
+            cmd.extend(["--tests-regex", args.target])
+        
+        # Add output format for CI/reporting
+        junit_output = test_log_dir / "results.xml"
+        cmd.extend(["--output-junit", str(junit_output)])
+        
+        # Add test labels filter if specified
+        if hasattr(args, 'labels') and args.labels:
+            cmd.extend(["--label-regex", args.labels])
+        
+        self.logger.info(f"Running command: {' '.join(cmd)}")
+        self.logger.info(f"Working directory: {build_dir}")
+        
+        # Execute CTest
+        result = self.run_command(cmd, cwd=build_dir, capture_output=True)
+        
+        # Save detailed test output
+        test_output_file = test_log_dir / "test-output.log"
+        with open(test_output_file, 'w', encoding='utf-8') as f:
+            f.write(f"Test Command: {' '.join(cmd)}\n")
+            f.write(f"Working Directory: {build_dir}\n")
+            f.write(f"Return Code: {result.returncode}\n\n")
+            f.write("=== STDOUT ===\n")
+            f.write(result.stdout or "")
+            f.write("\n=== STDERR ===\n")
+            f.write(result.stderr or "")
+        
+        # Parse and display test results
+        self._analyze_test_results(result, test_log_dir, junit_output)
+        
+        if result.returncode == 0:
+            self.logger.info("[OK] All tests passed")
+            self.logger.info(f"Test results saved to: {junit_output}")
+            self.logger.info(f"Test output saved to: {test_output_file}")
+            return 0
+        else:
+            self.logger.error("Some tests failed")
+            self.logger.info(f"Test output saved to: {test_output_file}")
+            if junit_output.exists():
+                self.logger.info(f"Test results saved to: {junit_output}")
+            return 1
+    
+    def _analyze_test_results(self, result, test_log_dir: Path, junit_output: Path):
+        """Analyze and summarize test results."""
+        # Parse basic results from CTest output
+        stdout = result.stdout or ""
+        
+        # Extract test summary from CTest output
+        lines = stdout.split('\n')
+        test_summary = {}
+        
+        for line in lines:
+            if "tests passed" in line.lower():
+                # Parse lines like "100% tests passed, 0 tests failed out of 3"
+                import re
+                match = re.search(r'(\d+)% tests passed, (\d+) tests failed out of (\d+)', line)
+                if match:
+                    passed_percent = int(match.group(1))
+                    failed_count = int(match.group(2))
+                    total_count = int(match.group(3))
+                    passed_count = total_count - failed_count
+                    
+                    test_summary = {
+                        'total': total_count,
+                        'passed': passed_count,
+                        'failed': failed_count,
+                        'passed_percent': passed_percent
+                    }
+                    break
+        
+        if test_summary:
+            self.logger.info("\nTest Summary:")
+            self.logger.info(f"  Total tests: {test_summary['total']}")
+            self.logger.info(f"  Passed: {test_summary['passed']} ({test_summary['passed_percent']}%)")
+            if test_summary['failed'] > 0:
+                self.logger.info(f"  Failed: {test_summary['failed']}")
+        
+        # Save summary to file
+        summary_file = test_log_dir / "test-summary.txt"
+        with open(summary_file, 'w', encoding='utf-8') as f:
+            f.write("TEST EXECUTION SUMMARY\n")
+            f.write("=" * 50 + "\n\n")
+            
+            if test_summary:
+                f.write(f"Total Tests: {test_summary['total']}\n")
+                f.write(f"Passed: {test_summary['passed']} ({test_summary['passed_percent']}%)\n")
+                f.write(f"Failed: {test_summary['failed']}\n\n")
+            
+            f.write("Return Code: " + str(result.returncode) + "\n")
+            f.write("Status: " + ("PASSED" if result.returncode == 0 else "FAILED") + "\n")
+            
+            # Add timestamp
+            from datetime import datetime
+            f.write(f"Execution Time: {datetime.now().isoformat()}\n")
+
 
 def create_parser() -> argparse.ArgumentParser:
     """Create and configure the argument parser."""
@@ -1184,10 +1323,13 @@ Examples:
     clean_parser = subparsers.add_parser('clean', help='Clean build artifacts')
     
     # Test command
-    test_parser = subparsers.add_parser('test', help='Run tests')
-    test_parser.add_argument('--parallel', type=int, help='Number of parallel test jobs')
+    test_parser = subparsers.add_parser('test', help='Run tests using CTest')
+    test_parser.add_argument('--debug', action='store_true', help='Run tests for debug build')
+    test_parser.add_argument('--release', action='store_true', help='Run tests for release build')
+    test_parser.add_argument('--parallel', default="auto", help='Number of parallel test jobs (default: auto)')
     test_parser.add_argument('--verbose', action='store_true', help='Verbose test output')
-    test_parser.add_argument('--target', help='Run specific test')
+    test_parser.add_argument('--target', help='Run specific test (regex pattern)')
+    test_parser.add_argument('--labels', help='Run tests with specific labels (regex pattern)')
     
     # Format command
     format_parser = subparsers.add_parser('format', help='Format source code')

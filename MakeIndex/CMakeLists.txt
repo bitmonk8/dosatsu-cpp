@@ -64,13 +64,49 @@ endif()
 
 message(STATUS "Configured MakeIndex executable target")
 
-# Test configuration - will be enhanced in Phase 4
+# Test configuration with doctest framework
+# Enable testing support
+include(CTest)
+enable_testing()
+
 if(BUILD_TESTING)
+    # Main self-test using doctest framework
     add_test(NAME MakeIndex_SelfTest
         COMMAND MakeIndex --selftest
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     )
+    
+    # Configure test properties
     set_tests_properties(MakeIndex_SelfTest PROPERTIES
+        TIMEOUT 60
+        LABELS "unit;selftest"
+        ENVIRONMENT "DOCTEST_CONFIG_NO_COLORS=1"
+    )
+    
+    # Additional test configurations for different verbosity levels
+    add_test(NAME MakeIndex_SelfTest_Verbose
+        COMMAND MakeIndex --selftest --verbose
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+    )
+    
+    set_tests_properties(MakeIndex_SelfTest_Verbose PROPERTIES
+        TIMEOUT 60
+        LABELS "unit;selftest;verbose"
+        ENVIRONMENT "DOCTEST_CONFIG_NO_COLORS=1"
+    )
+    
+    # Basic functionality test (no doctest, just ensure binary runs)
+    add_test(NAME MakeIndex_BasicRun
+        COMMAND MakeIndex --help
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+    )
+    
+    set_tests_properties(MakeIndex_BasicRun PROPERTIES
         TIMEOUT 10
+        LABELS "smoke;basic"
     )
 endif()
+
+# Test result reporting configuration
+set(CTEST_OUTPUT_ON_FAILURE ON)
+set(CTEST_PARALLEL_LEVEL 4)
