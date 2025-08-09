@@ -701,13 +701,15 @@ exit 0
         # Run clang-tidy with output capture
         result = self.run_command(cmd, capture_output=True)
         
-        # Save linting results
+        # Create lint output directories
         lint_log_dir = self.artifacts_dir / "lint"
         self.ensure_directory(lint_log_dir)
-        lint_log_file = lint_log_dir / "clang-tidy-output.txt"
         
-        with open(lint_log_file, 'w') as f:
+        # Save raw output
+        raw_output_file = lint_log_dir / "clang-tidy-raw.txt"
+        with open(raw_output_file, 'w', encoding='utf-8') as f:
             f.write(f"Clang-tidy analysis results:\n")
+            f.write(f"Command: {' '.join(cmd)}\n")
             f.write(f"Files analyzed: {len(files_to_lint)}\n")
             f.write(f"Return code: {result.returncode}\n\n")
             if result.stdout:
@@ -716,29 +718,52 @@ exit 0
             if result.stderr:
                 f.write("\nstderr:\n")
                 f.write(result.stderr)
-                
-        # Filter and display output
-        if result.stdout:
-            filtered_output = self._filter_clang_tidy_output(result.stdout)
-            if filtered_output.strip():
-                self.logger.info("Clang-tidy analysis results:")
-                print(filtered_output)
-                
-        self.logger.info(f"Detailed results saved to: {lint_log_file}")
         
-        if result.returncode == 0:
+        # Analyze output and generate statistics
+        output_to_analyze = result.stdout if result.stdout else ""
+        stats = self._analyze_clang_tidy_output(output_to_analyze)
+        
+        # Generate comprehensive report
+        if args.report_format == 'markdown':
+            report_file = lint_log_dir / "analysis-report.md"
+        else:
+            report_file = lint_log_dir / "analysis-report.txt"
+        self._generate_lint_report(stats, report_file, args.report_format)
+        
+        # Print summary to console
+        self._print_lint_summary(stats)
+        
+        # Show filtered output if there are issues (unless summary-only mode)
+        if stats['total_issues'] > 0 and not args.summary_only:
+            filtered_output = self._filter_clang_tidy_output(output_to_analyze)
+            if filtered_output.strip():
+                self.logger.info("\nDetailed clang-tidy output:")
+                print(filtered_output)
+        
+        # Log file locations
+        self.logger.info(f"Raw output saved to: {raw_output_file}")
+        self.logger.info(f"Analysis report saved to: {report_file}")
+        
+        # Determine return status
+        if result.returncode == 0 and stats['error_count'] == 0:
             self.logger.info("[OK] Linting completed successfully!")
             return 0
         else:
-            self.logger.warning("Linting completed with issues")
+            if stats['error_count'] > 0:
+                self.logger.error("Critical issues found that need attention")
+            elif stats['warning_count'] > 0:
+                self.logger.warning("Linting completed with warnings")
+            else:
+                self.logger.info("Linting completed")
+                
             if args.fix:
-                self.logger.info("Some issues were automatically fixed")
+                self.logger.info("Some issues may have been automatically fixed")
             else:
                 self.logger.info("Use --fix flag to automatically fix some issues")
-            return 1
+            return 1 if stats['error_count'] > 0 else 0
             
     def _filter_clang_tidy_output(self, output: str) -> str:
-        """Filter clang-tidy output to remove noise."""
+        """Filter clang-tidy output to remove noise and organize results."""
         filtered_lines = []
         for line in output.split('\n'):
             # Skip suppressed warnings messages and header filter messages
@@ -748,6 +773,219 @@ exit 0
                 line.strip()):
                 filtered_lines.append(line)
         return '\n'.join(filtered_lines)
+    
+    def _analyze_clang_tidy_output(self, output: str) -> dict:
+        """Analyze clang-tidy output and generate comprehensive statistics."""
+        stats = {
+            'total_issues': 0,
+            'error_count': 0,
+            'warning_count': 0,
+            'note_count': 0,
+            'by_severity': {},
+            'by_check': {},
+            'by_file': {},
+            'issues': []
+        }
+        
+        current_file = None
+        for line in output.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Match file paths (lines ending with issues like "error:" or "warning:")
+            if ':' in line and ('error:' in line or 'warning:' in line or 'note:' in line):
+                parts = line.split(':')
+                if len(parts) >= 4:
+                    file_path = parts[0]
+                    line_num = parts[1]
+                    col_num = parts[2]
+                    rest = ':'.join(parts[3:]).strip()
+                    
+                    # Determine severity
+                    severity = 'info'
+                    if 'error:' in rest:
+                        severity = 'error'
+                        stats['error_count'] += 1
+                    elif 'warning:' in rest:
+                        severity = 'warning'  
+                        stats['warning_count'] += 1
+                    elif 'note:' in rest:
+                        severity = 'note'
+                        stats['note_count'] += 1
+                        
+                    stats['total_issues'] += 1
+                    
+                    # Update severity counts
+                    stats['by_severity'][severity] = stats['by_severity'].get(severity, 0) + 1
+                    
+                    # Extract check name (usually in brackets)
+                    check_name = 'unknown'
+                    if '[' in rest and ']' in rest:
+                        start = rest.rfind('[')
+                        end = rest.rfind(']')
+                        if start != -1 and end != -1 and end > start:
+                            check_name = rest[start+1:end]
+                            
+                    stats['by_check'][check_name] = stats['by_check'].get(check_name, 0) + 1
+                    
+                    # Update file counts
+                    stats['by_file'][file_path] = stats['by_file'].get(file_path, 0) + 1
+                    
+                    # Store issue details
+                    stats['issues'].append({
+                        'file': file_path,
+                        'line': line_num,
+                        'column': col_num,
+                        'severity': severity,
+                        'check': check_name,
+                        'message': rest,
+                        'raw_line': line
+                    })
+                    
+        return stats
+    
+    def _generate_lint_report(self, stats: dict, output_file: Path, format_type: str = 'markdown') -> None:
+        """Generate comprehensive lint report."""
+        with open(output_file, 'w', encoding='utf-8') as f:
+            if format_type == 'markdown':
+                self._write_markdown_report(f, stats)
+            else:
+                self._write_text_report(f, stats)
+    
+    def _write_markdown_report(self, f, stats: dict) -> None:
+        """Write markdown-formatted report."""
+        f.write("# Clang-Tidy Analysis Report\n\n")
+        
+        # Summary
+        f.write("## Summary\n")
+        f.write(f"- **Total Issues**: {stats['total_issues']}\n")
+        f.write(f"- **Errors**: {stats['error_count']}\n")
+        f.write(f"- **Warnings**: {stats['warning_count']}\n")
+        f.write(f"- **Notes**: {stats['note_count']}\n\n")
+        
+        # Issues by severity
+        if stats['by_severity']:
+            f.write("## Issues by Severity\n")
+            for severity, count in sorted(stats['by_severity'].items()):
+                f.write(f"- **{severity.title()}**: {count}\n")
+            f.write("\n")
+        
+        # Top check types
+        if stats['by_check']:
+            f.write("## Most Common Check Types\n")
+            sorted_checks = sorted(stats['by_check'].items(), key=lambda x: x[1], reverse=True)
+            for check, count in sorted_checks[:10]:  # Top 10
+                f.write(f"- **{check}**: {count} issues\n")
+            f.write("\n")
+        
+        # Files with most issues
+        if stats['by_file']:
+            f.write("## Files with Most Issues\n")
+            sorted_files = sorted(stats['by_file'].items(), key=lambda x: x[1], reverse=True)
+            for file_path, count in sorted_files[:10]:  # Top 10
+                f.write(f"- **{file_path}**: {count} issues\n")
+            f.write("\n")
+        
+        # Detailed issues
+        if stats['issues']:
+            f.write("## Detailed Issues\n\n")
+            current_file = None
+            for issue in stats['issues']:
+                if issue['file'] != current_file:
+                    current_file = issue['file']
+                    f.write(f"### {current_file}\n\n")
+                
+                severity_icon = {'error': '[ERROR]', 'warning': '[WARN]', 'note': '[NOTE]'}.get(issue['severity'], '[INFO]')
+                f.write(f"{severity_icon} **Line {issue['line']}**: {issue['message']}\n")
+                f.write(f"   - Check: `{issue['check']}`\n")
+                f.write(f"   - Severity: {issue['severity']}\n\n")
+    
+    def _write_text_report(self, f, stats: dict) -> None:
+        """Write plain text-formatted report."""
+        f.write("CLANG-TIDY ANALYSIS REPORT\n")
+        f.write("=" * 50 + "\n\n")
+        
+        # Summary
+        f.write("SUMMARY\n")
+        f.write("-" * 20 + "\n")
+        f.write(f"Total Issues: {stats['total_issues']}\n")
+        f.write(f"Errors: {stats['error_count']}\n")
+        f.write(f"Warnings: {stats['warning_count']}\n")
+        f.write(f"Notes: {stats['note_count']}\n\n")
+        
+        # Issues by severity
+        if stats['by_severity']:
+            f.write("ISSUES BY SEVERITY\n")
+            f.write("-" * 20 + "\n")
+            for severity, count in sorted(stats['by_severity'].items()):
+                f.write(f"{severity.title()}: {count}\n")
+            f.write("\n")
+        
+        # Top check types
+        if stats['by_check']:
+            f.write("MOST COMMON CHECK TYPES\n")
+            f.write("-" * 30 + "\n")
+            sorted_checks = sorted(stats['by_check'].items(), key=lambda x: x[1], reverse=True)
+            for check, count in sorted_checks[:10]:  # Top 10
+                f.write(f"{check}: {count} issues\n")
+            f.write("\n")
+        
+        # Files with most issues
+        if stats['by_file']:
+            f.write("FILES WITH MOST ISSUES\n")
+            f.write("-" * 25 + "\n")
+            sorted_files = sorted(stats['by_file'].items(), key=lambda x: x[1], reverse=True)
+            for file_path, count in sorted_files[:10]:  # Top 10
+                f.write(f"{file_path}: {count} issues\n")
+            f.write("\n")
+        
+        # Detailed issues
+        if stats['issues']:
+            f.write("DETAILED ISSUES\n")
+            f.write("-" * 20 + "\n\n")
+            current_file = None
+            for issue in stats['issues']:
+                if issue['file'] != current_file:
+                    current_file = issue['file']
+                    f.write(f"FILE: {current_file}\n")
+                    f.write("~" * len(current_file) + "\n")
+                
+                severity_prefix = {'error': '[ERROR]', 'warning': '[WARN]', 'note': '[NOTE]'}.get(issue['severity'], '[INFO]')
+                f.write(f"{severity_prefix} Line {issue['line']}: {issue['message']}\n")
+                f.write(f"         Check: {issue['check']}\n")
+                f.write(f"         Severity: {issue['severity']}\n\n")
+                    
+    def _print_lint_summary(self, stats: dict) -> None:
+        """Print a concise lint summary to console."""
+        if stats['total_issues'] == 0:
+            self.logger.info("[OK] No issues found!")
+            return
+            
+        self.logger.info(f"Analysis completed: {stats['total_issues']} issues found")
+        
+        if stats['error_count'] > 0:
+            self.logger.error(f"  Errors: {stats['error_count']}")
+        if stats['warning_count'] > 0:
+            self.logger.warning(f"  Warnings: {stats['warning_count']}")
+        if stats['note_count'] > 0:
+            self.logger.info(f"  Notes: {stats['note_count']}")
+            
+        # Show top 3 most common check types
+        if stats['by_check']:
+            sorted_checks = sorted(stats['by_check'].items(), key=lambda x: x[1], reverse=True)
+            self.logger.info("Most common issues:")
+            for check, count in sorted_checks[:3]:
+                self.logger.info(f"  - {check}: {count}")
+                
+        # Show files with most issues
+        if stats['by_file']:
+            sorted_files = sorted(stats['by_file'].items(), key=lambda x: x[1], reverse=True)
+            if len(sorted_files) > 1:
+                self.logger.info("Files needing attention:")
+                for file_path, count in sorted_files[:3]:
+                    rel_path = Path(file_path).name  # Just filename for brevity
+                    self.logger.info(f"  - {rel_path}: {count} issues")
     
     def cmd_compile_db(self, args):
         """Generate or manage compilation database."""
@@ -961,6 +1199,8 @@ Examples:
     lint_parser.add_argument('--fix', action='store_true', help='Apply automatic fixes')
     lint_parser.add_argument('--files', nargs='*', help='Specific files to lint')
     lint_parser.add_argument('--target', help='Lint specific file')
+    lint_parser.add_argument('--summary-only', action='store_true', help='Show only summary, skip detailed output')
+    lint_parser.add_argument('--report-format', choices=['text', 'markdown'], default='markdown', help='Report format for generated files')
     
     # Compilation Database command
     compile_db_parser = subparsers.add_parser('compile-db', help='Generate and manage compilation database')
