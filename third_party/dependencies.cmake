@@ -43,6 +43,12 @@ set(LLVM_ENABLE_ZSTD OFF CACHE BOOL "")
 set(LLVM_INCLUDE_GO_TESTS OFF CACHE BOOL "")
 set(LLVM_ENABLE_DOXYGEN OFF CACHE BOOL "")
 set(LLVM_ENABLE_SPHINX OFF CACHE BOOL "")
+set(LLVM_TOOL_LLVM_CONFIG_BUILD OFF CACHE BOOL "")
+set(LLVM_TOOL_LLVM_AR_BUILD OFF CACHE BOOL "")
+set(LLVM_TOOL_LLVM_AS_BUILD OFF CACHE BOOL "")
+set(LLVM_TOOL_LLVM_DIS_BUILD OFF CACHE BOOL "")
+set(LLVM_TOOL_LLVM_LINK_BUILD OFF CACHE BOOL "")
+set(CLANG_TOOL_CLANG_BUILD OFF CACHE BOOL "")
 
 # Essential settings
 set(LLVM_ENABLE_RTTI ON CACHE BOOL "")
@@ -51,12 +57,6 @@ set(LLVM_ENABLE_RTTI ON CACHE BOOL "")
 set(CLANG_BUILD_EXAMPLES OFF CACHE BOOL "")
 set(CLANG_BUILD_TOOLS OFF CACHE BOOL "")
 set(CLANG_INCLUDE_TESTS OFF CACHE BOOL "")
-
-# Distribution components - minimal set needed for the project
-set(LLVM_DISTRIBUTION_COMPONENTS 
-    "clang-libraries;LLVMSupport;LLVMCore;LLVMMC;LLVMOption;LLVMTargetParser;LLVMBinaryFormat;LLVMAnalysis;LLVMBitReader;LLVMBitWriter;LLVMTransformUtils;LLVMInstCombine;LLVMScalarOpts;LLVMipo;LLVMInstrumentation;LLVMVectorize;LLVMObjCARCOpts;LLVMCoroutines;LLVMCFGuard;LLVMLinker;LLVMIRReader;LLVMFrontendOpenMP;LLVMPasses;LLVMProfileData;LLVMObject;LLVMDebugInfoDWARF;LLVMDebugInfoCodeView;LLVMDebugInfoMSF;LLVMDebugInfoPDB;LLVMDebugInfoBTF;LLVMRemarks;LLVMTextAPI;LLVMWindowsDriver;LLVMDemangle;LLVMBitstreamReader;LLVMAsmParser;LLVMMCParser;LLVMSymbolize;LLVMAggressiveInstCombine;LLVMCodeGen;LLVMHipStdPar;LLVMIRPrinter;LLVMTarget;LLVMFrontendOffloading;LLVMSelectionDAG;LLVMCodeGenTypes;LLVMCoverage;LLVMExtensions;LLVMFrontendDriver;LLVMFrontendHLSL;LLVMLTO;LLVMTextAPIBinaryReader;LLVMOrcJIT;LLVMOrcDebugging;LLVMOrcShared;LLVMOrcTargetProcess;LLVMExecutionEngine;LLVMMCJIT;LLVMRuntimeDyld;LLVMJITLink;LLVMX86CodeGen;LLVMX86AsmParser;LLVMX86Desc;LLVMX86Disassembler;LLVMX86Info;LLVMAsmPrinter;LLVMGlobalISel;LLVMMCDisassembler" 
-    CACHE STRING ""
-)
 
 # Platform-specific optimizations
 if(WIN32)
