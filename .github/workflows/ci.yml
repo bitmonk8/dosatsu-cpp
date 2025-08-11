@@ -1,0 +1,279 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main, develop ]
+
+# Ensure only one CI run per push/PR to avoid conflicts
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        build_type: [Debug, Release]
+        include:
+          - os: windows-latest
+            compiler: msvc
+            artifact_name: "windows"
+            shell: "cmd"
+          - os: ubuntu-latest  
+            compiler: gcc
+            artifact_name: "linux"
+            shell: "bash"
+          - os: macos-latest
+            compiler: clang
+            artifact_name: "macos"
+            shell: "bash"
+
+    runs-on: ${{ matrix.os }}
+    
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Setup CMake and Ninja
+      uses: lukka/get-cmake@latest
+      with:
+        cmakeVersion: "~3.24.0"
+        ninjaVersion: "^1.11.1"
+        
+    - name: Setup MSVC Environment (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: ilammy/msvc-dev-cmd@v1
+      
+    - name: Install Build Dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+        
+    - name: Install Build Dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        # Ensure we have the latest XCode command line tools
+        xcode-select --install || true
+        
+    - name: Cache LLVM Dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          artifacts/debug/build/_deps/llvm-*
+          artifacts/release/build/_deps/llvm-*
+        key: llvm-19.1.7-${{ matrix.os }}-${{ matrix.build_type }}-v2
+        restore-keys: |
+          llvm-19.1.7-${{ matrix.os }}-${{ matrix.build_type }}-
+          llvm-19.1.7-${{ matrix.os }}-
+          
+    - name: Environment Setup
+      run: python build.py setup
+      
+    - name: Display Environment Info
+      run: python build.py info
+      
+    - name: Configure Build
+      run: python build.py configure --${{ matrix.build_type }} --clean
+      
+    - name: Build Project  
+      run: python build.py build --${{ matrix.build_type }} --parallel 2
+      
+    - name: Run Tests
+      run: python build.py test --ci-mode --historical --report-format html
+      
+    - name: Code Quality Checks
+      if: matrix.build_type == 'Debug'  # Only run on Debug builds to save time
+      run: |
+        python build.py format --check-only
+        python build.py lint --summary-only --report-format markdown
+        
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v3
+      if: always()  # Always upload, even if tests fail
+      with:
+        name: test-results-${{ matrix.artifact_name }}-${{ matrix.build_type }}
+        path: |
+          artifacts/test/
+          artifacts/lint/
+          artifacts/format/
+        retention-days: 30
+        
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v3
+      if: success() && matrix.build_type == 'Release'  # Only upload Release binaries
+      with:
+        name: build-artifacts-${{ matrix.artifact_name }}-${{ matrix.build_type }}
+        path: |
+          artifacts/release/bin/
+        retention-days: 7
+        
+    - name: Publish Test Results
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always() && matrix.os != 'macos-latest'  # GitHub Action limitation on macOS
+      with:
+        files: artifacts/test/results.xml
+        check_name: "Test Results (${{ matrix.os }}, ${{ matrix.build_type }})"
+        comment_mode: off  # Avoid spam on PRs
+        
+    - name: Publish Test Results (macOS)
+      if: always() && matrix.os == 'macos-latest'
+      run: |
+        if [ -f artifacts/test/results.xml ]; then
+          echo "Test results generated successfully on macOS"
+          cat artifacts/test/test-summary.txt || echo "No test summary available"
+        else
+          echo "No test results found"
+        fi
+
+  # Validation job that depends on all build-and-test jobs
+  validation-complete:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Check Build Status
+      run: |
+        echo "Build and test matrix results:"
+        echo "Needs context: ${{ toJson(needs) }}"
+        
+        # Check if any required jobs failed
+        if [[ "${{ needs.build-and-test.result }}" == "failure" ]]; then
+          echo "❌ Build and test jobs failed"
+          exit 1
+        elif [[ "${{ needs.build-and-test.result }}" == "cancelled" ]]; then
+          echo "⚠️ Build and test jobs were cancelled"
+          exit 1
+        else
+          echo "✅ All build and test jobs completed successfully"
+        fi
+        
+    - name: Aggregate Results
+      run: |
+        echo "## CI/CD Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Platform | Debug | Release |" >> $GITHUB_STEP_SUMMARY
+        echo "|----------|-------|---------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Windows  | ✅    | ✅      |" >> $GITHUB_STEP_SUMMARY
+        echo "| Linux    | ✅    | ✅      |" >> $GITHUB_STEP_SUMMARY
+        echo "| macOS    | ✅    | ✅      |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "All platforms and build configurations completed successfully!" >> $GITHUB_STEP_SUMMARY
+
+  # Security and compliance scanning
+  security-scan:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Run CodeQL Analysis
+      uses: github/codeql-action/init@v2
+      with:
+        languages: cpp
+        
+    - name: Setup Dependencies for Analysis
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake ninja-build
+        
+    - name: Setup Python for Build Script
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Configure for Analysis
+      run: python build.py configure --debug
+      
+    - name: Build for Analysis
+      run: python build.py build --debug --parallel 2
+      
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+      with:
+        category: "/language:cpp"
+
+# Deployment job (only on main branch pushes)
+  deploy:
+    needs: [build-and-test, validation-complete]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    
+    steps:
+    - name: Download All Artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: ./artifacts
+        
+    - name: Prepare Release Assets
+      run: |
+        mkdir -p release-assets
+        
+        # Package Windows artifacts
+        if [ -d "artifacts/build-artifacts-windows-Release" ]; then
+          cd artifacts/build-artifacts-windows-Release
+          zip -r ../../release-assets/CppGraphIndex-windows-x64.zip .
+          cd ../..
+        fi
+        
+        # Package Linux artifacts  
+        if [ -d "artifacts/build-artifacts-linux-Release" ]; then
+          cd artifacts/build-artifacts-linux-Release
+          tar -czf ../../release-assets/CppGraphIndex-linux-x64.tar.gz .
+          cd ../..
+        fi
+        
+        # Package macOS artifacts
+        if [ -d "artifacts/build-artifacts-macos-Release" ]; then
+          cd artifacts/build-artifacts-macos-Release
+          tar -czf ../../release-assets/CppGraphIndex-macos-x64.tar.gz .
+          cd ../..
+        fi
+        
+        ls -la release-assets/
+        
+    - name: Create Development Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: "dev-${{ github.run_number }}"
+        name: "Development Build ${{ github.run_number }}"
+        body: |
+          ## Development Build
+          
+          This is an automated development build from commit ${{ github.sha }}.
+          
+          ### Changes
+          ${{ github.event.head_commit.message }}
+          
+          ### Build Information
+          - **Commit**: ${{ github.sha }}
+          - **Build Number**: ${{ github.run_number }}
+          - **Build Date**: ${{ github.event.head_commit.timestamp }}
+          
+          ### Platforms
+          - ✅ Windows x64
+          - ✅ Linux x64  
+          - ✅ macOS x64
+          
+        files: release-assets/*
+        draft: false
+        prerelease: true
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

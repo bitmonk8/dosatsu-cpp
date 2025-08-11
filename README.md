@@ -11,253 +11,386 @@ The project consists of two main components:
 
 ## 📋 Requirements
 
-### Dependencies
+### System Requirements
 
-- **Clang**: For parsing C++ code and generating AST
-- **Kuzu**: Graph database for storing the AST data
-- **Build System**: Choose one of:
-  - **XMake**: Traditional build system (version: latest)
-  - **Meson**: Modern build system with git subproject dependencies (version: 1.8.3+)
+- **Python 3.8+** for build orchestration
+- **CMake 3.24+** for build configuration
+- **Ninja** for fast parallel builds
 - **C++20 compatible compiler**
+- **Git** for dependency management
 
 ### Supported Platforms and Toolchains
 
 CppGraphIndex supports the following platform and toolchain combinations:
 
 - **Windows** with **MSVC** (Microsoft Visual C++)
+- **Linux** with **GCC** or **Clang**
 - **macOS** with **Clang** (Apple Clang or LLVM Clang)
-- **Linux** with **GCC** (GNU Compiler Collection)
 
 > **Note**: Other platform/toolchain combinations are not currently supported and will result in build errors. Please ensure you are using one of the supported combinations above.
 
-## 🔧 Building the Project
+### Dependencies
 
-### Build System Options
+All dependencies are automatically managed through the build system:
 
-CppGraphIndex supports two build systems with complete feature parity:
+- **LLVM/Clang 19.1.7**: Automatically downloaded and built via CMake FetchContent
+- **Kuzu**: Graph database integration (future component)
+- **doctest**: Unit testing framework (included)
 
-- **XMake**: Traditional Lua-based build system (established)
-- **Meson**: Modern Python-based build system with git subproject integration (new)
+## 🚀 Quick Start
 
-Choose the build system that best fits your development environment and workflow.
-
-### Option 1: XMake Build (Traditional)
-
-#### Prerequisites
-
-1. Install [XMake](https://xmake.io/#/getting_started?id=installation)
-2. Install Clang
-3. Install Kuzu database
-
-#### Build Commands
+### 1. Initial Setup
 
 ```bash
-# Configure and build the project
-xmake
+# Clone the repository
+git clone https://github.com/your-org/CppGraphIndex.git
+cd CppGraphIndex
 
-# Or explicitly build
-xmake build
+# Initial environment setup (creates artifact directories, validates tools)
+python build.py setup
+
+# Display build environment information
+python build.py info
 ```
 
-#### Build Modes
+### 2. Build the Project
 
 ```bash
-# Debug build (default)
-xmake f -m debug
-xmake
+# Configure and build (debug mode)
+python build.py configure --debug
+python build.py build --debug
 
-# Release build
-xmake f -m release
-xmake
+# Or do everything in one step
+python build.py rebuild --debug
 ```
 
-### Option 2: Meson Build (Modern)
-
-#### Prerequisites
-
-1. Install [Meson](https://mesonbuild.com/Getting-meson.html) (≥1.8.3)
-2. Install [Ninja](https://ninja-build.org/) (≥1.12.0)
-3. Install [CMake](https://cmake.org/download/) (≥3.20) for LLVM subproject building
-4. Ensure you have the correct compiler:
-   - **Windows**: MSVC (required for LLVM compatibility)
-   - **Linux**: GCC (recommended)
-   - **macOS**: Clang (recommended)
-
-#### Quick Start
-
-```bash
-# Setup and build (automated)
-python tools/build.py full
-
-# Or step by step:
-meson setup builddir              # Configure build (includes LLVM git subproject)
-ninja -C builddir                 # Build project
-```
-
-#### Build Modes
-
-```bash
-# Debug build (default)
-meson setup builddir --buildtype=debug
-ninja -C builddir
-
-# Release build
-meson setup builddir_release --buildtype=release
-ninja -C builddir_release
-```
-
-> **📖 Detailed Documentation**: For comprehensive Meson build instructions, troubleshooting, and advanced features, see [docs/MESON_BUILD.md](docs/MESON_BUILD.md)
-
-## 🧪 Running Tests
-
-The project uses [doctest](https://github.com/doctest/doctest) for unit testing.
-
-### XMake Tests
+### 3. Run Tests
 
 ```bash
 # Run all tests
-xmake test -v
+python build.py test
 
-# Or run the executable with selftest flag
-xmake run MakeIndex --selftest
+# Run tests with detailed reporting
+python build.py test --verbose --report-format html
 ```
 
-### Meson Tests
+## 🔧 Build System Commands
+
+The `build.py` script provides a unified interface for all development operations:
+
+### Configuration & Building
 
 ```bash
-# Run all tests
-meson test -C builddir
+# Configuration
+python build.py configure [--debug|--release] [--clean]
+python build.py reconfigure                           # Clean configure from scratch
 
-# Or run the executable with selftest flag
-./builddir/MakeIndex/makeindex_exe --selftest
+# Building
+python build.py build [--debug|--release] [--parallel N]
+python build.py rebuild                               # Clean + configure + build + test
+python build.py clean                                 # Clean build artifacts
 ```
 
-## 🎯 Usage
-
-> **Note**: This project is in very early development stage. Usage instructions will be expanded as the project matures.
-
-### MakeIndex
+### Testing & Quality
 
 ```bash
-# Build and run MakeIndex
-xmake run MakeIndex [options]
+# Testing
+python build.py test [--verbose] [--parallel N]
+python build.py test --target specific_test
+python build.py test --ci-mode --coverage            # CI-friendly with coverage
+
+# Code Quality
+python build.py format [--check-only]                # Format code with clang-format
+python build.py lint [--fix] [--summary-only]        # Lint with clang-tidy
 ```
 
-### MCP Service
+### Git Integration
 
-*MCP component is planned and not yet implemented.*
-
-## 🛠️ Development
-
-### Code Formatting
-
-Format all source code using clang-format:
-
-#### XMake
 ```bash
-xmake run format
+# Git Operations (with intelligent pre/post checks)
+python build.py git-status                           # Enhanced git status
+python build.py git-pull [--rebase] [--check-clean]
+python build.py git-push [--set-upstream]
+python build.py git-commit -m "message"              # With pre-commit checks
+python build.py git-clean [--force] [--include-build-artifacts]
 ```
 
-#### Meson
+### Performance & Analysis
+
 ```bash
-ninja -C builddir format
-# Or directly: python tools/format.py
+# Performance Analysis
+python build.py build-stats                          # Build performance metrics
+python build.py cache-mgmt [--clean-deps] [--clean-cmake]
+python build.py info                                 # Environment information
 ```
 
-### Code Linting
+### Utility Commands
 
-Run clang-tidy on the project:
-
-#### XMake
 ```bash
-# Lint all files
-xmake run lint
-
-# Lint specific file
-xmake run lint path/to/file.cpp
+# Development Tools
+python build.py install-git-hooks                    # Install formatting pre-commit hooks
+python build.py compile-db [--copy-to-root]          # Manage compilation database
 ```
-
-#### Meson
-```bash
-ninja -C builddir lint
-# Or directly: python tools/lint.py
-```
-
-### Development Workflows
-
-Both build systems support comprehensive development workflows:
-
-#### XMake Workflow
-```bash
-xmake            # Build
-xmake test       # Test
-xmake run format # Format
-xmake run lint   # Lint
-```
-
-#### Meson Workflow
-```bash
-ninja -C builddir        # Build
-meson test -C builddir   # Test
-ninja -C builddir format # Format
-ninja -C builddir lint   # Lint
-```
-
-For Meson development convenience scripts, see [docs/MESON_BUILD.md#development-scripts](docs/MESON_BUILD.md#development-scripts)
 
 ## 🏗️ Project Structure
 
 ```
 CppGraphIndex/
-├── MakeIndex/           # Source code for the indexing tool
-├── 3rdParty/           # Third-party dependencies (XMake)
-│   └── include/
-│       └── doctest/    # Testing framework
-├── tools/              # Build and development tools (Meson)
-├── scripts/            # Development convenience scripts (Meson)
-├── docs/               # Documentation
-│   ├── MESON_BUILD.md  # Detailed Meson build guide
-│   └── MIGRATION_GUIDE.md # XMake to Meson migration
-├── conan/              # Conan profiles and configuration (Meson)
-├── .github/            # GitHub Actions workflows
-├── xmake.lua          # XMake build configuration
-├── meson.build        # Meson build configuration
-├── conanfile.py       # Conan dependencies (Meson)
-├── .clang-format      # Code formatting rules
-└── .clang-tidy        # Static analysis configuration
+├── build.py                    # 🎯 Main build orchestrator (single entry point)
+├── CMakeLists.txt             # Root CMake configuration
+├── .clang-format              # Code formatting rules
+├── .clang-tidy                # Static analysis configuration
+├── .gitignore                 # Updated for new artifact structure
+│
+├── MakeIndex/                 # 📁 Main source code
+│   ├── CMakeLists.txt         # Target-specific CMake config
+│   ├── MakeIndex.cpp          # Main application
+│   ├── KuzuDump.cpp           # Database operations
+│   ├── KuzuDump.h             # Database interface
+│   └── NoWarningScope_*.h     # Utility headers
+│
+├── third_party/               # 📦 Dependency management
+│   └── dependencies.cmake    # LLVM FetchContent configuration
+│
+├── scripts/                   # 🛠️ Build helper scripts
+│   ├── setup_deps.cmake      # Dependency setup helpers
+│   ├── format_config.py      # Formatting configuration
+│   ├── validate-ci-quick.py  # Quick CI validation
+│   └── validate-ci.py        # Full CI validation
+│
+├── artifacts/                 # 🗂️ ALL BUILD OUTPUTS (git-ignored)
+│   ├── debug/                 # Debug build artifacts
+│   │   ├── build/             # CMake/Ninja files
+│   │   ├── bin/               # Debug executables
+│   │   ├── lib/               # Debug libraries
+│   │   └── logs/              # Build logs
+│   ├── release/               # Release build artifacts
+│   ├── test/                  # Test results & reports
+│   ├── lint/                  # Linting results
+│   └── format/                # Formatting logs
+│
+├── 3rdParty/                  # 📚 Included dependencies
+│   └── include/doctest/       # Testing framework
+│
+└── .github/workflows/         # 🔄 CI/CD pipeline
+    └── ci.yml                 # Multi-platform build & test
+```
+
+## 🧪 Testing
+
+The project uses [doctest](https://github.com/doctest/doctest) for unit testing with comprehensive reporting:
+
+### Running Tests
+
+```bash
+# Basic test execution
+python build.py test
+
+# Advanced test options
+python build.py test --verbose --parallel auto
+python build.py test --target MakeIndex_SelfTest
+python build.py test --ci-mode --historical
+python build.py test --coverage --report-format html
+```
+
+### Test Artifacts
+
+Tests generate comprehensive reports in `artifacts/test/`:
+- `results.xml` - JUnit format for CI integration
+- `test-report.html` - Rich HTML report with statistics
+- `test-report.json` - Machine-readable results
+- `test-history.json` - Historical test tracking
+- `test-trends.txt` - Performance trend analysis
+
+## 🔄 Development Workflow
+
+### Recommended Daily Workflow
+
+```bash
+# 1. Start with clean environment
+python build.py git-status
+
+# 2. Pull latest changes
+python build.py git-pull --rebase
+
+# 3. Make your changes...
+
+# 4. Pre-commit workflow
+python build.py format              # Auto-format code
+python build.py lint --fix          # Fix linting issues
+python build.py rebuild             # Full rebuild + test
+
+# 5. Commit with validation
+python build.py git-commit -m "Your changes"
+
+# 6. Push changes
+python build.py git-push
+```
+
+### Code Quality Standards
+
+The build system enforces consistent code quality:
+
+- **Formatting**: Automatic clang-format integration with project-specific style
+- **Linting**: Comprehensive clang-tidy analysis with modern C++ guidelines
+- **Testing**: Mandatory test execution before commits
+- **Pre-commit Hooks**: Optional git hooks for automatic validation
+
+### Performance Optimization
+
+Monitor and optimize build performance:
+
+```bash
+# Analyze build performance
+python build.py build-stats
+
+# Manage caches (LLVM dependencies can be ~36GB)
+python build.py cache-mgmt
+
+# Clean specific caches
+python build.py cache-mgmt --clean-cmake --clean-deps
+```
+
+## 🚀 CI/CD Pipeline
+
+The project includes a comprehensive GitHub Actions workflow:
+
+### Multi-Platform Testing
+
+- **Platforms**: Windows, Linux, macOS
+- **Build Types**: Debug and Release
+- **Parallel Jobs**: Optimized for fast feedback
+
+### Automated Workflows
+
+- **Build Validation**: All platforms and configurations
+- **Test Execution**: Comprehensive test suite with reporting
+- **Code Quality**: Formatting and linting checks
+- **Security Scanning**: CodeQL static analysis
+- **Artifact Collection**: Build outputs and test results
+- **Dependency Caching**: LLVM dependencies cached for faster builds
+
+### CI Commands
+
+```bash
+# Simulate CI locally
+python build.py rebuild --debug --skip-tests     # Quick build check
+python build.py test --ci-mode                   # CI-style testing
+python build.py format --check-only              # Format validation
+python build.py lint --summary-only              # Quick lint check
+```
+
+## 🔧 Advanced Configuration
+
+### Build Types
+
+```bash
+# Debug (default) - fast builds, debug symbols
+python build.py configure --debug
+
+# Release - optimized builds
+python build.py configure --release
+
+# Custom parallel jobs
+python build.py build --parallel 8
+```
+
+### Dependency Management
+
+LLVM 19.1.7 is automatically managed via CMake FetchContent:
+- **First Build**: Downloads and builds LLVM (~30+ minutes)
+- **Subsequent Builds**: Uses cached LLVM build
+- **Cache Location**: `artifacts/debug/build/_deps/llvm-*`
+
+### Tool Integration
+
+```bash
+# Generate compilation database for IDEs
+python build.py compile-db --copy-to-root
+
+# Install git pre-commit hooks
+python build.py install-git-hooks
+
+# Environment validation
+python build.py info
+```
+
+## 🎯 Migration from XMake
+
+> **📋 For Existing Users**: This project has migrated from XMake to a modern Python + CMake + Ninja build system for better dependency management, faster builds, and improved CI/CD integration.
+
+### Quick Migration Steps
+
+1. **Remove old artifacts**: `xmake clean` (if XMake still installed)
+2. **Setup new system**: `python build.py setup`
+3. **Configure**: `python build.py configure --debug`
+4. **Build**: `python build.py build`
+5. **Test**: `python build.py test`
+
+### New vs Old Commands
+
+| Old (XMake) | New (Python Build System) |
+|-------------|----------------------------|
+| `xmake` | `python build.py build` |
+| `xmake test` | `python build.py test` |
+| `xmake run format` | `python build.py format` |
+| `xmake run lint` | `python build.py lint` |
+| `xmake clean` | `python build.py clean` |
+
+## 🛠️ Troubleshooting
+
+### Common Issues
+
+**Issue**: Build fails with "linker out of heap space"
+```bash
+# Solution: Ensure 64-bit compiler environment
+# On Windows, use: vcvars64.bat or VS 2022 x64 Native Tools Command Prompt
+python build.py info  # Check compiler detection
+```
+
+**Issue**: LLVM build takes too long
+```bash
+# Solution: Use cached builds and parallel jobs
+python build.py build --parallel 4  # Adjust for your CPU
+python build.py cache-mgmt           # Check cache status
+```
+
+**Issue**: Git operations fail
+```bash
+# Solution: Check repository status
+python build.py git-status          # Comprehensive status
+python build.py git-clean --force   # Clean untracked files
+```
+
+**Issue**: Tests fail
+```bash
+# Solution: Check test output and rebuild
+python build.py test --verbose      # Detailed test output
+python build.py rebuild             # Clean rebuild
+```
+
+### Getting Help
+
+```bash
+# Comprehensive environment information
+python build.py info
+
+# Command-specific help
+python build.py --help
+python build.py <command> --help
+
+# Build performance analysis
+python build.py build-stats
 ```
 
 ## 📝 Programming Language
 
-This project is written in **C++20**.
+This project is written in **C++20** and built with modern development practices:
 
-## 🔄 Build System Comparison
-
-Both build systems provide complete feature parity:
-
-| Feature | XMake | Meson |
-|---------|-------|-------|
-| Build Speed | Fast | Fast (with Ninja) |
-| Dependency Management | Built-in | Conan integration |
-| Cross-platform | ✅ | ✅ |
-| C++20 Support | ✅ | ✅ |
-| Development Tools | ✅ | ✅ |
-| IDE Integration | Good | Excellent |
-| Package Management | Manual | Automated (Conan) |
-| Learning Curve | Moderate | Gentle |
-
-### When to Choose XMake
-- You prefer Lua-based configuration
-- You want minimal external dependencies
-- You're familiar with existing XMake workflow
-
-### When to Choose Meson
-- You prefer Python-based tooling
-- You want automated dependency management
-- You need advanced IDE integration
-- You're starting a new development setup
-
-> **📖 Migration Guide**: To migrate from XMake to Meson, see [docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)
+- **Standards Compliance**: Full C++20 support
+- **Cross-Platform**: Windows, Linux, macOS
+- **Modern Dependencies**: LLVM 19.1.7 with FetchContent
+- **Quality Assurance**: Comprehensive linting and formatting
 
 ## 📄 License
 
@@ -265,34 +398,59 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## 🚧 Project Status
 
-**Status**: As early as it can get - just started!
+**Status**: Active Development - Modern Build System Complete!
 
-This project is in the very initial stages of development. Contributions, ideas, and feedback are welcome as we build this tool for enhancing AI-assisted C++ code navigation.
+✅ **Completed**: Modern build system migration with Python + CMake + Ninja
+✅ **Completed**: Multi-platform CI/CD pipeline
+✅ **Completed**: Git integration and development workflows
+✅ **Completed**: Performance optimization and caching
+
+🔄 **In Progress**: Core MakeIndex functionality expansion
+📋 **Planned**: MCP service component
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Format your code:
-   - XMake: `xmake run format`
-   - Meson: `ninja -C builddir format`
-5. Run linting:
-   - XMake: `xmake run lint`
-   - Meson: `ninja -C builddir lint`
-6. Run tests:
-   - XMake: `xmake test`
-   - Meson: `meson test -C builddir`
-7. Commit your changes (`git commit -m 'Add amazing feature'`)
-8. Push to the branch (`git push origin feature/amazing-feature`)
-9. Open a Pull Request
+1. **Fork** the repository
+2. **Setup** development environment:
+   ```bash
+   python build.py setup
+   python build.py install-git-hooks  # Optional but recommended
+   ```
+3. **Create** a feature branch:
+   ```bash
+   git checkout -b feature/amazing-feature
+   ```
+4. **Develop** with quality checks:
+   ```bash
+   # Make your changes...
+   python build.py format              # Auto-format
+   python build.py lint --fix          # Fix issues
+   python build.py rebuild             # Build + test
+   ```
+5. **Commit** with validation:
+   ```bash
+   python build.py git-commit -m "Add amazing feature"
+   ```
+6. **Push** and create Pull Request:
+   ```bash
+   python build.py git-push --set-upstream
+   ```
 
-> **Note**: Both build systems are supported for development. Choose the one that fits your workflow best.
+### Development Guidelines
+
+- **Code Style**: Enforced via clang-format (LLVM style with customizations)
+- **Quality**: All code must pass clang-tidy analysis
+- **Testing**: Maintain or improve test coverage
+- **Documentation**: Update documentation for user-facing changes
 
 ## 📞 Support
 
-If you encounter any issues or have questions, please open an issue on GitHub.
+- **Issues**: Report bugs and request features on [GitHub Issues](https://github.com/your-org/CppGraphIndex/issues)
+- **Discussions**: General questions and discussions on [GitHub Discussions](https://github.com/your-org/CppGraphIndex/discussions)
+- **CI Status**: Check build status on [GitHub Actions](https://github.com/your-org/CppGraphIndex/actions)
 
 ---
 
-**Note**: This project aims to bridge the gap between large C++ codebases and AI tools by providing a graph-based representation of code structure that can be queried using natural language. 
+> **🎯 Goal**: This project aims to bridge the gap between large C++ codebases and AI tools by providing a graph-based representation of code structure that can be queried using natural language.
+
+> **⚡ Performance**: The new build system provides significantly faster builds, better dependency management, and comprehensive development workflow automation compared to the previous XMake setup.

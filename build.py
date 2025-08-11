@@ -1210,19 +1210,99 @@ exit 0
             f.write(result.stderr or "")
         
         # Parse and display test results
-        self._analyze_test_results(result, test_log_dir, junit_output)
+        test_stats = self._analyze_test_results(result, test_log_dir, junit_output)
+        
+        # Generate enhanced reports
+        self._generate_enhanced_test_reports(args, test_log_dir, junit_output, test_stats, result)
+        
+        # Handle coverage if requested
+        if hasattr(args, 'coverage') and args.coverage:
+            self._handle_test_coverage(test_log_dir, build_dir)
+        
+        # Historical tracking
+        if hasattr(args, 'historical') and args.historical:
+            self._update_test_history(test_log_dir, test_stats, result.returncode)
         
         if result.returncode == 0:
             self.logger.info("[OK] All tests passed")
             self.logger.info(f"Test results saved to: {junit_output}")
             self.logger.info(f"Test output saved to: {test_output_file}")
+            
+            # Additional success reporting for CI/CD
+            if hasattr(args, 'ci_mode') and args.ci_mode:
+                self._generate_ci_test_summary(test_log_dir, junit_output)
+            
             return 0
         else:
             self.logger.error("Some tests failed")
             self.logger.info(f"Test output saved to: {test_output_file}")
             if junit_output.exists():
                 self.logger.info(f"Test results saved to: {junit_output}")
+            
+            # Generate failure report for CI/CD
+            if hasattr(args, 'ci_mode') and args.ci_mode:
+                self._generate_ci_failure_report(test_log_dir, result)
+            
             return 1
+    
+    def _generate_ci_test_summary(self, test_log_dir: Path, junit_output: Path):
+        """Generate CI-friendly test summary."""
+        ci_summary = test_log_dir / "ci-summary.json"
+        import json
+        from datetime import datetime
+        
+        summary_data = {
+            "timestamp": datetime.now().isoformat(),
+            "status": "success",
+            "junit_report": str(junit_output.relative_to(self.project_root)),
+            "total_tests": 0,
+            "passed_tests": 0,
+            "failed_tests": 0,
+            "execution_time": 0
+        }
+        
+        # Parse JUnit XML if available
+        if junit_output.exists():
+            try:
+                import xml.etree.ElementTree as ET
+                tree = ET.parse(junit_output)
+                root = tree.getroot()
+                
+                # Extract test statistics from JUnit XML
+                if root.tag == 'testsuites':
+                    for testsuite in root.findall('testsuite'):
+                        summary_data["total_tests"] += int(testsuite.get('tests', 0))
+                        summary_data["failed_tests"] += int(testsuite.get('failures', 0))
+                        summary_data["execution_time"] += float(testsuite.get('time', 0))
+                
+                summary_data["passed_tests"] = summary_data["total_tests"] - summary_data["failed_tests"]
+                        
+            except Exception as e:
+                self.logger.warning(f"Could not parse JUnit XML: {e}")
+        
+        with open(ci_summary, 'w', encoding='utf-8') as f:
+            json.dump(summary_data, f, indent=2)
+        
+        self.logger.info(f"CI summary saved to: {ci_summary}")
+    
+    def _generate_ci_failure_report(self, test_log_dir: Path, result):
+        """Generate CI-friendly failure report."""
+        ci_failure = test_log_dir / "ci-failure.json"
+        import json
+        from datetime import datetime
+        
+        failure_data = {
+            "timestamp": datetime.now().isoformat(),
+            "status": "failure",
+            "return_code": result.returncode,
+            "stderr": result.stderr or "",
+            "stdout": result.stdout or ""
+        }
+        
+        with open(ci_failure, 'w', encoding='utf-8') as f:
+            json.dump(failure_data, f, indent=2)
+        
+        self.logger.info(f"CI failure report saved to: {ci_failure}")
     
     def _analyze_test_results(self, result, test_log_dir: Path, junit_output: Path):
         """Analyze and summarize test results."""
@@ -1231,33 +1311,50 @@ exit 0
         
         # Extract test summary from CTest output
         lines = stdout.split('\n')
-        test_summary = {}
+        test_summary = {
+            'total': 0,
+            'passed': 0,
+            'failed': 0,
+            'passed_percent': 0,
+            'execution_time': 0.0,
+            'individual_tests': []
+        }
         
+        import re
         for line in lines:
             if "tests passed" in line.lower():
                 # Parse lines like "100% tests passed, 0 tests failed out of 3"
-                import re
                 match = re.search(r'(\d+)% tests passed, (\d+) tests failed out of (\d+)', line)
                 if match:
-                    passed_percent = int(match.group(1))
-                    failed_count = int(match.group(2))
-                    total_count = int(match.group(3))
-                    passed_count = total_count - failed_count
-                    
-                    test_summary = {
-                        'total': total_count,
-                        'passed': passed_count,
-                        'failed': failed_count,
-                        'passed_percent': passed_percent
+                    test_summary['passed_percent'] = int(match.group(1))
+                    test_summary['failed'] = int(match.group(2))
+                    test_summary['total'] = int(match.group(3))
+                    test_summary['passed'] = test_summary['total'] - test_summary['failed']
+            elif "Total Test time" in line:
+                # Parse "Total Test time (real) =   0.02 sec"
+                match = re.search(r'Total Test time.*?=\s*([0-9.]+)', line)
+                if match:
+                    test_summary['execution_time'] = float(match.group(1))
+            elif re.match(r'\d+/\d+ Test #\d+:', line):
+                # Parse individual test results: "1/3 Test #1: MakeIndex_SelfTest ............... Passed 0.01 sec"
+                match = re.match(r'(\d+)/(\d+) Test #(\d+):\s*(\S+)\s*\.+\s*(\w+)\s*([0-9.]+)', line)
+                if match:
+                    test_info = {
+                        'index': int(match.group(1)),
+                        'test_id': int(match.group(3)),
+                        'name': match.group(4),
+                        'status': match.group(5),
+                        'duration': float(match.group(6))
                     }
-                    break
+                    test_summary['individual_tests'].append(test_info)
         
-        if test_summary:
+        if test_summary['total'] > 0:
             self.logger.info("\nTest Summary:")
             self.logger.info(f"  Total tests: {test_summary['total']}")
             self.logger.info(f"  Passed: {test_summary['passed']} ({test_summary['passed_percent']}%)")
             if test_summary['failed'] > 0:
                 self.logger.info(f"  Failed: {test_summary['failed']}")
+            self.logger.info(f"  Execution time: {test_summary['execution_time']:.2f} seconds")
         
         # Save summary to file
         summary_file = test_log_dir / "test-summary.txt"
@@ -1265,10 +1362,19 @@ exit 0
             f.write("TEST EXECUTION SUMMARY\n")
             f.write("=" * 50 + "\n\n")
             
-            if test_summary:
+            if test_summary['total'] > 0:
                 f.write(f"Total Tests: {test_summary['total']}\n")
                 f.write(f"Passed: {test_summary['passed']} ({test_summary['passed_percent']}%)\n")
-                f.write(f"Failed: {test_summary['failed']}\n\n")
+                f.write(f"Failed: {test_summary['failed']}\n")
+                f.write(f"Execution Time: {test_summary['execution_time']:.2f} seconds\n\n")
+                
+                # Individual test details
+                if test_summary['individual_tests']:
+                    f.write("INDIVIDUAL TEST RESULTS\n")
+                    f.write("-" * 30 + "\n")
+                    for test in test_summary['individual_tests']:
+                        f.write(f"{test['name']}: {test['status']} ({test['duration']:.3f}s)\n")
+                    f.write("\n")
             
             f.write("Return Code: " + str(result.returncode) + "\n")
             f.write("Status: " + ("PASSED" if result.returncode == 0 else "FAILED") + "\n")
@@ -1276,6 +1382,871 @@ exit 0
             # Add timestamp
             from datetime import datetime
             f.write(f"Execution Time: {datetime.now().isoformat()}\n")
+        
+        return test_summary
+
+    def _generate_enhanced_test_reports(self, args, test_log_dir: Path, junit_output: Path, test_stats: dict, result):
+        """Generate enhanced test reports in multiple formats."""
+        from datetime import datetime
+        
+        # Determine report format
+        report_format = getattr(args, 'report_format', 'auto')
+        if report_format == 'auto':
+            report_format = 'html' if test_stats['total'] > 0 else 'text'
+        
+        # Generate HTML report
+        if report_format in ['auto', 'html']:
+            self._generate_html_test_report(test_log_dir, test_stats, result)
+        
+        # Generate JSON report
+        if report_format in ['auto', 'json']:
+            self._generate_json_test_report(test_log_dir, test_stats, result)
+    
+    def _generate_html_test_report(self, test_log_dir: Path, test_stats: dict, result):
+        """Generate HTML test report."""
+        from datetime import datetime
+        
+        html_file = test_log_dir / "test-report.html"
+        
+        # Generate HTML content
+        html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Report - CppGraphIndex</title>
+    <style>
+        body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 40px; background-color: #f5f5f5; }}
+        .container {{ max-width: 1200px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+        .header {{ border-bottom: 2px solid #007acc; padding-bottom: 20px; margin-bottom: 30px; }}
+        .header h1 {{ color: #007acc; margin: 0; }}
+        .summary {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }}
+        .stat-card {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; text-align: center; }}
+        .stat-card.success {{ background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%); }}
+        .stat-card.failure {{ background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); }}
+        .stat-value {{ font-size: 2em; font-weight: bold; margin-bottom: 5px; }}
+        .stat-label {{ font-size: 0.9em; opacity: 0.9; }}
+        .test-details {{ margin-top: 30px; }}
+        .test-item {{ padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #007acc; background-color: #f8f9fa; }}
+        .test-item.passed {{ border-left-color: #28a745; }}
+        .test-item.failed {{ border-left-color: #dc3545; }}
+        .test-name {{ font-weight: bold; color: #333; }}
+        .test-duration {{ color: #666; font-size: 0.9em; }}
+        .timestamp {{ color: #666; font-size: 0.9em; margin-top: 20px; text-align: center; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Test Execution Report</h1>
+            <p>CppGraphIndex - Test Results Summary</p>
+        </div>
+        
+        <div class="summary">
+            <div class="stat-card">
+                <div class="stat-value">{test_stats['total']}</div>
+                <div class="stat-label">Total Tests</div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-value">{test_stats['passed']}</div>
+                <div class="stat-label">Passed</div>
+            </div>
+            <div class="stat-card {'success' if test_stats['failed'] == 0 else 'failure'}">
+                <div class="stat-value">{test_stats['failed']}</div>
+                <div class="stat-label">Failed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{test_stats['execution_time']:.2f}s</div>
+                <div class="stat-label">Execution Time</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{test_stats['passed_percent']}%</div>
+                <div class="stat-label">Success Rate</div>
+            </div>
+        </div>
+        
+        <div class="test-details">
+            <h2>Individual Test Results</h2>
+"""
+        
+        if test_stats['individual_tests']:
+            for test in test_stats['individual_tests']:
+                status_class = 'passed' if test['status'].lower() == 'passed' else 'failed'
+                html_content += f"""
+            <div class="test-item {status_class}">
+                <div class="test-name">{test['name']}</div>
+                <div class="test-duration">Duration: {test['duration']:.3f} seconds | Status: {test['status']}</div>
+            </div>"""
+        else:
+            html_content += "<p>No individual test details available.</p>"
+        
+        html_content += f"""
+        </div>
+        
+        <div class="timestamp">
+            Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        </div>
+    </div>
+</body>
+</html>"""
+        
+        with open(html_file, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        
+        self.logger.info(f"HTML test report saved to: {html_file}")
+    
+    def _generate_json_test_report(self, test_log_dir: Path, test_stats: dict, result):
+        """Generate JSON test report."""
+        import json
+        from datetime import datetime
+        
+        json_file = test_log_dir / "test-report.json"
+        
+        report_data = {
+            "metadata": {
+                "timestamp": datetime.now().isoformat(),
+                "project": "CppGraphIndex",
+                "build_system": "CMake + CTest",
+                "return_code": result.returncode,
+                "status": "passed" if result.returncode == 0 else "failed"
+            },
+            "summary": {
+                "total_tests": test_stats['total'],
+                "passed_tests": test_stats['passed'],
+                "failed_tests": test_stats['failed'],
+                "success_rate": test_stats['passed_percent'],
+                "execution_time_seconds": test_stats['execution_time']
+            },
+            "individual_tests": test_stats['individual_tests'],
+            "artifacts": {
+                "junit_xml": "results.xml",
+                "raw_output": "test-output.log",
+                "summary": "test-summary.txt"
+            }
+        }
+        
+        with open(json_file, 'w', encoding='utf-8') as f:
+            json.dump(report_data, f, indent=2)
+        
+        self.logger.info(f"JSON test report saved to: {json_file}")
+    
+    def _handle_test_coverage(self, test_log_dir: Path, build_dir: Path):
+        """Handle test coverage collection if available."""
+        coverage_dir = test_log_dir / "coverage"
+        self.ensure_directory(coverage_dir)
+        
+        # Check for common coverage tools
+        coverage_tools = {
+            'gcov': 'gcov',
+            'llvm-cov': 'llvm-cov',
+            'opencppcoverage': 'OpenCppCoverage.exe'
+        }
+        
+        available_tool = None
+        for tool_name, executable in coverage_tools.items():
+            if self.find_tool(executable):
+                available_tool = tool_name
+                break
+        
+        if available_tool:
+            self.logger.info(f"Found coverage tool: {available_tool}")
+            if available_tool == 'opencppcoverage':
+                self._collect_windows_coverage(coverage_dir, build_dir)
+            else:
+                self.logger.info("Coverage collection for this tool not yet implemented")
+        else:
+            self.logger.warning("No coverage tools found. Coverage collection skipped.")
+            
+        # Create coverage placeholder
+        coverage_info = coverage_dir / "coverage-info.txt"
+        with open(coverage_info, 'w', encoding='utf-8') as f:
+            from datetime import datetime
+            f.write("COVERAGE COLLECTION REPORT\n")
+            f.write("=" * 40 + "\n\n")
+            f.write(f"Timestamp: {datetime.now().isoformat()}\n")
+            f.write(f"Available tool: {available_tool or 'None'}\n")
+            f.write("Status: Coverage collection is available but requires manual setup\n")
+            f.write("For detailed coverage, consider integrating gcov/llvm-cov in CMake configuration\n")
+    
+    def _collect_windows_coverage(self, coverage_dir: Path, build_dir: Path):
+        """Collect coverage using OpenCppCoverage on Windows."""
+        # This is a placeholder for OpenCppCoverage integration
+        self.logger.info("Windows coverage collection would be implemented here")
+        
+    def _update_test_history(self, test_log_dir: Path, test_stats: dict, return_code: int):
+        """Update historical test tracking."""
+        import json
+        from datetime import datetime
+        
+        history_file = test_log_dir / "test-history.json"
+        history_data = []
+        
+        # Load existing history
+        if history_file.exists():
+            try:
+                with open(history_file, 'r', encoding='utf-8') as f:
+                    history_data = json.load(f)
+            except Exception as e:
+                self.logger.warning(f"Could not load test history: {e}")
+        
+        # Add current results
+        current_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "total_tests": test_stats['total'],
+            "passed_tests": test_stats['passed'],
+            "failed_tests": test_stats['failed'],
+            "success_rate": test_stats['passed_percent'],
+            "execution_time": test_stats['execution_time'],
+            "return_code": return_code,
+            "status": "passed" if return_code == 0 else "failed"
+        }
+        
+        history_data.append(current_entry)
+        
+        # Keep only last 100 entries
+        history_data = history_data[-100:]
+        
+        # Save updated history
+        with open(history_file, 'w', encoding='utf-8') as f:
+            json.dump(history_data, f, indent=2)
+        
+        self.logger.info(f"Test history updated: {len(history_data)} entries")
+        
+        # Generate trend analysis
+        if len(history_data) >= 5:
+            self._generate_trend_analysis(test_log_dir, history_data)
+    
+    def _generate_trend_analysis(self, test_log_dir: Path, history_data: list):
+        """Generate test trend analysis."""
+        trend_file = test_log_dir / "test-trends.txt"
+        
+        recent_runs = history_data[-10:]  # Last 10 runs
+        success_rates = [entry['success_rate'] for entry in recent_runs]
+        execution_times = [entry['execution_time'] for entry in recent_runs]
+        
+        avg_success = sum(success_rates) / len(success_rates)
+        avg_time = sum(execution_times) / len(execution_times)
+        
+        # Calculate trends
+        if len(success_rates) >= 2:
+            success_trend = "improving" if success_rates[-1] > success_rates[-2] else "declining" if success_rates[-1] < success_rates[-2] else "stable"
+            time_trend = "faster" if execution_times[-1] < execution_times[-2] else "slower" if execution_times[-1] > execution_times[-2] else "stable"
+        else:
+            success_trend = "stable"
+            time_trend = "stable"
+        
+        with open(trend_file, 'w', encoding='utf-8') as f:
+            f.write("TEST TREND ANALYSIS\n")
+            f.write("=" * 30 + "\n\n")
+            f.write(f"Analysis based on last {len(recent_runs)} test runs:\n\n")
+            f.write(f"Average Success Rate: {avg_success:.1f}%\n")
+            f.write(f"Average Execution Time: {avg_time:.2f} seconds\n\n")
+            f.write(f"Recent Trend - Success Rate: {success_trend}\n")
+            f.write(f"Recent Trend - Execution Time: {time_trend}\n\n")
+            
+            f.write("RECENT HISTORY:\n")
+            f.write("-" * 20 + "\n")
+            for entry in recent_runs[-5:]:  # Last 5 entries
+                timestamp = entry['timestamp'][:19].replace('T', ' ')  # Format timestamp
+                f.write(f"{timestamp}: {entry['success_rate']}% success, {entry['execution_time']:.2f}s\n")
+        
+        self.logger.info(f"Trend analysis saved to: {trend_file}")
+
+    def cmd_rebuild(self, args):
+        """Clean, build, and optionally test in sequence."""
+        self.logger.info("=== Rebuild Sequence: Clean + Configure + Build + Test ===")
+        
+        # Step 1: Clean
+        self.logger.info("Step 1: Cleaning artifacts...")
+        clean_result = self.cmd_clean(args)
+        if clean_result != 0:
+            self.logger.error("Clean step failed")
+            return clean_result
+        
+        # Step 2: Configure with clean flag
+        self.logger.info("Step 2: Configuring build...")
+        
+        # Create configure args from rebuild args
+        class ConfigureArgs:
+            def __init__(self, rebuild_args):
+                self.debug = rebuild_args.debug
+                self.release = rebuild_args.release
+                self.clean = True  # Always do clean configure after clean
+        
+        configure_args = ConfigureArgs(args)
+        configure_result = self.cmd_configure(configure_args)
+        if configure_result != 0:
+            self.logger.error("Configure step failed")
+            return configure_result
+        
+        # Step 3: Build
+        self.logger.info("Step 3: Building project...")
+        build_result = self.cmd_build(args)
+        if build_result != 0:
+            self.logger.error("Build step failed")
+            return build_result
+        
+        # Step 4: Test (optional)
+        if not args.skip_tests:
+            self.logger.info("Step 4: Running tests...")
+            
+            # Create test args from rebuild args
+            class TestArgs:
+                def __init__(self, rebuild_args):
+                    self.debug = rebuild_args.debug
+                    self.release = rebuild_args.release
+                    self.parallel = "auto"
+                    self.verbose = False
+                    self.target = getattr(rebuild_args, 'test_target', None)
+                    self.labels = None
+                    self.ci_mode = False
+            
+            test_args = TestArgs(args)
+            test_result = self.cmd_test(test_args)
+            if test_result != 0:
+                self.logger.error("Test step failed")
+                return test_result
+        else:
+            self.logger.info("Step 4: Skipping tests (--skip-tests specified)")
+        
+        self.logger.info("[OK] Rebuild sequence completed successfully!")
+        return 0
+
+    def cmd_reconfigure(self, args):
+        """Clean configure from scratch."""
+        self.logger.info("=== Reconfigure: Clean + Configure ===")
+        
+        # Step 1: Clean
+        self.logger.info("Step 1: Cleaning all artifacts...")
+        clean_result = self.cmd_clean(args)
+        if clean_result != 0:
+            self.logger.error("Clean step failed")
+            return clean_result
+        
+        # Step 2: Fresh configure with --clean flag
+        self.logger.info("Step 2: Fresh configuration...")
+        
+        # Create configure args with clean flag
+        class ConfigureArgs:
+            def __init__(self, reconfig_args):
+                self.debug = reconfig_args.debug
+                self.release = reconfig_args.release
+                self.clean = True  # Always clean for reconfigure
+        
+        configure_args = ConfigureArgs(args)
+        configure_result = self.cmd_configure(configure_args)
+        if configure_result != 0:
+            self.logger.error("Configure step failed")
+            return configure_result
+        
+        self.logger.info("[OK] Reconfigure completed successfully!")
+        return 0
+
+    # === Git Integration Commands ===
+    
+    def _validate_git_repository(self) -> bool:
+        """Validate that we're in a git repository."""
+        git_dir = self.project_root / ".git"
+        if not git_dir.exists():
+            self.logger.error("Not a git repository - .git directory not found")
+            self.logger.info("Initialize a git repository with: git init")
+            return False
+        return True
+    
+    def _get_git_status(self) -> dict:
+        """Get comprehensive git status information."""
+        if not self._validate_git_repository():
+            return {}
+        
+        status_info = {
+            'clean': False,
+            'staged_files': [],
+            'modified_files': [],
+            'untracked_files': [],
+            'current_branch': '',
+            'commits_ahead': 0,
+            'commits_behind': 0,
+            'has_remote': False
+        }
+        
+        try:
+            # Get current branch
+            result = self.run_command(['git', 'branch', '--show-current'], capture_output=True)
+            if result.returncode == 0:
+                status_info['current_branch'] = result.stdout.strip()
+            
+            # Get status info
+            result = self.run_command(['git', 'status', '--porcelain'], capture_output=True)
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    if not line.strip():
+                        continue
+                    status = line[:2]
+                    filename = line[3:]
+                    
+                    if status[0] in ['A', 'D', 'M', 'R', 'C']:
+                        status_info['staged_files'].append(filename)
+                    if status[1] in ['M', 'D']:
+                        status_info['modified_files'].append(filename)
+                    if status == '??':
+                        status_info['untracked_files'].append(filename)
+                
+                status_info['clean'] = (len(status_info['staged_files']) == 0 and 
+                                      len(status_info['modified_files']) == 0 and 
+                                      len(status_info['untracked_files']) == 0)
+            
+            # Check remote tracking
+            result = self.run_command(['git', 'remote'], capture_output=True)
+            if result.returncode == 0 and result.stdout.strip():
+                status_info['has_remote'] = True
+                
+                # Get ahead/behind info
+                result = self.run_command(['git', 'status', '-b', '--porcelain'], capture_output=True)
+                if result.returncode == 0:
+                    first_line = result.stdout.split('\n')[0] if result.stdout else ''
+                    if '[ahead' in first_line:
+                        import re
+                        match = re.search(r'ahead (\d+)', first_line)
+                        if match:
+                            status_info['commits_ahead'] = int(match.group(1))
+                    if '[behind' in first_line:
+                        import re
+                        match = re.search(r'behind (\d+)', first_line)
+                        if match:
+                            status_info['commits_behind'] = int(match.group(1))
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to get git status: {e}")
+        
+        return status_info
+    
+    def cmd_git_status(self, args):
+        """Display comprehensive git status."""
+        self.logger.info("=== Git Repository Status ===")
+        
+        if not self._validate_git_repository():
+            return 1
+        
+        status = self._get_git_status()
+        
+        # Display basic status
+        self.logger.info(f"Current branch: {status.get('current_branch', 'unknown')}")
+        
+        if status.get('has_remote'):
+            ahead = status.get('commits_ahead', 0)
+            behind = status.get('commits_behind', 0)
+            if ahead > 0:
+                self.logger.info(f"Ahead of remote by {ahead} commit(s)")
+            if behind > 0:
+                self.logger.warning(f"Behind remote by {behind} commit(s)")
+            if ahead == 0 and behind == 0:
+                self.logger.info("Up to date with remote")
+        else:
+            self.logger.warning("No remote repository configured")
+        
+        # Display file changes
+        if status.get('clean', False):
+            self.logger.info("✅ Working directory is clean")
+        else:
+            self.logger.warning("Working directory has changes:")
+            
+            staged = status.get('staged_files', [])
+            if staged:
+                self.logger.info(f"Staged files ({len(staged)}):")
+                for file in staged[:10]:  # Show first 10
+                    self.logger.info(f"  + {file}")
+                if len(staged) > 10:
+                    self.logger.info(f"  ... and {len(staged) - 10} more")
+            
+            modified = status.get('modified_files', [])
+            if modified:
+                self.logger.warning(f"Modified files ({len(modified)}):")
+                for file in modified[:10]:  # Show first 10
+                    self.logger.warning(f"  M {file}")
+                if len(modified) > 10:
+                    self.logger.warning(f"  ... and {len(modified) - 10} more")
+            
+            untracked = status.get('untracked_files', [])
+            if untracked:
+                self.logger.info(f"Untracked files ({len(untracked)}):")
+                for file in untracked[:10]:  # Show first 10
+                    self.logger.info(f"  ? {file}")
+                if len(untracked) > 10:
+                    self.logger.info(f"  ... and {len(untracked) - 10} more")
+        
+        return 0
+    
+    def cmd_git_pull(self, args):
+        """Pull latest changes from remote repository."""
+        self.logger.info("=== Git Pull ===")
+        
+        if not self._validate_git_repository():
+            return 1
+        
+        # Check for clean working directory if requested
+        if args.check_clean:
+            status = self._get_git_status()
+            if not status.get('clean', False):
+                self.logger.error("Working directory is not clean")
+                self.logger.info("Commit or stash your changes before pulling")
+                return 1
+        
+        # Pull changes
+        pull_cmd = ['git', 'pull']
+        if args.rebase:
+            pull_cmd.append('--rebase')
+        
+        result = self.run_command(pull_cmd)
+        
+        if result.returncode == 0:
+            self.logger.info("[OK] Pull completed successfully")
+            
+            # Suggest rebuild if there were changes
+            if not args.skip_rebuild_suggestion:
+                self.logger.info("Consider running 'python build.py rebuild' to ensure everything works with the latest changes")
+            
+            return 0
+        else:
+            self.logger.error("Pull failed")
+            return 1
+    
+    def cmd_git_push(self, args):
+        """Push local commits to remote repository."""
+        self.logger.info("=== Git Push ===")
+        
+        if not self._validate_git_repository():
+            return 1
+        
+        status = self._get_git_status()
+        
+        # Check if there are commits to push
+        if status.get('commits_ahead', 0) == 0:
+            self.logger.info("No commits to push")
+            return 0
+        
+        # Check for clean working directory
+        if not status.get('clean', False) and not args.allow_dirty:
+            self.logger.warning("Working directory has uncommitted changes")
+            if not args.force:
+                self.logger.error("Use --allow-dirty or --force to push with uncommitted changes")
+                return 1
+        
+        # Push changes
+        push_cmd = ['git', 'push']
+        if args.force:
+            push_cmd.append('--force')
+        if args.set_upstream:
+            push_cmd.extend(['--set-upstream', 'origin', status.get('current_branch', 'HEAD')])
+        
+        result = self.run_command(push_cmd)
+        
+        if result.returncode == 0:
+            self.logger.info(f"[OK] Pushed {status.get('commits_ahead', 0)} commit(s) successfully")
+            return 0
+        else:
+            self.logger.error("Push failed")
+            return 1
+    
+    def cmd_git_commit(self, args):
+        """Commit staged changes with automatic pre-commit checks."""
+        self.logger.info("=== Git Commit ===")
+        
+        if not self._validate_git_repository():
+            return 1
+        
+        status = self._get_git_status()
+        
+        # Check if there are staged changes
+        if len(status.get('staged_files', [])) == 0:
+            self.logger.warning("No staged changes to commit")
+            self.logger.info("Stage files with: git add <files>")
+            return 1
+        
+        # Run pre-commit checks if enabled
+        if not args.skip_checks:
+            self.logger.info("Running pre-commit checks...")
+            
+            # Check formatting
+            if not args.skip_format_check:
+                self.logger.info("Checking code formatting...")
+                format_result = self.cmd_format(argparse.Namespace(check_only=True, files=None))
+                if format_result != 0:
+                    self.logger.error("Formatting check failed")
+                    self.logger.info("Fix formatting with: python build.py format")
+                    if not args.force:
+                        return 1
+            
+            # Quick build check
+            if not args.skip_build_check:
+                self.logger.info("Running quick build check...")
+                build_result = self.cmd_build(argparse.Namespace(debug=True, release=False, target=None, parallel=None))
+                if build_result != 0:
+                    self.logger.error("Build check failed")
+                    if not args.force:
+                        return 1
+        
+        # Commit changes
+        commit_cmd = ['git', 'commit']
+        if args.message:
+            commit_cmd.extend(['-m', args.message])
+        if args.amend:
+            commit_cmd.append('--amend')
+        
+        result = self.run_command(commit_cmd)
+        
+        if result.returncode == 0:
+            self.logger.info("[OK] Commit completed successfully")
+            return 0
+        else:
+            self.logger.error("Commit failed")
+            return 1
+    
+    def cmd_git_clean(self, args):
+        """Clean git repository and build artifacts."""
+        self.logger.info("=== Git Clean ===")
+        
+        if not self._validate_git_repository():
+            return 1
+        
+        if args.interactive:
+            # Interactive clean
+            result = self.run_command(['git', 'clean', '-i'])
+        else:
+            # Show what would be cleaned
+            self.logger.info("Files that would be cleaned:")
+            result = self.run_command(['git', 'clean', '-n'], capture_output=True)
+            if result.returncode == 0 and result.stdout:
+                for line in result.stdout.split('\n'):
+                    if line.strip():
+                        self.logger.info(f"  {line}")
+            
+            if args.force:
+                # Actually clean
+                clean_cmd = ['git', 'clean', '-f']
+                if args.include_directories:
+                    clean_cmd.append('-d')
+                if args.include_ignored:
+                    clean_cmd.append('-x')
+                
+                result = self.run_command(clean_cmd)
+                
+                if result.returncode == 0:
+                    self.logger.info("[OK] Git clean completed")
+                    
+                    # Also clean build artifacts
+                    if args.include_build_artifacts:
+                        self.logger.info("Also cleaning build artifacts...")
+                        clean_result = self.cmd_clean(args)
+                        return clean_result
+                else:
+                    self.logger.error("Git clean failed")
+                    return 1
+            else:
+                self.logger.info("Use --force to actually clean these files")
+        
+        return 0
+
+    # === Performance Optimization Commands ===
+    
+    def cmd_build_stats(self, args):
+        """Display build statistics and performance analysis."""
+        self.logger.info("=== Build Performance Analysis ===")
+        
+        # Analyze build directories
+        debug_build = self.get_build_directory("debug")
+        release_build = self.get_build_directory("release")
+        
+        build_stats = {
+            'debug': self._analyze_build_directory(debug_build),
+            'release': self._analyze_build_directory(release_build)
+        }
+        
+        # Display statistics
+        for build_type, stats in build_stats.items():
+            if stats['configured']:
+                self.logger.info(f"\n{build_type.capitalize()} Build Statistics:")
+                self.logger.info(f"  Build directory size: {self._format_size(stats['build_size'])}")
+                self.logger.info(f"  Dependencies size: {self._format_size(stats['deps_size'])}")
+                self.logger.info(f"  Output size: {self._format_size(stats['output_size'])}")
+                self.logger.info(f"  Configuration time: {stats['config_time']}")
+                self.logger.info(f"  Last build time: {stats['last_build']}")
+                
+                if stats['cache_hits'] > 0:
+                    cache_ratio = stats['cache_hits'] / (stats['cache_hits'] + stats['cache_misses']) * 100
+                    self.logger.info(f"  Cache hit ratio: {cache_ratio:.1f}%")
+            else:
+                self.logger.info(f"\n{build_type.capitalize()} Build: Not configured")
+        
+        # Recommendations
+        self._suggest_performance_improvements(build_stats)
+        
+        return 0
+    
+    def _analyze_build_directory(self, build_dir: Path) -> dict:
+        """Analyze a build directory for performance metrics."""
+        stats = {
+            'configured': False,
+            'build_size': 0,
+            'deps_size': 0,
+            'output_size': 0,
+            'config_time': 'Unknown',
+            'last_build': 'Never',
+            'cache_hits': 0,
+            'cache_misses': 0
+        }
+        
+        if not build_dir.exists():
+            return stats
+        
+        stats['configured'] = True
+        
+        # Calculate directory sizes
+        stats['build_size'] = self._get_directory_size(build_dir)
+        
+        deps_dir = build_dir / "_deps"
+        if deps_dir.exists():
+            stats['deps_size'] = self._get_directory_size(deps_dir)
+        
+        # Check output directories
+        build_type = build_dir.parent.name
+        output_bin = self.get_output_directory(build_type, "bin")
+        output_lib = self.get_output_directory(build_type, "lib")
+        
+        if output_bin.exists():
+            stats['output_size'] += self._get_directory_size(output_bin)
+        if output_lib.exists():
+            stats['output_size'] += self._get_directory_size(output_lib)
+        
+        # Get timestamps
+        cmake_cache = build_dir / "CMakeCache.txt"
+        if cmake_cache.exists():
+            import datetime
+            config_time = datetime.datetime.fromtimestamp(cmake_cache.stat().st_mtime)
+            stats['config_time'] = config_time.strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Check for build artifacts
+        ninja_build = build_dir / "build.ninja"
+        if ninja_build.exists():
+            import datetime
+            build_time = datetime.datetime.fromtimestamp(ninja_build.stat().st_mtime)
+            stats['last_build'] = build_time.strftime("%Y-%m-%d %H:%M:%S")
+        
+        return stats
+    
+    def _get_directory_size(self, directory: Path) -> int:
+        """Calculate total size of a directory in bytes."""
+        total_size = 0
+        try:
+            for dirpath, dirnames, filenames in os.walk(directory):
+                for filename in filenames:
+                    filepath = Path(dirpath) / filename
+                    try:
+                        total_size += filepath.stat().st_size
+                    except (OSError, FileNotFoundError):
+                        continue
+        except (OSError, FileNotFoundError):
+            pass
+        return total_size
+    
+    def _format_size(self, size_bytes: int) -> str:
+        """Format size in bytes to human readable format."""
+        if size_bytes == 0:
+            return "0 B"
+        
+        size_names = ["B", "KB", "MB", "GB", "TB"]
+        import math
+        i = int(math.floor(math.log(size_bytes, 1024)))
+        p = math.pow(1024, i)
+        s = round(size_bytes / p, 2)
+        return f"{s} {size_names[i]}"
+    
+    def _suggest_performance_improvements(self, build_stats: dict):
+        """Suggest performance improvements based on build statistics."""
+        self.logger.info("\n=== Performance Recommendations ===")
+        
+        total_deps_size = sum(stats.get('deps_size', 0) for stats in build_stats.values())
+        total_build_size = sum(stats.get('build_size', 0) for stats in build_stats.values())
+        
+        # Large dependency recommendations
+        if total_deps_size > 2 * 1024 * 1024 * 1024:  # 2GB
+            self.logger.info("Large dependencies detected:")
+            self.logger.info("  - Consider using ccache for faster rebuilds")
+            self.logger.info("  - Use shared libraries if building multiple targets")
+            self.logger.info("  - Enable dependency caching in CI/CD")
+        
+        # Build directory recommendations
+        if total_build_size > 5 * 1024 * 1024 * 1024:  # 5GB
+            self.logger.info("Large build directory:")
+            self.logger.info("  - Run 'python build.py clean' periodically")
+            self.logger.info("  - Consider separate debug/release builds")
+        
+        # General recommendations
+        self.logger.info("General optimizations:")
+        self.logger.info("  - Use 'python build.py build --parallel N' for faster builds")
+        self.logger.info("  - Enable LTO for release builds if needed")
+        self.logger.info("  - Use incremental builds when possible")
+    
+    def cmd_cache_management(self, args):
+        """Manage build caches and temporary files."""
+        self.logger.info("=== Build Cache Management ===")
+        
+        cache_dirs = []
+        
+        # Find cache directories
+        for build_type in ["debug", "release"]:
+            build_dir = self.get_build_directory(build_type)
+            if build_dir.exists():
+                deps_dir = build_dir / "_deps"
+                if deps_dir.exists():
+                    cache_dirs.append(("Dependencies", deps_dir))
+                
+                cmake_files = build_dir / "CMakeFiles"
+                if cmake_files.exists():
+                    cache_dirs.append(("CMake Files", cmake_files))
+        
+        if not cache_dirs:
+            self.logger.info("No cache directories found")
+            return 0
+        
+        # Display cache information
+        total_size = 0
+        self.logger.info("Cache directories found:")
+        for name, path in cache_dirs:
+            size = self._get_directory_size(path)
+            total_size += size
+            self.logger.info(f"  {name}: {self._format_size(size)} ({path})")
+        
+        self.logger.info(f"\nTotal cache size: {self._format_size(total_size)}")
+        
+        # Cache management actions
+        if args.clean_cmake:
+            self.logger.info("\nCleaning CMake caches...")
+            for name, path in cache_dirs:
+                if "CMake" in name:
+                    import shutil
+                    try:
+                        shutil.rmtree(path)
+                        self.logger.info(f"  Cleaned: {name}")
+                    except Exception as e:
+                        self.logger.error(f"  Failed to clean {name}: {e}")
+        
+        if args.clean_deps:
+            self.logger.info("\nCleaning dependency caches...")
+            for name, path in cache_dirs:
+                if "Dependencies" in name:
+                    import shutil
+                    try:
+                        shutil.rmtree(path)
+                        self.logger.info(f"  Cleaned: {name}")
+                    except Exception as e:
+                        self.logger.error(f"  Failed to clean {name}: {e}")
+        
+        if args.optimize:
+            self.logger.info("\nOptimizing caches...")
+            # This could be extended to implement cache optimization strategies
+            self.logger.info("  Cache optimization not yet implemented")
+        
+        return 0
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -1293,6 +2264,11 @@ Examples:
   python build.py format --check-only      # Check formatting
   python build.py lint --fix               # Run linter with fixes
   python build.py clean                    # Clean artifacts
+  python build.py rebuild                  # Clean, build, and test
+  python build.py git-status               # Show git repository status
+  python build.py git-commit -m "Fix bug"  # Commit with pre-commit checks
+  python build.py build-stats              # Show build performance stats
+  python build.py cache-mgmt --clean-cmake # Clean CMake caches
         """
     )
     
@@ -1330,6 +2306,10 @@ Examples:
     test_parser.add_argument('--verbose', action='store_true', help='Verbose test output')
     test_parser.add_argument('--target', help='Run specific test (regex pattern)')
     test_parser.add_argument('--labels', help='Run tests with specific labels (regex pattern)')
+    test_parser.add_argument('--ci-mode', action='store_true', help='Enable CI-friendly output and reporting')
+    test_parser.add_argument('--coverage', action='store_true', help='Enable test coverage collection (if available)')
+    test_parser.add_argument('--report-format', choices=['auto', 'html', 'json', 'text'], default='auto', help='Test report format')
+    test_parser.add_argument('--historical', action='store_true', help='Enable historical test result tracking')
     
     # Format command
     format_parser = subparsers.add_parser('format', help='Format source code')
@@ -1354,6 +2334,55 @@ Examples:
     
     # Git Integration Commands
     git_hooks_parser = subparsers.add_parser('install-git-hooks', help='Install git pre-commit hooks')
+    
+    # Integrated workflow commands
+    rebuild_parser = subparsers.add_parser('rebuild', help='Clean, build, and test in sequence')
+    rebuild_parser.add_argument('--debug', action='store_true', help='Use debug build type')
+    rebuild_parser.add_argument('--release', action='store_true', help='Use release build type')
+    rebuild_parser.add_argument('--parallel', type=int, help='Number of parallel build jobs')
+    rebuild_parser.add_argument('--skip-tests', action='store_true', help='Skip test execution after rebuild')
+    rebuild_parser.add_argument('--test-target', help='Run specific test pattern after build')
+
+    # Reconfigure command (clean configure from scratch)
+    reconfig_parser = subparsers.add_parser('reconfigure', help='Clean configure from scratch')
+    reconfig_parser.add_argument('--debug', action='store_true', help='Configure for debug build')
+    reconfig_parser.add_argument('--release', action='store_true', help='Configure for release build')
+    
+    # Git Integration Commands
+    git_status_parser = subparsers.add_parser('git-status', help='Display comprehensive git repository status')
+    
+    git_pull_parser = subparsers.add_parser('git-pull', help='Pull latest changes from remote repository')
+    git_pull_parser.add_argument('--check-clean', action='store_true', help='Check for clean working directory before pulling')
+    git_pull_parser.add_argument('--rebase', action='store_true', help='Use rebase instead of merge')
+    git_pull_parser.add_argument('--skip-rebuild-suggestion', action='store_true', help='Skip rebuild suggestion after pull')
+    
+    git_push_parser = subparsers.add_parser('git-push', help='Push local commits to remote repository')
+    git_push_parser.add_argument('--allow-dirty', action='store_true', help='Allow push with uncommitted changes')
+    git_push_parser.add_argument('--force', action='store_true', help='Force push (use with caution)')
+    git_push_parser.add_argument('--set-upstream', action='store_true', help='Set upstream branch')
+    
+    git_commit_parser = subparsers.add_parser('git-commit', help='Commit staged changes with pre-commit checks')
+    git_commit_parser.add_argument('-m', '--message', help='Commit message')
+    git_commit_parser.add_argument('--amend', action='store_true', help='Amend the previous commit')
+    git_commit_parser.add_argument('--skip-checks', action='store_true', help='Skip pre-commit checks')
+    git_commit_parser.add_argument('--skip-format-check', action='store_true', help='Skip formatting check')
+    git_commit_parser.add_argument('--skip-build-check', action='store_true', help='Skip build check')
+    git_commit_parser.add_argument('--force', action='store_true', help='Force commit even if checks fail')
+    
+    git_clean_parser = subparsers.add_parser('git-clean', help='Clean git repository and build artifacts')
+    git_clean_parser.add_argument('--force', action='store_true', help='Actually clean files (default is dry-run)')
+    git_clean_parser.add_argument('--interactive', action='store_true', help='Interactive clean mode')
+    git_clean_parser.add_argument('--include-directories', action='store_true', help='Also clean untracked directories')
+    git_clean_parser.add_argument('--include-ignored', action='store_true', help='Also clean ignored files')
+    git_clean_parser.add_argument('--include-build-artifacts', action='store_true', help='Also clean build artifacts')
+    
+    # Performance and Analysis Commands
+    build_stats_parser = subparsers.add_parser('build-stats', help='Display build statistics and performance analysis')
+    
+    cache_mgmt_parser = subparsers.add_parser('cache-mgmt', help='Manage build caches and temporary files')
+    cache_mgmt_parser.add_argument('--clean-cmake', action='store_true', help='Clean CMake cache files')
+    cache_mgmt_parser.add_argument('--clean-deps', action='store_true', help='Clean dependency cache files')
+    cache_mgmt_parser.add_argument('--optimize', action='store_true', help='Optimize cache storage')
     
     return parser
 
@@ -1381,6 +2410,15 @@ def main():
         'lint': orchestrator.cmd_lint,
         'compile-db': orchestrator.cmd_compile_db,
         'install-git-hooks': orchestrator.cmd_install_git_hooks,
+        'rebuild': orchestrator.cmd_rebuild,
+        'reconfigure': orchestrator.cmd_reconfigure,
+        'git-status': orchestrator.cmd_git_status,
+        'git-pull': orchestrator.cmd_git_pull,
+        'git-push': orchestrator.cmd_git_push,
+        'git-commit': orchestrator.cmd_git_commit,
+        'git-clean': orchestrator.cmd_git_clean,
+        'build-stats': orchestrator.cmd_build_stats,
+        'cache-mgmt': orchestrator.cmd_cache_management,
     }
     
     try:
