@@ -3,10 +3,10 @@ description: Before making any C++ code changes, this rule MUST be followed
 globs:
 alwaysApply: true
 ---
-Run "xmake":
+Run "python build.py build":
 Ensure that everything compiles without errors.
 
-Run "xmake test":
+Run "python build.py test":
 Verify that all tests are currently passing.
 
 If either step fails:
