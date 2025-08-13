@@ -90,14 +90,14 @@ void KuzuDump::dumpLookups(const DeclContext* DC, bool DumpDecls)
                             OS << '\'' << Name << '\'';
                         }
 
-                        for (DeclContextLookupResult::iterator RI = R.begin(), RE = R.end(); RI != RE; ++RI)
+                        for (auto lookupResult : R)
                         {
                             NodeDumper.AddChild(
                                 [=]
                                 {
-                                    NodeDumper.dumpBareDeclRef(*RI);
+                                    NodeDumper.dumpBareDeclRef(lookupResult);
 
-                                    if (!(*RI)->isUnconditionallyVisible())
+                                    if (!lookupResult->isUnconditionallyVisible())
                                         OS << " hidden";
 
                                     // If requested, dump the redecl chain for this lookup.
@@ -110,7 +110,7 @@ void KuzuDump::dumpLookups(const DeclContext* DC, bool DumpDecls)
                                                 DumpWithPrev(Prev);
                                             Visit(D);
                                         };
-                                        DumpWithPrev(*RI);
+                                        DumpWithPrev(lookupResult);
                                     }
                                 });
                         }
