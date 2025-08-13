@@ -315,27 +315,7 @@ python build.py install-git-hooks
 python build.py info
 ```
 
-## 🎯 Migration from XMake
 
-> **📋 For Existing Users**: This project has migrated from XMake to a modern Python + CMake + Ninja build system for better dependency management, faster builds, and improved CI/CD integration.
-
-### Quick Migration Steps
-
-1. **Remove old artifacts**: `xmake clean` (if XMake still installed)
-2. **Setup new system**: `python build.py setup`
-3. **Configure**: `python build.py configure --debug`
-4. **Build**: `python build.py build`
-5. **Test**: `python build.py test`
-
-### New vs Old Commands
-
-| Old (XMake) | New (Python Build System) |
-|-------------|----------------------------|
-| `xmake` | `python build.py build` |
-| `xmake test` | `python build.py test` |
-| `xmake run format` | `python build.py format` |
-| `xmake run lint` | `python build.py lint` |
-| `xmake clean` | `python build.py clean` |
 
 ## 🛠️ Troubleshooting
 
@@ -453,4 +433,4 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 > **🎯 Goal**: This project aims to bridge the gap between large C++ codebases and AI tools by providing a graph-based representation of code structure that can be queried using natural language.
 
-> **⚡ Performance**: The new build system provides significantly faster builds, better dependency management, and comprehensive development workflow automation compared to the previous XMake setup.
+> **⚡ Performance**: The build system provides fast builds, excellent dependency management, and comprehensive development workflow automation.
