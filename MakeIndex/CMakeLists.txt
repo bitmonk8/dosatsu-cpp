@@ -22,6 +22,8 @@ target_include_directories(MakeIndex PRIVATE
     ${CMAKE_SOURCE_DIR}/3rdParty/include  # For doctest
 )
 
+target_link_libraries(MakeIndex PRIVATE kuzu::kuzu)
+
 # Add LLVM include directories manually if linking doesn't work
 if(TARGET LLVMSupport)
     # Add the main LLVM include directories

@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.14)
+
 include(FetchContent)
 
 message(STATUS "Configuring external dependencies...")
@@ -64,6 +66,50 @@ if(TARGET llvm-config)
     message(STATUS "LLVM successfully configured")
 else()
     message(STATUS "LLVM libraries configured (llvm-config not built)")
+endif()
+
+# Determine the correct KuzuDB release based on platform
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+        set(KUZU_URL "https://github.com/kuzudb/kuzu/releases/download/v0.11.1/libkuzu-linux-x86_64.tar.gz")
+        set(KUZU_SHA256 "9c2a90eb77741882909af6377130093ef690aa3642ae0af560707b11d4281f7c")
+        set(KUZU_LIB_NAME "libkuzu.so")
+    endif()
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    set(KUZU_URL "https://github.com/kuzudb/kuzu/releases/download/v0.11.1/libkuzu-windows-x86_64.zip")
+    set(KUZU_SHA256 "cfcdeead0f52fca7901395edecb9e5381b3529a3cda2fc94b16fa5c613208eb0")
+    set(KUZU_LIB_NAME "kuzu.lib")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    set(KUZU_URL "https://github.com/kuzudb/kuzu/releases/download/v0.11.1/libkuzu-osx-universal.tar.gz")
+    set(KUZU_SHA256 "78273eb9d31420a2ba8808d4393aed81560d27b23c7050cdfd36bdbe2c04768e")
+    set(KUZU_LIB_NAME "libkuzu.dylib")
+else()
+    message(FATAL_ERROR "Unsupported platform: ${CMAKE_SYSTEM_NAME}")
+endif()
+
+# Download and extract the prebuilt KuzuDB library
+FetchContent_Declare(
+    kuzu_prebuilt
+    URL ${KUZU_URL}
+    URL_HASH SHA256=${KUZU_SHA256}
+)
+
+FetchContent_MakeAvailable(kuzu_prebuilt)
+
+# Create an imported target for KuzuDB
+add_library(kuzu::kuzu SHARED IMPORTED)
+
+# Set the library file location
+set_target_properties(kuzu::kuzu PROPERTIES
+    IMPORTED_LOCATION "${kuzu_prebuilt_SOURCE_DIR}/lib/${KUZU_LIB_NAME}"
+    INTERFACE_INCLUDE_DIRECTORIES "${kuzu_prebuilt_SOURCE_DIR}/include"
+)
+
+# For Windows, also set the import library if it exists
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    set_target_properties(kuzu::kuzu PROPERTIES
+        IMPORTED_IMPLIB "${kuzu_prebuilt_SOURCE_DIR}/lib/kuzu.lib"
+    )
 endif()
 
 message(STATUS "External dependencies configuration completed")
