@@ -16,6 +16,8 @@
 #include "NoWarningScope_Leave.h"
 // clang-format on
 
+#include "kuzu.hpp"
+
 namespace clang
 {
 

@@ -78,7 +78,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(KUZU_URL "https://github.com/kuzudb/kuzu/releases/download/v0.11.1/libkuzu-windows-x86_64.zip")
     set(KUZU_SHA256 "cfcdeead0f52fca7901395edecb9e5381b3529a3cda2fc94b16fa5c613208eb0")
-    set(KUZU_LIB_NAME "kuzu.lib")
+    set(KUZU_LIB_NAME "kuzu_shared.lib")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(KUZU_URL "https://github.com/kuzudb/kuzu/releases/download/v0.11.1/libkuzu-osx-universal.tar.gz")
     set(KUZU_SHA256 "78273eb9d31420a2ba8808d4393aed81560d27b23c7050cdfd36bdbe2c04768e")
@@ -101,14 +101,14 @@ add_library(kuzu::kuzu SHARED IMPORTED)
 
 # Set the library file location
 set_target_properties(kuzu::kuzu PROPERTIES
-    IMPORTED_LOCATION "${kuzu_prebuilt_SOURCE_DIR}/lib/${KUZU_LIB_NAME}"
-    INTERFACE_INCLUDE_DIRECTORIES "${kuzu_prebuilt_SOURCE_DIR}/include"
+    IMPORTED_LOCATION "${kuzu_prebuilt_SOURCE_DIR}/${KUZU_LIB_NAME}"
+    INTERFACE_INCLUDE_DIRECTORIES "${kuzu_prebuilt_SOURCE_DIR}"
 )
 
 # For Windows, also set the import library if it exists
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set_target_properties(kuzu::kuzu PROPERTIES
-        IMPORTED_IMPLIB "${kuzu_prebuilt_SOURCE_DIR}/lib/kuzu.lib"
+        IMPORTED_IMPLIB "${kuzu_prebuilt_SOURCE_DIR}/${KUZU_LIB_NAME}"
     )
 endif()
 

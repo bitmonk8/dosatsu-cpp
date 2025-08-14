@@ -1,5 +1,17 @@
 cmake_minimum_required(VERSION 3.24)
 
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+    set(CMAKE_POLICY_DEFAULT_CMP0135 NEW)
+endif()
+
+# Set default policy behavior
+if(POLICY CMP0116)
+    cmake_policy(SET CMP0116 NEW)
+    set(CMAKE_POLICY_DEFAULT_CMP0116 NEW)
+endif()
+
+
 project(CppGraphIndex 
     VERSION 1.0.0
     DESCRIPTION "C++ Graph Index with LLVM Integration"
