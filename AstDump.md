@@ -56,26 +56,25 @@ compile_commands.json → JSONCompilationDatabase → ClangTool → ASTDumpActio
 
 #### 1. Command Line Interface
 ```cmd
-MakeIndex.exe [options] <compile_commands.json>
+MakeIndex.exe --output <file> [--filter <pattern>] <compile_commands.json>
 
 Options:
-  --output <file>     Output file (default: stdout)
-  --filter <pattern>  Filter files by pattern (e.g., "*MakeIndex*")
+  --output <file>     Output file (required)
+  --filter <pattern>  Filter files by pattern (optional, default: process all files)
 
 Examples:
-  MakeIndex.exe artifacts\debug\build\compile_commands.json
-  MakeIndex.exe --filter="*MakeIndex*" artifacts\debug\build\compile_commands.json
-  MakeIndex.exe --output=self_analysis.txt artifacts\debug\build\compile_commands.json
+  MakeIndex.exe --output=all_files.txt artifacts\debug\build\compile_commands.json
+  MakeIndex.exe --output=makeindex_only.txt --filter="*MakeIndex*" artifacts\debug\build\compile_commands.json
 ```
 
 #### 2. ASTDumpAction Class
 A custom `ASTFrontendAction` that creates our AST consumer:
 
 ```cpp
-class ASTDumpAction : public clang::ASTFrontendAction
+class MakeIndexASTDumpAction : public clang::ASTFrontendAction
 {
 public:
-    ASTDumpAction(llvm::raw_ostream& OS, bool ShowColors) : OS(OS), ShowColors(ShowColors) {}
+    MakeIndexASTDumpAction(llvm::raw_ostream& OS) : OS(OS) {}
 
 protected:
     auto CreateASTConsumer(clang::CompilerInstance& CI, llvm::StringRef InFile)
@@ -83,7 +82,6 @@ protected:
 
 private:
     llvm::raw_ostream& OS;
-    bool ShowColors;
 };
 ```
 
@@ -91,11 +89,11 @@ private:
 A custom `ASTConsumer` that uses KuzuDump:
 
 ```cpp
-class ASTDumpConsumer : public clang::ASTConsumer
+class MakeIndexASTDumpConsumer : public clang::ASTConsumer
 {
 public:
-    ASTDumpConsumer(llvm::raw_ostream& OS, clang::ASTContext& Context, bool ShowColors)
-        : Dumper(OS, Context, ShowColors)
+    MakeIndexASTDumpConsumer(llvm::raw_ostream& OS, clang::ASTContext& Context)
+        : Dumper(OS, Context, false)
     {
     }
 
@@ -179,20 +177,23 @@ From the existing `artifacts\debug\build\compile_commands.json`:
 
 #### **Testing Benefits**
 - **No setup required**: compile_commands.json already exists
-- **Performance testing**: Large codebase provides realistic load testing
-- **Edge case coverage**: LLVM codebase exercises complex C++ features
+- **Focused testing**: Only processes MakeIndex.cpp for manageable output
 - **Self-validation**: MakeIndex can verify its own AST structure
+- **File output**: All results saved to files for analysis
 
 #### **Development Workflow**
 ```cmd
 rem Build MakeIndex
 python build.py build
 
-rem Test with own sources only  
-artifacts\debug\bin\MakeIndex.exe --filter="*MakeIndex*" artifacts\debug\build\compile_commands.json
+rem Test with MakeIndex.cpp only  
+artifacts\debug\bin\MakeIndex.exe --output=makeindex_ast.txt --filter="*MakeIndex.cpp" artifacts\debug\build\compile_commands.json
 
-rem Test with full codebase
-artifacts\debug\bin\MakeIndex.exe artifacts\debug\build\compile_commands.json
+rem Test with all MakeIndex files
+artifacts\debug\bin\MakeIndex.exe --output=makeindex_all.txt --filter="*MakeIndex*" artifacts\debug\build\compile_commands.json
+
+rem Test with all files (not recommended for large databases)
+artifacts\debug\bin\MakeIndex.exe --output=all_files.txt artifacts\debug\build\compile_commands.json
 ```
 
 ## Implementation Plan

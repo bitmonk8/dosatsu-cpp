@@ -5,6 +5,10 @@ add_executable(MakeIndex
     MakeIndex.cpp
     KuzuDump.cpp
     KuzuDump.h
+    CompilationDatabaseLoader.cpp
+    CompilationDatabaseLoader.h
+    ASTDumpAction.cpp
+    ASTDumpAction.h
     NoWarningScope_Enter.h
     NoWarningScope_Leave.h
 )
