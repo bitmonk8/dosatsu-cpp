@@ -24,7 +24,25 @@ The current MakeIndex application is a minimal placeholder that only runs self-t
 **Existing Infrastructure:**
 - `KuzuDump` class already extends `ASTNodeTraverser<KuzuDump, TextNodeDumper>`
 - Build system already links against required Clang libraries
-- LLVM/Clang source available at `artifacts/debug/build/_deps/llvm-src`
+- LLVM/Clang source available for reference implementation
+
+### Reference Implementation Sources
+
+**LLVM/Clang Source Code (Debug Builds):**
+- **LLVM/Clang Root**: `artifacts\debug\build\_deps\llvm-src`
+- **Clangd Source**: `artifacts\debug\build\_deps\llvm-src\clang-tools-extra\clangd`
+- **Clang Tooling**: `artifacts\debug\build\_deps\llvm-src\clang\lib\Tooling`
+- **AST Classes**: `artifacts\debug\build\_deps\llvm-src\clang\lib\AST`
+
+*Note: For release builds, replace `debug` with `release` in the paths above.*
+
+**Useful Reference Files:**
+- `clangd\GlobalCompilationDatabase.cpp` - How clangd loads compile_commands.json
+- `clang\lib\Tooling\JSONCompilationDatabase.cpp` - JSON parsing implementation
+- `clang\lib\Frontend\FrontendActions.cpp` - AST frontend actions (see `ASTDumpAction`)
+- `clang\tools\clang-ast-dump` - Similar tool implementation (if available)
+
+These sources provide working examples of the exact patterns we need to implement.
 
 ## Architecture Design
 
@@ -54,14 +72,14 @@ Examples:
 A custom `ASTFrontendAction` that creates our AST consumer:
 
 ```cpp
-class ASTDumpAction : public clang::ASTFrontendAction {
+class ASTDumpAction : public clang::ASTFrontendAction
+{
 public:
-    ASTDumpAction(llvm::raw_ostream& OS, bool ShowColors)
-        : OS(OS), ShowColors(ShowColors) {}
+    ASTDumpAction(llvm::raw_ostream& OS, bool ShowColors) : OS(OS), ShowColors(ShowColors) {}
 
 protected:
-    std::unique_ptr<clang::ASTConsumer> 
-    CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef InFile) override;
+    auto CreateASTConsumer(clang::CompilerInstance& CI, llvm::StringRef InFile)
+        -> std::unique_ptr<clang::ASTConsumer> override;
 
 private:
     llvm::raw_ostream& OS;
@@ -73,12 +91,16 @@ private:
 A custom `ASTConsumer` that uses KuzuDump:
 
 ```cpp
-class ASTDumpConsumer : public clang::ASTConsumer {
+class ASTDumpConsumer : public clang::ASTConsumer
+{
 public:
     ASTDumpConsumer(llvm::raw_ostream& OS, clang::ASTContext& Context, bool ShowColors)
-        : Dumper(OS, Context, ShowColors) {}
+        : Dumper(OS, Context, ShowColors)
+    {
+    }
 
-    void HandleTranslationUnit(clang::ASTContext &Context) override {
+    void HandleTranslationUnit(clang::ASTContext& Context) override
+    {
         Dumper.Visit(Context.getTranslationUnitDecl());
     }
 
@@ -91,27 +113,29 @@ private:
 Handles loading and validating compile_commands.json:
 
 ```cpp
-class CompilationDatabaseLoader {
+class CompilationDatabaseLoader
+{
 public:
-    static std::unique_ptr<clang::tooling::CompilationDatabase> 
-    loadFromFile(const std::string& path, std::string& errorMessage);
-    
-    static std::vector<std::string> 
-    filterSourceFiles(const clang::tooling::CompilationDatabase& db, 
-                     const std::string& pattern = "");
+    static auto loadFromFile(const std::string& path, std::string& errorMessage)
+        -> std::unique_ptr<clang::tooling::CompilationDatabase>;
+
+    static auto filterSourceFiles(const clang::tooling::CompilationDatabase& db,
+                                  const std::string& pattern = "") -> std::vector<std::string>;
 };
 ```
 
 #### 5. Main Application Flow
 
 ```cpp
-int RealMain(int argc, char** argv) {
+auto RealMain(int argc, char** argv) -> int
+{
     // 1. Parse command line arguments
     // 2. Load compilation database from compile_commands.json
     // 3. Filter source files if needed
     // 4. Create ClangTool with database and files
     // 5. Run ASTDumpAction on all files
     // 6. Handle errors and cleanup
+    return 0;
 }
 ```
 
@@ -387,4 +411,14 @@ clang::KuzuDump::Visit(Decl*)
 ]
 ```
 
-This design provides a solid foundation for implementing AST dump functionality while leveraging existing infrastructure and following established patterns from the Clang ecosystem.
+## Coding Standards
+
+This project uses automated code formatting and linting:
+
+**Formatting**: `clang-format` with configuration in `.clang-format` (based on LLVM style, 4-space indentation)
+**Linting**: `clang-tidy` with configuration in `.clang-tidy` 
+**Build Integration**: `python build.py format` and `python build.py lint`
+
+All code examples in this document follow these standards. Implementers should run formatting/linting regularly during development.
+
+This design provides a solid foundation for implementing AST dump functionality while leveraging existing infrastructure, following established patterns from the Clang ecosystem, and using available reference implementations.
