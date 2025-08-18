@@ -1,0 +1,40 @@
+{
+    "global": {
+      "security": {
+        "maxCommandLength": 3000,
+        "commandTimeout": 900,
+        "enableInjectionProtection": true,
+        "restrictWorkingDirectory": true
+      },
+      "restrictions": {
+        "blockedCommands": [
+          "format",
+          "shutdown",
+          "restart",
+          "reg",
+          "regedit"
+        ],
+        "blockedArguments": [
+          "--system",
+          "--privileged"
+        ],
+        "blockedOperators": []
+      },
+      "paths": {
+        "allowedPaths": [
+          "C:\\UnitySrc\\CppGraphIndex"
+        ],
+        "initialDir": "C:\\UnitySrc\\CppGraphIndex"
+      }
+    },
+    "shells": {
+      "cmd": {
+        "type": "cmd",
+        "enabled": true,
+        "executable": {
+          "command": "cmd.exe",
+          "args": ["/c"]
+        }
+      }
+    }
+  }

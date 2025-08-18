@@ -1,0 +1,6 @@
+---
+description: Rule for all terminal commands
+globs:
+alwaysApply: true
+---
+When possible, use the windows-cli MCP server for terminal operations
