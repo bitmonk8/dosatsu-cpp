@@ -1,0 +1,9 @@
+[
+  {
+    "directory": "C:/UnitySrc/CppGraphIndex",
+    "command": "clang++ -std=c++17 KuzuOutputTest/simple_test.cpp -o KuzuOutputTest/simple_test",
+    "file": "KuzuOutputTest/simple_test.cpp"
+  }
+]
+
+
