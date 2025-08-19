@@ -18,6 +18,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclLookups.h"
 #include "clang/AST/JSONNodeDumper.h"
+#include "clang/AST/Expr.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -188,15 +189,45 @@ void KuzuDump::dumpTemplateDecl(const TemplateDecl* D, bool DumpExplicitInst)
 
 void KuzuDump::VisitFunctionTemplateDecl(const FunctionTemplateDecl* D)
 {
+    if (D == nullptr)
+        return;
+
+    // Create database node for this function template declaration
+    int64_t nodeId = createASTNode(D);
+
+    // Create scope relationships for this template (it's in its parent scope)
+    createScopeRelationships(nodeId);
+
+    // Push this template as a new scope for its contents
+    pushScope(nodeId);
+
     // FIXME: We don't add a declaration of a function template specialization
     // to its context when it's explicitly instantiated, so dump explicit
     // instantiations when we dump the template itself.
     dumpTemplateDecl(D, true);
+
+    // Pop this template scope after traversal
+    popScope();
 }
 
 void KuzuDump::VisitClassTemplateDecl(const ClassTemplateDecl* D)
 {
+    if (D == nullptr)
+        return;
+
+    // Create database node for this class template declaration
+    int64_t nodeId = createASTNode(D);
+
+    // Create scope relationships for this template (it's in its parent scope)
+    createScopeRelationships(nodeId);
+
+    // Push this template as a new scope for its contents
+    pushScope(nodeId);
+
     dumpTemplateDecl(D, false);
+
+    // Pop this template scope after traversal
+    popScope();
 }
 
 void KuzuDump::VisitVarTemplateDecl(const VarTemplateDecl* D)
@@ -336,8 +367,9 @@ void KuzuDump::createSchema()
                            "IN_SCOPE");
 
         executeSchemaQuery("CREATE REL TABLE TEMPLATE_RELATION("
-                           "FROM Declaration TO Declaration, "
-                           "relation_type STRING)",
+                           "FROM ASTNode TO Declaration, "
+                           "relation_kind STRING, "
+                           "specialization_type STRING)",
                            "TEMPLATE_RELATION");
 
         llvm::outs() << "Database schema created successfully\n";
@@ -517,20 +549,106 @@ auto KuzuDump::createASTNode(const clang::Type* type) -> int64_t
     }
 }
 
-// Placeholder relationship creation methods (Phase 1)
-void KuzuDump::createParentChildRelation(int64_t /*parentId*/, int64_t /*childId*/, int /*index*/)
+// Relationship creation methods (Phase 2 & 3)
+void KuzuDump::createParentChildRelation(int64_t parentId, int64_t childId, int index)
 {
-    // TODO: Implement in Phase 2
+    if (!connection || parentId == -1 || childId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        std::string query = "MATCH (parent:ASTNode {node_id: " + std::to_string(parentId) + "}), " +
+                            "(child:ASTNode {node_id: " + std::to_string(childId) + "}) " +
+                            "CREATE (parent)-[:PARENT_OF {child_index: " + std::to_string(index) +
+                            ", relationship_kind: 'child'}]->(child)";
+
+        auto result = connection->query(query);
+        if (!result->isSuccess())
+        {
+            llvm::errs() << "Failed to create PARENT_OF relationship: " << result->getErrorMessage() << "\n";
+        }
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating PARENT_OF relationship: " << e.what() << "\n";
+    }
 }
 
-void KuzuDump::createTypeRelation(int64_t /*declId*/, int64_t /*typeId*/)
+void KuzuDump::createTypeRelation(int64_t declId, int64_t typeId)
 {
-    // TODO: Implement in Phase 2
+    if (!connection || declId == -1 || typeId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        std::string query = "MATCH (decl:Declaration {node_id: " + std::to_string(declId) + "}), " +
+                            "(type:Type {node_id: " + std::to_string(typeId) + "}) " +
+                            "CREATE (decl)-[:HAS_TYPE {type_role: 'primary'}]->(type)";
+
+        auto result = connection->query(query);
+        if (!result->isSuccess())
+        {
+            llvm::errs() << "Failed to create HAS_TYPE relationship: " << result->getErrorMessage() << "\n";
+        }
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating HAS_TYPE relationship: " << e.what() << "\n";
+    }
 }
 
-void KuzuDump::createReferenceRelation(int64_t /*fromId*/, int64_t /*toId*/, const std::string& /*kind*/)
+void KuzuDump::createReferenceRelation(int64_t fromId, int64_t toId, const std::string& kind)
 {
-    // TODO: Implement in Phase 3
+    if (!connection || fromId == -1 || toId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        std::string query = "MATCH (from:ASTNode {node_id: " + std::to_string(fromId) + "}), " +
+                            "(to:Declaration {node_id: " + std::to_string(toId) + "}) " +
+                            "CREATE (from)-[:REFERENCES {reference_kind: '" + kind + "', is_direct: true}]->(to)";
+
+        auto result = connection->query(query);
+        if (!result->isSuccess())
+        {
+            llvm::errs() << "Failed to create REFERENCES relationship: " << result->getErrorMessage() << "\n";
+        }
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating REFERENCES relationship: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::createScopeRelation(int64_t nodeId, int64_t scopeId, const std::string& scopeKind)
+{
+    if (!connection || nodeId == -1 || scopeId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        std::string query = "MATCH (node:ASTNode {node_id: " + std::to_string(nodeId) + "}), " +
+                            "(scope:Declaration {node_id: " + std::to_string(scopeId) + "}) " +
+                            "CREATE (node)-[:IN_SCOPE {scope_kind: '" + scopeKind + "'}]->(scope)";
+
+        auto result = connection->query(query);
+        if (!result->isSuccess())
+        {
+            llvm::errs() << "Failed to create IN_SCOPE relationship: " << result->getErrorMessage() << "\n";
+        }
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating IN_SCOPE relationship: " << e.what() << "\n";
+    }
 }
 
 // Type processing methods (Phase 2)
@@ -992,6 +1110,74 @@ auto KuzuDump::getCurrentParent() -> int64_t
     return parentStack.back();
 }
 
+// Scope processing methods (Phase 3)
+void KuzuDump::pushScope(int64_t scopeNodeId)
+{
+    if (scopeNodeId != -1)
+    {
+        scopeStack.push_back(scopeNodeId);
+    }
+}
+
+void KuzuDump::popScope()
+{
+    if (!scopeStack.empty())
+    {
+        scopeStack.pop_back();
+    }
+}
+
+void KuzuDump::createScopeRelationships(int64_t nodeId)
+{
+    if (nodeId == -1 || scopeStack.empty())
+    {
+        return;
+    }
+
+    // Create IN_SCOPE relationships for all current scopes
+    for (int64_t scopeId : scopeStack)
+    {
+        // Determine scope kind based on scope type
+        // For now, we'll use "local" as default, but this could be enhanced
+        createScopeRelation(nodeId, scopeId, "local");
+    }
+}
+
+auto KuzuDump::getCurrentScope() -> int64_t
+{
+    if (scopeStack.empty())
+    {
+        return -1;
+    }
+    return scopeStack.back();
+}
+
+void KuzuDump::createTemplateRelation(int64_t specializationId, int64_t templateId, const std::string& kind)
+{
+    if (!connection || specializationId == -1 || templateId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        std::string query = "MATCH (spec:ASTNode {node_id: " + std::to_string(specializationId) + "}), " +
+                            "(tmpl:Declaration {node_id: " + std::to_string(templateId) + "}) " +
+                            "CREATE (spec)-[:TEMPLATE_RELATION {relation_kind: '" + kind +
+                            "', specialization_type: 'explicit'}]->(tmpl)";
+
+        auto result = connection->query(query);
+        if (!result->isSuccess())
+        {
+            llvm::errs() << "Failed to create TEMPLATE_RELATION relationship: " << result->getErrorMessage() << "\n";
+        }
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating TEMPLATE_RELATION relationship: " << e.what() << "\n";
+    }
+}
+
 // Core Visit method implementations
 void KuzuDump::VisitDecl(const Decl* D)
 {
@@ -1021,9 +1207,37 @@ void KuzuDump::VisitFunctionDecl(const FunctionDecl* D)
         return;
 
     // Create database node for this function declaration
-    [[maybe_unused]] int64_t nodeId = createASTNode(D);
+    int64_t nodeId = createASTNode(D);
+
+    // Create scope relationships for this function (it's in its parent scope)
+    createScopeRelationships(nodeId);
+
+    // Check if this is a function template specialization
+    if (const FunctionTemplateSpecializationInfo* specInfo = D->getTemplateSpecializationInfo())
+    {
+        if (const FunctionTemplateDecl* templateDecl = specInfo->getTemplate())
+        {
+            // Check if the template declaration has been processed
+            auto it = nodeIdMap.find(templateDecl);
+            if (it != nodeIdMap.end())
+            {
+                createTemplateRelation(nodeId, it->second, "specializes");
+            }
+            else
+            {
+                // Create the template node if it doesn't exist yet
+                int64_t templateNodeId = createASTNode(templateDecl);
+                createTemplateRelation(nodeId, templateNodeId, "specializes");
+            }
+        }
+    }
+
+    // Push this function as a new scope for its body and parameters
+    pushScope(nodeId);
 
     // The ASTNodeTraverser will handle automatic traversal
+    // Pop this function scope after traversal
+    popScope();
 }
 
 void KuzuDump::VisitVarDecl(const VarDecl* D)
@@ -1032,7 +1246,10 @@ void KuzuDump::VisitVarDecl(const VarDecl* D)
         return;
 
     // Create database node for this variable declaration
-    [[maybe_unused]] int64_t nodeId = createASTNode(D);
+    int64_t nodeId = createASTNode(D);
+
+    // Create scope relationships for this variable (it's in its current scope)
+    createScopeRelationships(nodeId);
 
     // The ASTNodeTraverser will handle automatic traversal
 }
@@ -1043,7 +1260,60 @@ void KuzuDump::VisitParmVarDecl(const ParmVarDecl* D)
         return;
 
     // Create database node for this parameter declaration
-    [[maybe_unused]] int64_t nodeId = createASTNode(D);
+    int64_t nodeId = createASTNode(D);
+
+    // Create scope relationships for this parameter (it's in its parent function scope)
+    createScopeRelationships(nodeId);
+
+    // The ASTNodeTraverser will handle automatic traversal
+}
+
+void KuzuDump::VisitNamespaceDecl(const NamespaceDecl* D)
+{
+    if (D == nullptr)
+        return;
+
+    // Create database node for this namespace declaration
+    int64_t nodeId = createASTNode(D);
+
+    // Create scope relationships for this namespace (it's in its parent scope)
+    createScopeRelationships(nodeId);
+
+    // Push this namespace as a new scope for its contents
+    pushScope(nodeId);
+
+    // The ASTNodeTraverser will handle automatic traversal
+    // Pop this namespace scope after traversal
+    popScope();
+}
+
+void KuzuDump::VisitClassTemplateSpecializationDecl(const ClassTemplateSpecializationDecl* D)
+{
+    if (D == nullptr)
+        return;
+
+    // Create database node for this class template specialization
+    int64_t nodeId = createASTNode(D);
+
+    // Create scope relationships for this specialization (it's in its parent scope)
+    createScopeRelationships(nodeId);
+
+    // Create template relationship if we can find the template declaration
+    if (const ClassTemplateDecl* templateDecl = D->getSpecializedTemplate())
+    {
+        // Check if the template declaration has been processed
+        auto it = nodeIdMap.find(templateDecl);
+        if (it != nodeIdMap.end())
+        {
+            createTemplateRelation(nodeId, it->second, "specializes");
+        }
+        else
+        {
+            // Create the template node if it doesn't exist yet
+            int64_t templateNodeId = createASTNode(templateDecl);
+            createTemplateRelation(nodeId, templateNodeId, "specializes");
+        }
+    }
 
     // The ASTNodeTraverser will handle automatic traversal
 }
@@ -1160,7 +1430,27 @@ void KuzuDump::VisitDeclRefExpr(const DeclRefExpr* E)
         return;
 
     // Create database node for this declaration reference expression
-    [[maybe_unused]] int64_t nodeId = createASTNode(E);
+    int64_t nodeId = createASTNode(E);
+
+    // Create reference relationship if we can find the referenced declaration
+    if (const Decl* referencedDecl = E->getDecl())
+    {
+        // Check if the referenced declaration has been processed
+        auto it = nodeIdMap.find(referencedDecl);
+        if (it != nodeIdMap.end())
+        {
+            createReferenceRelation(nodeId, it->second, "uses");
+        }
+        else
+        {
+            // Create the referenced declaration node if it doesn't exist yet
+            int64_t referencedNodeId = createASTNode(referencedDecl);
+            if (referencedNodeId != -1)
+            {
+                createReferenceRelation(nodeId, referencedNodeId, "uses");
+            }
+        }
+    }
 
     // The ASTNodeTraverser will handle automatic traversal
 }
@@ -1204,7 +1494,56 @@ void KuzuDump::VisitCallExpr(const CallExpr* E)
         return;
 
     // Create database node for this call expression
-    [[maybe_unused]] int64_t nodeId = createASTNode(E);
+    int64_t nodeId = createASTNode(E);
+
+    // Create reference relationship for function calls
+    if (const FunctionDecl* calledFunc = E->getDirectCallee())
+    {
+        // Check if the called function has been processed
+        auto it = nodeIdMap.find(calledFunc);
+        if (it != nodeIdMap.end())
+        {
+            createReferenceRelation(nodeId, it->second, "calls");
+        }
+        else
+        {
+            // Create the called function node if it doesn't exist yet
+            int64_t calledFuncNodeId = createASTNode(calledFunc);
+            if (calledFuncNodeId != -1)
+            {
+                createReferenceRelation(nodeId, calledFuncNodeId, "calls");
+            }
+        }
+    }
+
+    // Handle indirect calls through function pointers or expressions
+    if (const Expr* callee = E->getCallee())
+    {
+        if (const DeclRefExpr* declRef = dyn_cast<DeclRefExpr>(callee))
+        {
+            // This will be handled by VisitDeclRefExpr, so we don't duplicate
+        }
+        else if (const MemberExpr* memberExpr = dyn_cast<MemberExpr>(callee))
+        {
+            // Handle member function calls
+            if (const ValueDecl* memberDecl = memberExpr->getMemberDecl())
+            {
+                auto it = nodeIdMap.find(memberDecl);
+                if (it != nodeIdMap.end())
+                {
+                    createReferenceRelation(nodeId, it->second, "calls");
+                }
+                else
+                {
+                    int64_t memberNodeId = createASTNode(memberDecl);
+                    if (memberNodeId != -1)
+                    {
+                        createReferenceRelation(nodeId, memberNodeId, "calls");
+                    }
+                }
+            }
+        }
+    }
 
     // The ASTNodeTraverser will handle automatic traversal
 }

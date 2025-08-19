@@ -42,6 +42,9 @@ private:
     std::vector<int64_t> parentStack;  // Stack of parent node IDs during traversal
     int childIndex = 0;                // Index of current child within parent
 
+    // Scope tracking (Phase 3)
+    std::vector<int64_t> scopeStack;  // Stack of scope node IDs (namespaces, functions, etc.)
+
     // Database components
     std::unique_ptr<kuzu::main::Database> database;
     std::unique_ptr<kuzu::main::Connection> connection;
@@ -64,6 +67,8 @@ private:
     void createParentChildRelation(int64_t parentId, int64_t childId, int index);
     void createTypeRelation(int64_t declId, int64_t typeId);
     void createReferenceRelation(int64_t fromId, int64_t toId, const std::string& kind);
+    void createScopeRelation(int64_t nodeId, int64_t scopeId, const std::string& scopeKind);
+    void createTemplateRelation(int64_t specializationId, int64_t templateId, const std::string& kind);
 
     // Enhanced declaration processing methods (Phase 2)
     void createDeclarationNode(int64_t nodeId, const clang::NamedDecl* decl);
@@ -85,6 +90,12 @@ private:
     void popParent();
     void createHierarchyRelationship(int64_t childNodeId);
     auto getCurrentParent() -> int64_t;
+
+    // Scope processing methods (Phase 3)
+    void pushScope(int64_t scopeNodeId);
+    void popScope();
+    void createScopeRelationships(int64_t nodeId);
+    auto getCurrentScope() -> int64_t;
     auto isBuiltInType(clang::QualType qualType) -> bool;
     auto extractTypeSourceLocation(clang::QualType qualType) -> std::string;
 
@@ -139,6 +150,11 @@ public:
     void VisitFunctionDecl(const FunctionDecl* D);
     void VisitVarDecl(const VarDecl* D);
     void VisitParmVarDecl(const ParmVarDecl* D);
+    void VisitNamespaceDecl(const NamespaceDecl* D);
+    void VisitClassTemplateDecl(const ClassTemplateDecl* D);
+    void VisitFunctionTemplateDecl(const FunctionTemplateDecl* D);
+    void VisitVarTemplateDecl(const VarTemplateDecl* D);
+    void VisitClassTemplateSpecializationDecl(const ClassTemplateSpecializationDecl* D);
 
     void VisitStmt(const Stmt* S);
     void VisitCompoundStmt(const CompoundStmt* S);
@@ -156,10 +172,7 @@ public:
     void VisitCallExpr(const CallExpr* E);
     void VisitImplicitCastExpr(const ImplicitCastExpr* E);
 
-    // Template-specific visit methods
-    void VisitFunctionTemplateDecl(const FunctionTemplateDecl* D);
-    void VisitClassTemplateDecl(const ClassTemplateDecl* D);
-    void VisitVarTemplateDecl(const VarTemplateDecl* D);
+    // Template-specific visit methods (already declared above)
 };
 
 }  // namespace clang
