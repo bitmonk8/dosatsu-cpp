@@ -13,6 +13,9 @@
 #include "NoWarningScope_Leave.h"
 // clang-format on
 
+#include <dbghelp.h>
+#include <windows.h>
+
 #include <algorithm>
 #include <iostream>
 #include <string>
@@ -27,9 +30,8 @@ static llvm::cl::opt<std::string> CompileCommandsPath(llvm::cl::Positional,
                                                       llvm::cl::cat(MakeIndexCategory));
 
 static llvm::cl::opt<std::string> OutputFile("output",
-                                             llvm::cl::desc("Output file (required)"),
+                                             llvm::cl::desc("Output file"),
                                              llvm::cl::value_desc("filename"),
-                                             llvm::cl::Required,
                                              llvm::cl::cat(MakeIndexCategory));
 
 static llvm::cl::opt<std::string>
@@ -37,6 +39,11 @@ static llvm::cl::opt<std::string>
                   llvm::cl::desc("Filter files by pattern (e.g., \"*MakeIndex*\", default: process all files)"),
                   llvm::cl::value_desc("pattern"),
                   llvm::cl::cat(MakeIndexCategory));
+
+static llvm::cl::opt<std::string> DatabasePath("output-db",
+                                               llvm::cl::desc("Output to Kuzu graph database instead of text file"),
+                                               llvm::cl::value_desc("database_path"),
+                                               llvm::cl::cat(MakeIndexCategory));
 
 auto RealMain(int argc, char** argv) -> int
 {
@@ -61,16 +68,30 @@ auto RealMain(int argc, char** argv) -> int
         return 1;
     }
 
-    if (OutputFile.empty())
+    // Check if database output is specified
+    bool useDatabaseOutput = !DatabasePath.empty();
+    if (!useDatabaseOutput && OutputFile.empty())
     {
-        llvm::errs() << "Error: output file is required\n";
+        llvm::errs() << "Error: either --output or --output-db is required\n";
+        return 1;
+    }
+    if (useDatabaseOutput && !OutputFile.empty())
+    {
+        llvm::errs() << "Error: cannot specify both --output and --output-db\n";
         return 1;
     }
 
     // Display parsed options for debugging
     llvm::outs() << "MakeIndex starting with options:\n";
     llvm::outs() << "  Compile commands: " << CompileCommandsPath << "\n";
-    llvm::outs() << "  Output file: " << OutputFile << "\n";
+    if (useDatabaseOutput)
+    {
+        llvm::outs() << "  Database output: " << DatabasePath << "\n";
+    }
+    else
+    {
+        llvm::outs() << "  Text output: " << OutputFile << "\n";
+    }
     if (!FilterPattern.empty())
     {
         llvm::outs() << "  Filter pattern: " << FilterPattern << "\n";
@@ -84,7 +105,6 @@ auto RealMain(int argc, char** argv) -> int
     // Load compilation database
     std::string errorMessage;
     auto database = clang::CompilationDatabaseLoader::loadFromFile(CompileCommandsPath, errorMessage);
-
     if (!database)
     {
         llvm::errs() << "Error loading compilation database: " << errorMessage << "\n";
@@ -94,7 +114,15 @@ auto RealMain(int argc, char** argv) -> int
     llvm::outs() << "Successfully loaded compilation database from: " << CompileCommandsPath << "\n";
 
     // Filter source files based on command line option
-    std::string filterPattern = FilterPattern.empty() ? "*" : FilterPattern.getValue();
+    std::string filterPattern;
+    if (FilterPattern.empty())
+    {
+        filterPattern = "*";
+    }
+    else
+    {
+        filterPattern = FilterPattern.getValue();
+    }
     auto sourceFiles = clang::CompilationDatabaseLoader::filterSourceFiles(*database, filterPattern);
 
     llvm::outs() << "Found " << sourceFiles.size() << " source files";
@@ -129,19 +157,26 @@ auto RealMain(int argc, char** argv) -> int
         return 1;
     }
 
-    // Setup output file stream (required)
-    std::error_code EC;
-    auto OutputFileStream = std::make_unique<llvm::raw_fd_ostream>(OutputFile, EC);
-    if (EC)
+    // Setup output stream (for text output only)
+    std::unique_ptr<llvm::raw_fd_ostream> OutputFileStream;
+    if (!useDatabaseOutput)
     {
-        llvm::errs() << "Error opening output file '" << OutputFile << "': " << EC.message() << "\n";
-        return 1;
+        std::error_code EC;
+        OutputFileStream = std::make_unique<llvm::raw_fd_ostream>(OutputFile, EC);
+        if (EC)
+        {
+            llvm::errs() << "Error opening output file '" << OutputFile << "': " << EC.message() << "\n";
+            return 1;
+        }
+        llvm::outs() << "Writing AST dump to: " << OutputFile << "\n";
     }
-    llvm::outs() << "Writing AST dump to: " << OutputFile << "\n";
+    else
+    {
+        llvm::outs() << "Writing AST data to database: " << DatabasePath << "\n";
+    }
 
     // Create ClangTool and run AST dumping
     llvm::outs() << "Starting AST processing...\n";
-
     try
     {
         clang::tooling::ClangTool Tool(*database, sourceFiles);
@@ -150,18 +185,39 @@ auto RealMain(int argc, char** argv) -> int
         class MakeIndexASTDumpActionFactory : public clang::tooling::FrontendActionFactory
         {
         private:
-            llvm::raw_ostream& OS;
+            llvm::raw_ostream* OS;
+            std::string databasePath;
+            bool usingDatabase;
 
         public:
-            MakeIndexASTDumpActionFactory(llvm::raw_ostream& OS) : OS(OS) {}
+            // Text output constructor
+            MakeIndexASTDumpActionFactory(llvm::raw_ostream& OS) : OS(&OS), usingDatabase(false) {}
+
+            // Database output constructor
+            MakeIndexASTDumpActionFactory(std::string databasePath)
+                : OS(nullptr), databasePath(std::move(databasePath)), usingDatabase(true)
+            {
+            }
 
             auto create() -> std::unique_ptr<clang::FrontendAction> override
             {
-                return std::make_unique<clang::MakeIndexASTDumpAction>(OS);
+                if (usingDatabase)
+                {
+                    return std::make_unique<clang::MakeIndexASTDumpAction>(databasePath);
+                }
+                return std::make_unique<clang::MakeIndexASTDumpAction>(*OS);
             }
         };
 
-        auto ActionFactory = std::make_unique<MakeIndexASTDumpActionFactory>(*OutputFileStream);
+        std::unique_ptr<MakeIndexASTDumpActionFactory> ActionFactory;
+        if (useDatabaseOutput)
+        {
+            ActionFactory = std::make_unique<MakeIndexASTDumpActionFactory>(DatabasePath);
+        }
+        else
+        {
+            ActionFactory = std::make_unique<MakeIndexASTDumpActionFactory>(*OutputFileStream);
+        }
 
         // Run the tool
         int Result = Tool.run(ActionFactory.get());
@@ -189,8 +245,106 @@ auto RealMain(int argc, char** argv) -> int
     }
 }
 
+#pragma comment(lib, "dbghelp.lib")
+
+void PrintStackTrace()
+{
+    HANDLE process = GetCurrentProcess();
+    HANDLE thread = GetCurrentThread();
+
+    SymInitialize(process, nullptr, TRUE);
+
+    CONTEXT context;
+    RtlCaptureContext(&context);
+
+    STACKFRAME64 frame;
+    memset(&frame, 0, sizeof(frame));
+
+#ifdef _M_X64
+    DWORD machineType = IMAGE_FILE_MACHINE_AMD64;
+    frame.AddrPC.Offset = context.Rip;
+    frame.AddrFrame.Offset = context.Rbp;
+    frame.AddrStack.Offset = context.Rsp;
+#else
+    DWORD machineType = IMAGE_FILE_MACHINE_I386;
+    frame.AddrPC.Offset = context.Eip;
+    frame.AddrFrame.Offset = context.Ebp;
+    frame.AddrStack.Offset = context.Esp;
+#endif
+
+    frame.AddrPC.Mode = AddrModeFlat;
+    frame.AddrFrame.Mode = AddrModeFlat;
+    frame.AddrStack.Mode = AddrModeFlat;
+
+    auto* symbol = (SYMBOL_INFO*)calloc(sizeof(SYMBOL_INFO) + (256 * sizeof(char)), 1);
+    symbol->MaxNameLen = 255;
+    symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+
+    IMAGEHLP_LINE64 line;
+    DWORD displacement;
+
+    std::cout << "Stack trace:" << std::endl;
+
+    while (StackWalk64(machineType,
+                       process,
+                       thread,
+                       &frame,
+                       &context,
+                       nullptr,
+                       SymFunctionTableAccess64,
+                       SymGetModuleBase64,
+                       nullptr) != 0)
+    {
+        if (SymFromAddr(process, frame.AddrPC.Offset, nullptr, symbol) != 0)
+        {
+            if (SymGetLineFromAddr64(process, frame.AddrPC.Offset, &displacement, &line) != 0)
+            {
+                std::cout << symbol->Name << " - " << line.FileName << ":" << line.LineNumber << std::endl;
+            }
+            else
+            {
+                std::cout << symbol->Name << " - address: 0x" << std::hex << symbol->Address << std::dec << std::endl;
+            }
+        }
+        else
+        {
+            std::cout << "<unknown function> - address: 0x" << std::hex << frame.AddrPC.Offset << std::dec << std::endl;
+        }
+    }
+
+    free(symbol);
+
+    SymCleanup(process);
+}
+
+// Custom assert handler
+auto CustomAssertHandler(int reportType, char* message, int* /*returnValue*/) -> int
+{
+    if (reportType == _CRT_ASSERT)
+    {
+        // Print the assertion message to console
+        std::cerr << "ASSERTION FAILED: " << message << std::endl;
+
+        PrintStackTrace();
+
+        // Terminate the application
+        std::abort();
+    }
+
+    // Return TRUE to indicate we handled the assertion
+    return TRUE;
+}
+
 auto main(int argc, char** argv) -> int
 {
+    _set_error_mode(_OUT_TO_STDERR);
+
+    // Set custom report mode for assertions
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_DEBUG);
+
+    // Install custom assert handler
+    _CrtSetReportHook(CustomAssertHandler);
+
     try
     {
         std::vector<std::string> args(argv + 1, argv + argc);

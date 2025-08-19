@@ -13,6 +13,39 @@ add_executable(MakeIndex
     NoWarningScope_Leave.h
 )
 
+# Copy KuzuDB DLL to output directory on Windows
+if(WIN32)
+    # Define the DLL name for Windows
+    set(KUZU_DLL_NAME "kuzu_shared.dll")
+    
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        add_custom_command(TARGET MakeIndex POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/debug/${KUZU_DLL_NAME}"
+                "$<TARGET_FILE_DIR:MakeIndex>"
+            COMMENT "Copying KuzuDB DLL to executable directory"
+        )
+        
+        # Verify the DLL exists before copying
+        if(NOT EXISTS "${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/debug/${KUZU_DLL_NAME}")
+            message(WARNING "KuzuDB DLL not found at: ${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/debug/${KUZU_DLL_NAME}")
+        endif()
+    else()
+        add_custom_command(TARGET MakeIndex POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/release/${KUZU_DLL_NAME}"
+                "$<TARGET_FILE_DIR:MakeIndex>"
+            COMMENT "Copying KuzuDB DLL to executable directory"
+        )
+
+        # Verify the DLL exists before copying
+        if(NOT EXISTS "${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/release/${KUZU_DLL_NAME}")
+            message(WARNING "KuzuDB DLL not found at: ${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/release/${KUZU_DLL_NAME}")
+        endif()
+    endif()
+endif()
+
+
 # Set target properties
 set_target_properties(MakeIndex PROPERTIES
     CXX_STANDARD 20

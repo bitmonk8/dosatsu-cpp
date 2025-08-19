@@ -25,10 +25,15 @@ namespace clang
 class MakeIndexASTDumpConsumer : public ASTConsumer
 {
 public:
-    /// Constructor
+    /// Constructor for text output
     /// \param OS Output stream for dumping
     /// \param Context AST context for the current compilation unit
     MakeIndexASTDumpConsumer(llvm::raw_ostream& OS, ASTContext& Context);
+
+    /// Constructor for database output
+    /// \param databasePath Path to the Kuzu database
+    /// \param Context AST context for the current compilation unit
+    MakeIndexASTDumpConsumer(const std::string& databasePath, ASTContext& Context);
 
     /// Handle the translation unit once it's fully parsed
     /// \param Context The AST context for this translation unit
@@ -36,16 +41,21 @@ public:
 
 private:
     std::unique_ptr<KuzuDump> Dumper;
-    llvm::raw_ostream& OS;
+    llvm::raw_ostream* OS;  // Pointer to allow null for database-only mode
+    bool usingDatabase = false;
 };
 
 /// Frontend action that creates MakeIndexASTDumpConsumer instances
 class MakeIndexASTDumpAction : public ASTFrontendAction
 {
 public:
-    /// Constructor
+    /// Constructor for text output
     /// \param OS Output stream for dumping
     MakeIndexASTDumpAction(llvm::raw_ostream& OS);
+
+    /// Constructor for database output
+    /// \param databasePath Path to the Kuzu database
+    MakeIndexASTDumpAction(std::string databasePath);
 
 protected:
     /// Create the AST consumer for this action
@@ -55,7 +65,9 @@ protected:
     auto CreateASTConsumer(CompilerInstance& CI, StringRef InFile) -> std::unique_ptr<ASTConsumer> override;
 
 private:
-    llvm::raw_ostream& OS;
+    llvm::raw_ostream* OS;  // Pointer to allow null for database-only mode
+    std::string databasePath;
+    bool usingDatabase = false;
 };
 
 }  // namespace clang

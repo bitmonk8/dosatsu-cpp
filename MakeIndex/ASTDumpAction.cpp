@@ -16,10 +16,17 @@
 
 using namespace clang;
 
-MakeIndexASTDumpConsumer::MakeIndexASTDumpConsumer(llvm::raw_ostream& OS, ASTContext& Context) : OS(OS)
+MakeIndexASTDumpConsumer::MakeIndexASTDumpConsumer(llvm::raw_ostream& OS, ASTContext& Context) : OS(&OS)
 {
     // Create the KuzuDump instance with the provided context (no colors)
     Dumper = std::make_unique<KuzuDump>(OS, Context, false);
+}
+
+MakeIndexASTDumpConsumer::MakeIndexASTDumpConsumer(const std::string& databasePath, ASTContext& Context)
+    : OS(nullptr), usingDatabase(true)
+{
+    // Create the KuzuDump instance for database output
+    Dumper = std::make_unique<KuzuDump>(databasePath, Context, false);
 }
 
 void MakeIndexASTDumpConsumer::HandleTranslationUnit(ASTContext& Context)
@@ -29,28 +36,56 @@ void MakeIndexASTDumpConsumer::HandleTranslationUnit(ASTContext& Context)
 
     if (TU != nullptr)
     {
-        OS << "=== AST Dump for Translation Unit ===\n";
-        Dumper->Visit(TU);
-        OS << "\n=== End AST Dump ===\n\n";
+        if (usingDatabase)
+        {
+            // For database output, just process the AST
+            Dumper->Visit(TU);
+        }
+        else
+        {
+            // For text output, add headers
+            *OS << "=== AST Dump for Translation Unit ===\n";
+            Dumper->Visit(TU);
+            *OS << "\n=== End AST Dump ===\n\n";
+        }
     }
     else
     {
-        OS << "Error: No translation unit found\n";
+        if (!usingDatabase && OS != nullptr)
+        {
+            *OS << "Error: No translation unit found\n";
+        }
     }
 
-    // Flush the output stream to ensure data is written
-    OS.flush();
+    // Flush the output stream for text output
+    if (!usingDatabase && OS != nullptr)
+    {
+        OS->flush();
+    }
 }
 
-MakeIndexASTDumpAction::MakeIndexASTDumpAction(llvm::raw_ostream& OS) : OS(OS)
+MakeIndexASTDumpAction::MakeIndexASTDumpAction(llvm::raw_ostream& OS) : OS(&OS)
+{
+}
+
+MakeIndexASTDumpAction::MakeIndexASTDumpAction(std::string databasePath)
+    : OS(nullptr), databasePath(std::move(databasePath)), usingDatabase(true)
 {
 }
 
 auto MakeIndexASTDumpAction::CreateASTConsumer(CompilerInstance& CI, StringRef InFile) -> std::unique_ptr<ASTConsumer>
 {
-    // Display which file we're processing
-    OS << "Processing file: " << InFile << "\n";
+    if (usingDatabase)
+    {
+        // For database output, show processing info on standard output
+        llvm::outs() << "Processing file: " << InFile << "\n";
 
-    // Create and return the AST consumer (no colors)
-    return std::make_unique<MakeIndexASTDumpConsumer>(OS, CI.getASTContext());
+        // Create and return the AST consumer for database output
+        return std::make_unique<MakeIndexASTDumpConsumer>(databasePath, CI.getASTContext());
+    }
+    // Display which file we're processing
+    *OS << "Processing file: " << InFile << "\n";
+
+    // Create and return the AST consumer for text output
+    return std::make_unique<MakeIndexASTDumpConsumer>(*OS, CI.getASTContext());
 }
