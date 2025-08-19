@@ -38,6 +38,10 @@ private:
     std::unordered_map<const void*, int64_t> nodeIdMap;  // Pointer -> node_id mapping
     int64_t nextNodeId = 1;
 
+    // Hierarchy tracking (Phase 2)
+    std::vector<int64_t> parentStack;  // Stack of parent node IDs during traversal
+    int childIndex = 0;                // Index of current child within parent
+
     // Database components
     std::unique_ptr<kuzu::main::Database> database;
     std::unique_ptr<kuzu::main::Connection> connection;
@@ -61,8 +65,32 @@ private:
     void createTypeRelation(int64_t declId, int64_t typeId);
     void createReferenceRelation(int64_t fromId, int64_t toId, const std::string& kind);
 
+    // Enhanced declaration processing methods (Phase 2)
+    void createDeclarationNode(int64_t nodeId, const clang::NamedDecl* decl);
+    auto extractQualifiedName(const clang::NamedDecl* decl) -> std::string;
+    auto extractAccessSpecifier(const clang::Decl* decl) -> std::string;
+    auto extractStorageClass(const clang::Decl* decl) -> std::string;
+    auto extractNamespaceContext(const clang::Decl* decl) -> std::string;
+    auto isDefinition(const clang::Decl* decl) -> bool;
+
+    // Type processing methods (Phase 2)
+    auto createTypeNodeAndRelation(int64_t declNodeId, clang::QualType qualType) -> int64_t;
+    auto createTypeNode(clang::QualType qualType) -> int64_t;
+    auto extractTypeName(clang::QualType qualType) -> std::string;
+    auto extractTypeCategory(clang::QualType qualType) -> std::string;
+    auto extractTypeQualifiers(clang::QualType qualType) -> std::string;
+
+    // Hierarchy processing methods (Phase 2)
+    void pushParent(int64_t parentNodeId);
+    void popParent();
+    void createHierarchyRelationship(int64_t childNodeId);
+    auto getCurrentParent() -> int64_t;
+    auto isBuiltInType(clang::QualType qualType) -> bool;
+    auto extractTypeSourceLocation(clang::QualType qualType) -> std::string;
+
     // Data extraction utilities (shared between text and database output)
     auto extractSourceLocation(const clang::SourceLocation& loc) -> std::string;
+    auto extractSourceLocationDetailed(const clang::SourceLocation& loc) -> std::tuple<std::string, int64_t, int64_t>;
     auto extractNodeType(const clang::Decl* decl) -> std::string;
     auto extractNodeType(const clang::Stmt* stmt) -> std::string;
     auto extractNodeType(const clang::Type* type) -> std::string;

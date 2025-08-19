@@ -24,6 +24,7 @@
 #include "NoWarningScope_Leave.h"
 // clang-format on
 
+#include <algorithm>
 #include <filesystem>
 #include <sstream>
 #include <stdexcept>
@@ -393,6 +394,22 @@ auto KuzuDump::createASTNode(const clang::Decl* decl) -> int64_t
             return -1;
         }
 
+        // Create specialized Declaration node if this is a named declaration
+        if (const auto* namedDecl = dyn_cast<NamedDecl>(decl))
+        {
+            createDeclarationNode(nodeId, namedDecl);
+
+            // Create type relationships for typed declarations
+            if (const auto* valueDecl = dyn_cast<ValueDecl>(namedDecl))
+            {
+                createTypeNodeAndRelation(nodeId, valueDecl->getType());
+            }
+            else if (const auto* functionDecl = dyn_cast<FunctionDecl>(namedDecl))
+            {
+                createTypeNodeAndRelation(nodeId, functionDecl->getType());
+            }
+        }
+
         return nodeId;
     }
     catch (const std::exception& e)
@@ -516,7 +533,233 @@ void KuzuDump::createReferenceRelation(int64_t /*fromId*/, int64_t /*toId*/, con
     // TODO: Implement in Phase 3
 }
 
-// Data extraction utility methods
+// Type processing methods (Phase 2)
+auto KuzuDump::createTypeNodeAndRelation(int64_t declNodeId, clang::QualType qualType) -> int64_t
+{
+    if (!connection || qualType.isNull())
+    {
+        return -1;
+    }
+
+    int64_t typeNodeId = createTypeNode(qualType);
+    if (typeNodeId != -1)
+    {
+        createTypeRelation(declNodeId, typeNodeId);
+    }
+
+    return typeNodeId;
+}
+
+auto KuzuDump::createTypeNode(clang::QualType qualType) -> int64_t
+{
+    if (!connection || qualType.isNull())
+    {
+        return -1;
+    }
+
+    try
+    {
+        int64_t typeNodeId = nextNodeId++;
+
+        std::string typeName = extractTypeName(qualType);
+        std::string typeCategory = extractTypeCategory(qualType);
+        std::string qualifiers = extractTypeQualifiers(qualType);
+        bool isBuiltIn = isBuiltInType(qualType);
+
+        std::string query = "CREATE (t:Type {id: " + std::to_string(typeNodeId) + ", name: '" + typeName +
+                            "', category: '" + typeCategory + "', qualifiers: '" + qualifiers +
+                            "', is_builtin: " + (isBuiltIn ? "true" : "false") + ", source_location: '" +
+                            extractTypeSourceLocation(qualType) + "'})";
+
+        auto result = connection->query(query);
+        if (!result->isSuccess())
+        {
+            llvm::errs() << "Failed to create Type node: " << result->getErrorMessage() << "\n";
+            return -1;
+        }
+
+        return typeNodeId;
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating Type node: " << e.what() << "\n";
+        return -1;
+    }
+}
+
+// Enhanced declaration processing methods (Phase 2)
+void KuzuDump::createDeclarationNode(int64_t nodeId, const clang::NamedDecl* decl)
+{
+    if (!connection || !decl)
+    {
+        return;
+    }
+
+    try
+    {
+        std::string name = decl->getNameAsString();
+        std::string qualifiedName = extractQualifiedName(decl);
+        std::string accessSpec = extractAccessSpecifier(decl);
+        std::string storageClass = extractStorageClass(decl);
+        std::string namespaceContext = extractNamespaceContext(decl);
+        bool isDef = isDefinition(decl);
+
+        // Create Declaration node with extracted properties
+        std::string query = "CREATE (d:Declaration {node_id: " + std::to_string(nodeId) + ", name: '" + name +
+                            "', qualified_name: '" + qualifiedName + "', access_specifier: '" + accessSpec +
+                            "', storage_class: '" + storageClass + "', is_definition: " + (isDef ? "true" : "false") +
+                            ", namespace_context: '" + namespaceContext + "'})";
+
+        auto result = connection->query(query);
+        if (!result->isSuccess())
+        {
+            llvm::errs() << "Failed to create Declaration node: " << result->getErrorMessage() << "\n";
+        }
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating Declaration node: " << e.what() << "\n";
+    }
+}
+
+auto KuzuDump::extractQualifiedName(const clang::NamedDecl* decl) -> std::string
+{
+    if (!decl)
+    {
+        return "";
+    }
+
+    std::string qualifiedName = decl->getQualifiedNameAsString();
+    // Replace any problematic characters for database storage
+    std::replace(qualifiedName.begin(), qualifiedName.end(), '\'', '_');
+    return qualifiedName;
+}
+
+auto KuzuDump::extractAccessSpecifier(const clang::Decl* decl) -> std::string
+{
+    if (!decl)
+    {
+        return "none";
+    }
+
+    switch (decl->getAccess())
+    {
+    case AS_public:
+        return "public";
+    case AS_protected:
+        return "protected";
+    case AS_private:
+        return "private";
+    case AS_none:
+    default:
+        return "none";
+    }
+}
+
+auto KuzuDump::extractStorageClass(const clang::Decl* decl) -> std::string
+{
+    if (const auto* varDecl = dyn_cast<VarDecl>(decl))
+    {
+        switch (varDecl->getStorageClass())
+        {
+        case SC_None:
+            return "none";
+        case SC_Static:
+            return "static";
+        case SC_Extern:
+            return "extern";
+        case SC_Auto:
+            return "auto";
+        case SC_Register:
+            return "register";
+        default:
+            return "unknown";
+        }
+    }
+    else if (const auto* funcDecl = dyn_cast<FunctionDecl>(decl))
+    {
+        switch (funcDecl->getStorageClass())
+        {
+        case SC_None:
+            return "none";
+        case SC_Static:
+            return "static";
+        case SC_Extern:
+            return "extern";
+        default:
+            return "unknown";
+        }
+    }
+
+    return "none";
+}
+
+auto KuzuDump::extractNamespaceContext(const clang::Decl* decl) -> std::string
+{
+    if (!decl)
+    {
+        return "";
+    }
+
+    const DeclContext* context = decl->getDeclContext();
+    std::vector<std::string> namespaces;
+
+    while (context && !context->isTranslationUnit())
+    {
+        if (const auto* nsDecl = dyn_cast<NamespaceDecl>(context))
+        {
+            if (!nsDecl->isAnonymousNamespace())
+            {
+                namespaces.push_back(nsDecl->getNameAsString());
+            }
+        }
+        else if (const auto* recordDecl = dyn_cast<RecordDecl>(context))
+        {
+            if (recordDecl->getIdentifier())
+            {
+                namespaces.push_back(recordDecl->getNameAsString());
+            }
+        }
+        context = context->getParent();
+    }
+
+    std::reverse(namespaces.begin(), namespaces.end());
+
+    std::string result;
+    for (size_t i = 0; i < namespaces.size(); ++i)
+    {
+        if (i > 0)
+            result += "::";
+        result += namespaces[i];
+    }
+
+    return result;
+}
+
+auto KuzuDump::isDefinition(const clang::Decl* decl) -> bool
+{
+    if (!decl)
+    {
+        return false;
+    }
+
+    if (const auto* funcDecl = dyn_cast<FunctionDecl>(decl))
+    {
+        return funcDecl->isThisDeclarationADefinition();
+    }
+    else if (const auto* varDecl = dyn_cast<VarDecl>(decl))
+    {
+        return varDecl->isThisDeclarationADefinition();
+    }
+    else if (const auto* recordDecl = dyn_cast<RecordDecl>(decl))
+    {
+        return recordDecl->isThisDeclarationADefinition();
+    }
+
+    return false;
+}
+
+// Data extraction utility methods (enhanced for Phase 2)
 auto KuzuDump::extractSourceLocation(const clang::SourceLocation& loc) -> std::string
 {
     if (loc.isInvalid())
@@ -524,9 +767,42 @@ auto KuzuDump::extractSourceLocation(const clang::SourceLocation& loc) -> std::s
         return "<invalid>";
     }
 
-    // For now, return a simple representation
-    // TODO: Enhance with full file path and line/column information in Phase 2
-    return "<source_location>";
+    // Get detailed location information
+    auto [fileName, line, column] = extractSourceLocationDetailed(loc);
+
+    // Return formatted location string
+    if (fileName == "<invalid>" || line == -1 || column == -1)
+    {
+        return "<unknown_location>";
+    }
+
+    return fileName + ":" + std::to_string(line) + ":" + std::to_string(column);
+}
+
+auto KuzuDump::extractSourceLocationDetailed(const clang::SourceLocation& loc)
+    -> std::tuple<std::string, int64_t, int64_t>
+{
+    if (loc.isInvalid())
+    {
+        return std::make_tuple("<invalid>", -1, -1);
+    }
+
+    try
+    {
+        // TODO: Access SourceManager through proper context
+        // For now, return simplified location information
+        // Will be enhanced once we have proper ASTContext access
+
+        // TODO: Implement actual source location extraction once we have SourceManager access
+        // This functionality will be implemented in a future enhancement
+    }
+    catch (...)
+    {
+        // If any exception occurs, return invalid location
+        return std::make_tuple("<exception>", -1, -1);
+    }
+
+    return std::make_tuple("<no_location>", -1, -1);
 }
 
 auto KuzuDump::extractNodeType(const clang::Decl* decl) -> std::string
@@ -565,6 +841,157 @@ auto KuzuDump::isImplicitNode(const clang::Decl* decl) -> bool
     return decl->isImplicit();
 }
 
+// Type extraction utility methods (Phase 2)
+auto KuzuDump::extractTypeName(clang::QualType qualType) -> std::string
+{
+    if (qualType.isNull())
+    {
+        return "<invalid_type>";
+    }
+
+    // Get the unqualified type name
+    return qualType.getUnqualifiedType().getAsString();
+}
+
+auto KuzuDump::extractTypeCategory(clang::QualType qualType) -> std::string
+{
+    if (qualType.isNull())
+    {
+        return "invalid";
+    }
+
+    const clang::Type* type = qualType.getTypePtr();
+    if (!type)
+    {
+        return "invalid";
+    }
+
+    if (type->isBuiltinType())
+    {
+        return "builtin";
+    }
+    else if (type->isPointerType())
+    {
+        return "pointer";
+    }
+    else if (type->isReferenceType())
+    {
+        return "reference";
+    }
+    else if (type->isArrayType())
+    {
+        return "array";
+    }
+    else if (type->isFunctionType())
+    {
+        return "function";
+    }
+    else if (type->isRecordType())
+    {
+        return "record";
+    }
+    else if (type->isEnumeralType())
+    {
+        return "enum";
+    }
+    else if (type->isTemplateTypeParmType())
+    {
+        return "template_param";
+    }
+    else
+    {
+        return "user_defined";
+    }
+}
+
+auto KuzuDump::extractTypeQualifiers(clang::QualType qualType) -> std::string
+{
+    if (qualType.isNull())
+    {
+        return "";
+    }
+
+    std::string qualifiers;
+
+    if (qualType.isConstQualified())
+    {
+        qualifiers += "const ";
+    }
+    if (qualType.isVolatileQualified())
+    {
+        qualifiers += "volatile ";
+    }
+    if (qualType.isRestrictQualified())
+    {
+        qualifiers += "restrict ";
+    }
+
+    // Remove trailing space
+    if (!qualifiers.empty() && qualifiers.back() == ' ')
+    {
+        qualifiers.pop_back();
+    }
+
+    return qualifiers;
+}
+
+auto KuzuDump::isBuiltInType(clang::QualType qualType) -> bool
+{
+    if (qualType.isNull())
+    {
+        return false;
+    }
+
+    const clang::Type* type = qualType.getTypePtr();
+    return type && type->isBuiltinType();
+}
+
+auto KuzuDump::extractTypeSourceLocation(clang::QualType qualType) -> std::string
+{
+    // For now, types don't have specific source locations
+    // This could be enhanced in the future to show where types are defined
+    return "<type_location>";
+}
+
+// Hierarchy processing methods (Phase 2)
+void KuzuDump::pushParent(int64_t parentNodeId)
+{
+    parentStack.push_back(parentNodeId);
+    childIndex = 0;  // Reset child index for new parent
+}
+
+void KuzuDump::popParent()
+{
+    if (!parentStack.empty())
+    {
+        parentStack.pop_back();
+        childIndex = 0;  // Reset child index when popping
+    }
+}
+
+void KuzuDump::createHierarchyRelationship(int64_t childNodeId)
+{
+    if (parentStack.empty() || childNodeId == -1)
+    {
+        return;
+    }
+
+    int64_t parentNodeId = getCurrentParent();
+    if (parentNodeId != -1)
+    {
+        createParentChildRelation(parentNodeId, childNodeId, childIndex++);
+    }
+}
+
+auto KuzuDump::getCurrentParent() -> int64_t
+{
+    if (parentStack.empty())
+    {
+        return -1;
+    }
+    return parentStack.back();
+}
+
 // Core Visit method implementations
 void KuzuDump::VisitDecl(const Decl* D)
 {
@@ -574,9 +1001,18 @@ void KuzuDump::VisitDecl(const Decl* D)
     }
 
     // Create database node for this declaration
-    [[maybe_unused]] int64_t nodeId = createASTNode(D);
+    int64_t nodeId = createASTNode(D);
+
+    // Create hierarchy relationship if this node has a parent
+    createHierarchyRelationship(nodeId);
+
+    // Push this node as parent for potential children
+    pushParent(nodeId);
 
     // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this node as parent after traversal
+    popParent();
 }
 
 void KuzuDump::VisitFunctionDecl(const FunctionDecl* D)
@@ -618,9 +1054,18 @@ void KuzuDump::VisitStmt(const Stmt* S)
         return;
 
     // Create database node for this statement
-    [[maybe_unused]] int64_t nodeId = createASTNode(S);
+    int64_t nodeId = createASTNode(S);
+
+    // Create hierarchy relationship if this node has a parent
+    createHierarchyRelationship(nodeId);
+
+    // Push this node as parent for potential children
+    pushParent(nodeId);
 
     // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this node as parent after traversal
+    popParent();
 }
 
 void KuzuDump::VisitCompoundStmt(const CompoundStmt* S)
@@ -695,9 +1140,18 @@ void KuzuDump::VisitExpr(const Expr* E)
         return;
 
     // Create database node for this expression
-    [[maybe_unused]] int64_t nodeId = createASTNode(E);
+    int64_t nodeId = createASTNode(E);
+
+    // Create hierarchy relationship if this node has a parent
+    createHierarchyRelationship(nodeId);
+
+    // Push this node as parent for potential children
+    pushParent(nodeId);
 
     // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this node as parent after traversal
+    popParent();
 }
 
 void KuzuDump::VisitDeclRefExpr(const DeclRefExpr* E)

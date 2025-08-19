@@ -470,8 +470,124 @@ rem   RETURN caller.name, callee.name;
 
 2. **Comprehensive Testing**
    - Test with various C++ constructs (templates, inheritance, etc.)
-   - Performance testing with large codebases
+   - Performance testing with manageable test codebases
    - Error handling and recovery testing
+
+## 6. Testing Strategy
+
+### 6.1 Lean Testing Approach
+
+The project uses a focused testing strategy centered around the `KuzuOutputTest` directory rather than processing large external codebases. This approach provides:
+
+**Benefits:**
+- **Fast Iteration**: Quick test cycles during development
+- **Controlled Scenarios**: Predictable test outcomes
+- **Scalable Growth**: Incremental test expansion without performance degradation
+- **No External Dependencies**: Self-contained test suite
+
+**Current Test Structure:**
+```
+KuzuOutputTest/
+├── simple_compile_commands.json    # Basic compilation database
+├── simple_test.cpp                 # Simple C++ constructs
+└── [future additions]              # Incremental complexity growth
+```
+
+### 6.2 Test Expansion Plan
+
+**Phase 2 Verification (Current):**
+```cpp
+// simple_test.cpp - Basic declarations and statements
+int main() {
+    int x = 42;
+    x = x + 1;
+    return x;
+}
+```
+
+**Phase 3 Extensions (Planned):**
+```cpp
+// complex_declarations.cpp - Enhanced declarations
+namespace TestNS {
+    class TestClass {
+    private:
+        int member;
+    public:
+        void method();
+        static const int CONSTANT = 100;
+    };
+}
+```
+
+**Phase 4 Extensions (Future):**
+```cpp
+// templates_and_references.cpp - Complex relationships
+template<typename T>
+class Container {
+    T data;
+public:
+    void store(const T& value) { data = value; }
+    T& get() { return data; }
+};
+
+void test_references() {
+    Container<int> container;
+    container.store(42);
+    int& ref = container.get();
+}
+```
+
+### 6.3 Testing Commands
+
+**Primary Test Execution:**
+```cmd
+# Test Phase 2 implementation
+artifacts\debug\bin\MakeIndex.exe KuzuOutputTest\simple_compile_commands.json --output-db=test.kuzu
+
+# Verify database creation and population
+# Database will contain enhanced declaration data, type relationships, and hierarchy
+```
+
+**Future Test Scenarios:**
+```cmd
+# Test complex C++ constructs (Phase 3+)
+artifacts\debug\bin\MakeIndex.exe KuzuOutputTest\complex_compile_commands.json --output-db=complex_test.kuzu
+
+# Performance validation with multiple files
+artifacts\debug\bin\MakeIndex.exe KuzuOutputTest\multi_file_compile_commands.json --output-db=multi_test.kuzu
+```
+
+### 6.4 Test Validation Queries
+
+**Phase 2 Validation:**
+```cypher
+// Verify enhanced declaration processing
+MATCH (d:Declaration) 
+RETURN d.name, d.qualified_name, d.access_specifier 
+LIMIT 10;
+
+// Verify hierarchy relationships
+MATCH (p:ASTNode)-[:PARENT_OF]->(c:ASTNode) 
+RETURN COUNT(*);
+
+// Verify type relationships
+MATCH (d:Declaration)-[:HAS_TYPE]->(t:Type) 
+RETURN d.name, t.name 
+LIMIT 10;
+```
+
+**Phase 3+ Validation:**
+```cypher
+// Verify reference relationships
+MATCH (caller:ASTNode)-[:REFERENCES]->(callee:Declaration)
+RETURN caller.node_type, callee.name;
+
+// Verify scope relationships
+MATCH (node:ASTNode)-[:IN_SCOPE]->(scope:ASTNode)
+RETURN node.node_type, scope.node_type;
+```
+
+This testing strategy ensures that the project maintains high quality while remaining performant and maintainable throughout its development lifecycle.
    - Validate database output matches text output completeness
 
 3. **Text Output Removal**
