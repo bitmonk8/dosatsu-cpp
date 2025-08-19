@@ -136,7 +136,7 @@ set_target_properties(kuzu::kuzu PROPERTIES
 else()
 set_target_properties(kuzu::kuzu PROPERTIES
     IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/release/${KUZU_LIB_NAME}"
-    INTERFACE_INCLUDE_DIRECTORIES "3rdParty/kuzu/include/"
+    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/3rdParty/kuzu/include/"
 )
 
 set_target_properties(kuzu::kuzu PROPERTIES
