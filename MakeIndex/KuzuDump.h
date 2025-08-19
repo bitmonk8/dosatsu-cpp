@@ -28,11 +28,14 @@ namespace clang
 class KuzuDump : public ASTNodeTraverser<KuzuDump, TextNodeDumper>
 {
 private:
-    // Text dumping components (temporary during Phase 1-3)
+    // Text dumping components (temporary during Phase 1-3) - Phase 4.3: Legacy support
     std::unique_ptr<llvm::raw_null_ostream> nullStream;  // For database-only mode
     TextNodeDumper NodeDumper;
     raw_ostream& OS;  // Keep as reference for compatibility with existing code
     const bool ShowColors;
+    
+    // Database-only mode flag (Phase 4.3)
+    bool databaseOnlyMode = false;
 
     // Node tracking (always available)
     std::unordered_map<const void*, int64_t> nodeIdMap;  // Pointer -> node_id mapping
@@ -53,10 +56,24 @@ private:
     std::string databasePath;
     bool databaseEnabled = false;
 
+    // Performance optimization - batching (Phase 4)
+    static constexpr size_t BATCH_SIZE = 100;
+    std::vector<std::string> pendingQueries;
+    bool transactionActive = false;
+    size_t totalOperations = 0;
+
     // Private methods for database operations
     void initializeDatabase();
     void createSchema();
     void executeSchemaQuery(const std::string& query, const std::string& schemaName);
+
+    // Performance optimization methods (Phase 4)
+    void beginTransaction();
+    void commitTransaction();
+    void rollbackTransaction();
+    void addToBatch(const std::string& query);
+    void executeBatch();
+    void flushOperations();
 
     // Node creation methods
     auto createASTNode(const clang::Decl* decl) -> int64_t;
@@ -126,6 +143,15 @@ public:
     {
         initializeDatabase();
     }
+    
+    // Database-only constructor (Phase 4.3) - No TextNodeDumper dependencies
+    KuzuDump(std::string databasePath, const ASTContext& Context, bool ShowColors, bool pureDatabaseMode)
+        : nullStream(std::make_unique<llvm::raw_null_ostream>()), NodeDumper(*nullStream, Context, ShowColors),
+          OS(*nullStream), ShowColors(ShowColors), databaseOnlyMode(pureDatabaseMode),
+          databasePath(std::move(databasePath)), databaseEnabled(true)
+    {
+        initializeDatabase();
+    }
 
     // Hybrid constructor (temporary for development/testing)
     KuzuDump(std::string databasePath, raw_ostream& OS, const ASTContext& Context, bool ShowColors = false)
@@ -133,6 +159,15 @@ public:
           databasePath(std::move(databasePath)), databaseEnabled(true)
     {
         initializeDatabase();
+    }
+
+    // Destructor to ensure proper cleanup (Phase 4)
+    ~KuzuDump()
+    {
+        if (databaseEnabled && connection)
+        {
+            flushOperations();
+        }
     }
 
     auto doGetNodeDelegate() -> TextNodeDumper& { return NodeDumper; }

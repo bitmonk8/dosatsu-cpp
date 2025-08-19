@@ -37,6 +37,11 @@ using namespace clang::comments;
 
 void KuzuDump::dumpInvalidDeclContext(const DeclContext* DC)
 {
+    // Phase 4.3: Skip text dumping in database-only mode
+    if (databaseOnlyMode) {
+        return;
+    }
+    
     NodeDumper.AddChild(
         [=]
         {
@@ -68,6 +73,11 @@ void KuzuDump::dumpInvalidDeclContext(const DeclContext* DC)
 
 void KuzuDump::dumpLookups(const DeclContext* DC, bool DumpDecls)
 {
+    // Phase 4.3: Skip text dumping in database-only mode
+    if (databaseOnlyMode) {
+        return;
+    }
+    
     NodeDumper.AddChild(
         [=]
         {
@@ -141,6 +151,30 @@ void KuzuDump::dumpLookups(const DeclContext* DC, bool DumpDecls)
 template <typename SpecializationDecl>
 void KuzuDump::dumpTemplateDeclSpecialization(const SpecializationDecl* D, bool DumpExplicitInst, bool DumpRefOnly)
 {
+    // Phase 4.3: Skip text dumping in database-only mode but still process AST
+    if (databaseOnlyMode) {
+        for (const auto* RedeclWithBadType : D->redecls())
+        {
+            auto* Redecl = cast<SpecializationDecl>(RedeclWithBadType);
+            switch (Redecl->getTemplateSpecializationKind())
+            {
+            case TSK_ExplicitInstantiationDeclaration:
+            case TSK_ExplicitInstantiationDefinition:
+                if (!DumpExplicitInst)
+                    break;
+                [[fallthrough]];
+            case TSK_Undeclared:
+            case TSK_ImplicitInstantiation:
+                if (!DumpRefOnly)
+                    Visit(Redecl);
+                break;
+            case TSK_ExplicitSpecialization:
+                break;
+            }
+        }
+        return;
+    }
+    
     bool DumpedAny = false;
     for (const auto* RedeclWithBadType : D->redecls())
     {
@@ -273,6 +307,161 @@ void KuzuDump::executeSchemaQuery(const std::string& query, const std::string& s
     {
         throw std::runtime_error("Failed to create " + schemaName + " table: " + result->getErrorMessage());
     }
+}
+
+// Performance optimization methods (Phase 4)
+void KuzuDump::beginTransaction()
+{
+    if (!connection || transactionActive)
+    {
+        return;
+    }
+
+    try
+    {
+        auto result = connection->query("BEGIN TRANSACTION");
+        if (result->isSuccess())
+        {
+            transactionActive = true;
+            llvm::outs() << "Transaction started for batch operations\n";
+        }
+        else
+        {
+            llvm::errs() << "Failed to begin transaction: " << result->getErrorMessage() << "\n";
+        }
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception beginning transaction: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::commitTransaction()
+{
+    if (!connection || !transactionActive)
+    {
+        return;
+    }
+
+    try
+    {
+        auto result = connection->query("COMMIT");
+        if (result->isSuccess())
+        {
+            transactionActive = false;
+            llvm::outs() << "Transaction committed. Total operations: " << totalOperations << "\n";
+        }
+        else
+        {
+            llvm::errs() << "Failed to commit transaction: " << result->getErrorMessage() << "\n";
+        }
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception committing transaction: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::rollbackTransaction()
+{
+    if (!connection || !transactionActive)
+    {
+        return;
+    }
+
+    try
+    {
+        auto result = connection->query("ROLLBACK");
+        if (result->isSuccess())
+        {
+            transactionActive = false;
+            llvm::outs() << "Transaction rolled back\n";
+        }
+        else
+        {
+            llvm::errs() << "Failed to rollback transaction: " << result->getErrorMessage() << "\n";
+        }
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception rolling back transaction: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::addToBatch(const std::string& query)
+{
+    if (!connection || query.empty())
+    {
+        return;
+    }
+
+    pendingQueries.push_back(query);
+    totalOperations++;
+
+    // Start transaction on first batched operation
+    if (!transactionActive)
+    {
+        beginTransaction();
+    }
+
+    // Execute batch when it reaches the batch size
+    if (pendingQueries.size() >= BATCH_SIZE)
+    {
+        executeBatch();
+    }
+}
+
+void KuzuDump::executeBatch()
+{
+    if (!connection || pendingQueries.empty())
+    {
+        return;
+    }
+
+    try
+    {
+        // Execute all queries in the batch
+        for (const auto& query : pendingQueries)
+        {
+            auto result = connection->query(query);
+            if (!result->isSuccess())
+            {
+                llvm::errs() << "Batched query failed: " << result->getErrorMessage() << "\n";
+                llvm::errs() << "Query: " << query << "\n";
+                // Continue with other queries rather than failing completely
+            }
+        }
+
+        llvm::outs() << "Executed batch of " << pendingQueries.size() << " operations\n";
+        pendingQueries.clear();
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception executing batch: " << e.what() << "\n";
+        pendingQueries.clear();
+    }
+}
+
+void KuzuDump::flushOperations()
+{
+    if (!connection)
+    {
+        return;
+    }
+
+    // Execute any remaining batched operations
+    if (!pendingQueries.empty())
+    {
+        executeBatch();
+    }
+
+    // Commit any active transaction
+    if (transactionActive)
+    {
+        commitTransaction();
+    }
+
+    llvm::outs() << "All operations flushed. Total operations processed: " << totalOperations << "\n";
 }
 
 void KuzuDump::createSchema()
@@ -418,13 +607,8 @@ auto KuzuDump::createASTNode(const clang::Decl* decl) -> int64_t
                             "', is_implicit: " + (isImplicit ? "true" : "false") +
                             ", start_line: -1, start_column: -1, end_line: -1, end_column: -1, raw_text: ''})";
 
-        auto result = connection->query(query);
-
-        if (!result->isSuccess())
-        {
-            llvm::errs() << "Failed to create AST node: " << result->getErrorMessage() << "\n";
-            return -1;
-        }
+        // Use batched operation for performance optimization (Phase 4)
+        addToBatch(query);
 
         // Create specialized Declaration node if this is a named declaration
         if (const auto* namedDecl = dyn_cast<NamedDecl>(decl))
@@ -485,12 +669,8 @@ auto KuzuDump::createASTNode(const clang::Stmt* stmt) -> int64_t
             "', memory_address: '" + memoryAddr + "', source_file: '" + sourceFile +
             "', is_implicit: false, start_line: -1, start_column: -1, end_line: -1, end_column: -1, raw_text: ''})";
 
-        auto result = connection->query(query);
-        if (!result->isSuccess())
-        {
-            llvm::errs() << "Failed to create AST node for statement: " << result->getErrorMessage() << "\n";
-            return -1;
-        }
+        // Use batched operation for performance optimization (Phase 4)
+        addToBatch(query);
 
         return nodeId;
     }
@@ -533,12 +713,8 @@ auto KuzuDump::createASTNode(const clang::Type* type) -> int64_t
                             "', source_file: '', is_implicit: false, start_line: -1, start_column: -1, end_line: -1, "
                             "end_column: -1, raw_text: ''})";
 
-        auto result = connection->query(query);
-        if (!result->isSuccess())
-        {
-            llvm::errs() << "Failed to create AST node for type: " << result->getErrorMessage() << "\n";
-            return -1;
-        }
+        // Use batched operation for performance optimization (Phase 4)
+        addToBatch(query);
 
         return nodeId;
     }
@@ -564,11 +740,8 @@ void KuzuDump::createParentChildRelation(int64_t parentId, int64_t childId, int 
                             "CREATE (parent)-[:PARENT_OF {child_index: " + std::to_string(index) +
                             ", relationship_kind: 'child'}]->(child)";
 
-        auto result = connection->query(query);
-        if (!result->isSuccess())
-        {
-            llvm::errs() << "Failed to create PARENT_OF relationship: " << result->getErrorMessage() << "\n";
-        }
+        // Use batched operation for performance optimization (Phase 4)
+        addToBatch(query);
     }
     catch (const std::exception& e)
     {
@@ -589,11 +762,8 @@ void KuzuDump::createTypeRelation(int64_t declId, int64_t typeId)
                             "(type:Type {node_id: " + std::to_string(typeId) + "}) " +
                             "CREATE (decl)-[:HAS_TYPE {type_role: 'primary'}]->(type)";
 
-        auto result = connection->query(query);
-        if (!result->isSuccess())
-        {
-            llvm::errs() << "Failed to create HAS_TYPE relationship: " << result->getErrorMessage() << "\n";
-        }
+        // Use batched operation for performance optimization (Phase 4)
+        addToBatch(query);
     }
     catch (const std::exception& e)
     {
@@ -614,11 +784,8 @@ void KuzuDump::createReferenceRelation(int64_t fromId, int64_t toId, const std::
                             "(to:Declaration {node_id: " + std::to_string(toId) + "}) " +
                             "CREATE (from)-[:REFERENCES {reference_kind: '" + kind + "', is_direct: true}]->(to)";
 
-        auto result = connection->query(query);
-        if (!result->isSuccess())
-        {
-            llvm::errs() << "Failed to create REFERENCES relationship: " << result->getErrorMessage() << "\n";
-        }
+        // Use batched operation for performance optimization (Phase 4)
+        addToBatch(query);
     }
     catch (const std::exception& e)
     {
@@ -639,11 +806,8 @@ void KuzuDump::createScopeRelation(int64_t nodeId, int64_t scopeId, const std::s
                             "(scope:Declaration {node_id: " + std::to_string(scopeId) + "}) " +
                             "CREATE (node)-[:IN_SCOPE {scope_kind: '" + scopeKind + "'}]->(scope)";
 
-        auto result = connection->query(query);
-        if (!result->isSuccess())
-        {
-            llvm::errs() << "Failed to create IN_SCOPE relationship: " << result->getErrorMessage() << "\n";
-        }
+        // Use batched operation for performance optimization (Phase 4)
+        addToBatch(query);
     }
     catch (const std::exception& e)
     {
@@ -684,17 +848,14 @@ auto KuzuDump::createTypeNode(clang::QualType qualType) -> int64_t
         std::string qualifiers = extractTypeQualifiers(qualType);
         bool isBuiltIn = isBuiltInType(qualType);
 
-        std::string query = "CREATE (t:Type {id: " + std::to_string(typeNodeId) + ", name: '" + typeName +
-                            "', category: '" + typeCategory + "', qualifiers: '" + qualifiers +
-                            "', is_builtin: " + (isBuiltIn ? "true" : "false") + ", source_location: '" +
-                            extractTypeSourceLocation(qualType) + "'})";
+        std::string query = "CREATE (t:Type {node_id: " + std::to_string(typeNodeId) + ", type_name: '" + typeName +
+                            "', canonical_type: '" + typeCategory + "', size_bytes: -1, is_const: " +
+                            (qualType.isConstQualified() ? "true" : "false") + ", is_volatile: " +
+                            (qualType.isVolatileQualified() ? "true" : "false") + ", is_builtin: " +
+                            (isBuiltIn ? "true" : "false") + "})";
 
-        auto result = connection->query(query);
-        if (!result->isSuccess())
-        {
-            llvm::errs() << "Failed to create Type node: " << result->getErrorMessage() << "\n";
-            return -1;
-        }
+        // Use batched operation for performance optimization (Phase 4)
+        addToBatch(query);
 
         return typeNodeId;
     }
@@ -728,11 +889,8 @@ void KuzuDump::createDeclarationNode(int64_t nodeId, const clang::NamedDecl* dec
                             "', storage_class: '" + storageClass + "', is_definition: " + (isDef ? "true" : "false") +
                             ", namespace_context: '" + namespaceContext + "'})";
 
-        auto result = connection->query(query);
-        if (!result->isSuccess())
-        {
-            llvm::errs() << "Failed to create Declaration node: " << result->getErrorMessage() << "\n";
-        }
+        // Use batched operation for performance optimization (Phase 4)
+        addToBatch(query);
     }
     catch (const std::exception& e)
     {
@@ -1166,11 +1324,8 @@ void KuzuDump::createTemplateRelation(int64_t specializationId, int64_t template
                             "CREATE (spec)-[:TEMPLATE_RELATION {relation_kind: '" + kind +
                             "', specialization_type: 'explicit'}]->(tmpl)";
 
-        auto result = connection->query(query);
-        if (!result->isSuccess())
-        {
-            llvm::errs() << "Failed to create TEMPLATE_RELATION relationship: " << result->getErrorMessage() << "\n";
-        }
+        // Use batched operation for performance optimization (Phase 4)
+        addToBatch(query);
     }
     catch (const std::exception& e)
     {
