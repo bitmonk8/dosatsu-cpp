@@ -120,6 +120,7 @@ private:
     // Enhanced statement and expression processing methods
     void createStatementNode(int64_t nodeId, const clang::Stmt* stmt);
     void createExpressionNode(int64_t nodeId, const clang::Expr* expr);
+    void createMemoryManagementNode(int64_t nodeId, const clang::Expr* expr);
     auto extractStatementKind(const clang::Stmt* stmt) -> std::string;
     auto extractControlFlowType(const clang::Stmt* stmt) -> std::string;
     auto extractConditionText(const clang::Stmt* stmt) -> std::string;
@@ -133,6 +134,17 @@ private:
     auto isExpressionConstexpr(const clang::Expr* expr) -> bool;
     auto extractEvaluationResult(const clang::Expr* expr) -> std::string;
     auto extractImplicitCastKind(const clang::Expr* expr) -> std::string;
+
+    // Memory management analysis methods
+    auto extractMemoryOperationType(const clang::Expr* expr) -> std::string;
+    auto extractAllocationType(const clang::CXXNewExpr* newExpr) -> std::string;
+    auto extractDeallocatorKind(const clang::CXXDeleteExpr* deleteExpr) -> std::string;
+    auto extractPlacementArgs(const clang::CXXNewExpr* newExpr) -> std::string;
+    auto extractSizeExpression(const clang::CXXNewExpr* newExpr) -> std::string;
+    auto extractAlignmentExpression(const clang::CXXNewExpr* newExpr) -> std::string;
+    auto detectSmartPointerType(const clang::Type* type) -> std::string;
+    auto detectRAIIPattern(const clang::CXXConstructExpr* constructExpr) -> std::string;
+    auto isGlobalNewDelete(const clang::Expr* expr) -> bool;
 
     // Type processing methods (Phase 2)
     auto createTypeNodeAndRelation(int64_t declNodeId, clang::QualType qualType) -> int64_t;
@@ -287,6 +299,9 @@ public:
     void VisitUnaryOperator(const UnaryOperator* E);
     void VisitCallExpr(const CallExpr* E);
     void VisitImplicitCastExpr(const ImplicitCastExpr* E);
+    void VisitCXXNewExpr(const CXXNewExpr* E);
+    void VisitCXXDeleteExpr(const CXXDeleteExpr* E);
+    void VisitCXXConstructExpr(const CXXConstructExpr* E);
 
     // Template-specific visit methods (already declared above)
 };

@@ -42,16 +42,7 @@ The current schema includes:
 - Code quality reports
 - Developer annotations analysis
 
-### 2. Memory Management and Resource Analysis **[MEDIUM PRIORITY]**
-
-**Missing Information**:
-- new/delete expression tracking
-- RAII pattern identification
-- Smart pointer usage
-- Memory allocation/deallocation pairs
-- Resource acquisition and release patterns
-
-### 3. Constant Expression and Compile-Time Evaluation **[LOW PRIORITY]**
+### 2. Constant Expression and Compile-Time Evaluation **[LOW PRIORITY]**
 
 **Missing Information**:
 - constexpr function evaluation results
@@ -59,7 +50,3 @@ The current schema includes:
 - Compile-time constant values
 - Static assertion information
 
-
-## Specific Implementation Recommendations
-
-The following recommendations focus on the remaining high-priority improvements that would enhance the generated Kuzu database with more complete AST information.

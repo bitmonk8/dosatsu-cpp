@@ -674,6 +674,22 @@ void KuzuDump::createSchema()
                            "implicit_cast_kind STRING)",
                            "Expression");
 
+        // Create MemoryManagement table for memory allocation/deallocation tracking
+        executeSchemaQuery("CREATE NODE TABLE MemoryManagement("
+                           "node_id INT64 PRIMARY KEY, "
+                           "operation_type STRING, "
+                           "allocation_type STRING, "
+                           "is_array BOOLEAN, "
+                           "placement_args STRING, "
+                           "deallocator_kind STRING, "
+                           "size_expression STRING, "
+                           "alignment_expression STRING, "
+                           "is_global_new BOOLEAN, "
+                           "is_global_delete BOOLEAN, "
+                           "smart_pointer_type STRING, "
+                           "raii_pattern STRING)",
+                           "MemoryManagement");
+
         // Create Attribute table
         executeSchemaQuery("CREATE NODE TABLE Attribute("
                            "node_id INT64 PRIMARY KEY, "
@@ -1704,6 +1720,77 @@ void KuzuDump::createExpressionNode(int64_t nodeId, const clang::Expr* expr)
     }
 }
 
+void KuzuDump::createMemoryManagementNode(int64_t nodeId, const clang::Expr* expr)
+{
+    if (!connection || (expr == nullptr))
+    {
+        return;
+    }
+
+    try
+    {
+        std::string operationType = extractMemoryOperationType(expr);
+        std::string allocationType = "";
+        std::string deallocatorKind = "";
+        std::string placementArgs = "";
+        std::string sizeExpression = "";
+        std::string alignmentExpression = "";
+        bool isArray = false;
+        bool isGlobalNew = false;
+        bool isGlobalDelete = false;
+        std::string smartPointerType = "";
+        std::string raiiPattern = "";
+
+        // Handle CXXNewExpr
+        if (const auto* newExpr = dyn_cast<CXXNewExpr>(expr))
+        {
+            allocationType = extractAllocationType(newExpr);
+            placementArgs = extractPlacementArgs(newExpr);
+            sizeExpression = extractSizeExpression(newExpr);
+            alignmentExpression = extractAlignmentExpression(newExpr);
+            isArray = newExpr->isArray();
+            isGlobalNew = isGlobalNewDelete(newExpr);
+        }
+        // Handle CXXDeleteExpr
+        else if (const auto* deleteExpr = dyn_cast<CXXDeleteExpr>(expr))
+        {
+            deallocatorKind = extractDeallocatorKind(deleteExpr);
+            isArray = deleteExpr->isArrayForm();
+            isGlobalDelete = isGlobalNewDelete(deleteExpr);
+        }
+        // Handle CXXConstructExpr for RAII and smart pointers
+        else if (const auto* constructExpr = dyn_cast<CXXConstructExpr>(expr))
+        {
+            smartPointerType = detectSmartPointerType(constructExpr->getType().getTypePtr());
+            raiiPattern = detectRAIIPattern(constructExpr);
+        }
+
+        // Escape single quotes in text fields
+        std::ranges::replace(allocationType, '\'', '_');
+        std::ranges::replace(deallocatorKind, '\'', '_');
+        std::ranges::replace(placementArgs, '\'', '_');
+        std::ranges::replace(sizeExpression, '\'', '_');
+        std::ranges::replace(alignmentExpression, '\'', '_');
+        std::ranges::replace(smartPointerType, '\'', '_');
+        std::ranges::replace(raiiPattern, '\'', '_');
+
+        std::string query = "CREATE (m:MemoryManagement {node_id: " + std::to_string(nodeId) + ", operation_type: '" +
+                            operationType + "', allocation_type: '" + allocationType +
+                            "', is_array: " + (isArray ? "true" : "false") + ", placement_args: '" + placementArgs +
+                            "', deallocator_kind: '" + deallocatorKind + "', size_expression: '" + sizeExpression +
+                            "', alignment_expression: '" + alignmentExpression +
+                            "', is_global_new: " + (isGlobalNew ? "true" : "false") +
+                            ", is_global_delete: " + (isGlobalDelete ? "true" : "false") + ", smart_pointer_type: '" +
+                            smartPointerType + "', raii_pattern: '" + raiiPattern + "'})";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating MemoryManagement node: " << e.what() << "\n";
+    }
+}
+
 auto KuzuDump::extractStatementKind(const clang::Stmt* stmt) -> std::string
 {
     if (stmt == nullptr)
@@ -1968,6 +2055,223 @@ auto KuzuDump::extractImplicitCastKind(const clang::Expr* expr) -> std::string
     }
 
     return "";
+}
+
+// Memory management analysis methods
+auto KuzuDump::extractMemoryOperationType(const clang::Expr* expr) -> std::string
+{
+    if (expr == nullptr)
+    {
+        return "unknown";
+    }
+
+    if (isa<CXXNewExpr>(expr))
+    {
+        return "allocation";
+    }
+    if (isa<CXXDeleteExpr>(expr))
+    {
+        return "deallocation";
+    }
+    else if (isa<CXXConstructExpr>(expr))
+    {
+        return "construction";
+    }
+
+    return "other";
+}
+
+auto KuzuDump::extractAllocationType(const clang::CXXNewExpr* newExpr) -> std::string
+{
+    if (newExpr == nullptr)
+    {
+        return "";
+    }
+
+    std::string result = newExpr->getType().getAsString();
+
+    if (newExpr->isArray())
+    {
+        result += "_array";
+    }
+
+    if (newExpr->getNumPlacementArgs() > 0)
+    {
+        result += "_placement";
+    }
+
+    return result;
+}
+
+auto KuzuDump::extractDeallocatorKind(const clang::CXXDeleteExpr* deleteExpr) -> std::string
+{
+    if (deleteExpr == nullptr)
+    {
+        return "";
+    }
+
+    std::string result = "";
+
+    if (deleteExpr->isArrayForm())
+    {
+        result = "array_delete";
+    }
+    else
+    {
+        result = "scalar_delete";
+    }
+
+    if (deleteExpr->isGlobalDelete())
+    {
+        result = "global_" + result;
+    }
+
+    return result;
+}
+
+auto KuzuDump::extractPlacementArgs(const clang::CXXNewExpr* newExpr) -> std::string
+{
+    if (newExpr == nullptr || newExpr->getNumPlacementArgs() == 0)
+    {
+        return "";
+    }
+
+    std::string result = "";
+    for (unsigned i = 0; i < newExpr->getNumPlacementArgs(); ++i)
+    {
+        if (i > 0)
+            result += ", ";
+        if (const Expr* arg = newExpr->getPlacementArg(i))
+        {
+            result += arg->getStmtClassName();
+        }
+    }
+
+    return result;
+}
+
+auto KuzuDump::extractSizeExpression(const clang::CXXNewExpr* newExpr) -> std::string
+{
+    if (newExpr == nullptr)
+    {
+        return "";
+    }
+
+    if (newExpr->isArray())
+    {
+        if (const Expr* sizeExpr = newExpr->getArraySize().value_or(nullptr))
+        {
+            return sizeExpr->getStmtClassName();
+        }
+    }
+
+    return "";
+}
+
+auto KuzuDump::extractAlignmentExpression(const clang::CXXNewExpr* newExpr) -> std::string
+{
+    if (newExpr == nullptr)
+    {
+        return "";
+    }
+
+    // Check for aligned allocation (C++17 feature)
+    if (newExpr->passAlignment())
+    {
+        return "aligned_allocation";
+    }
+
+    return "";
+}
+
+auto KuzuDump::detectSmartPointerType(const clang::Type* type) -> std::string
+{
+    if (type == nullptr)
+    {
+        return "";
+    }
+
+    std::string typeName = type->getCanonicalTypeInternal().getAsString();
+
+    if (typeName.find("std::unique_ptr") != std::string::npos)
+    {
+        return "unique_ptr";
+    }
+    if (typeName.find("std::shared_ptr") != std::string::npos)
+    {
+        return "shared_ptr";
+    }
+    else if (typeName.find("std::weak_ptr") != std::string::npos)
+    {
+        return "weak_ptr";
+    }
+    else if (typeName.find("std::auto_ptr") != std::string::npos)
+    {
+        return "auto_ptr";
+    }
+
+    return "";
+}
+
+auto KuzuDump::detectRAIIPattern(const clang::CXXConstructExpr* constructExpr) -> std::string
+{
+    if (constructExpr == nullptr)
+    {
+        return "";
+    }
+
+    const CXXConstructorDecl* constructor = constructExpr->getConstructor();
+    if (constructor == nullptr)
+    {
+        return "";
+    }
+
+    const CXXRecordDecl* recordDecl = constructor->getParent();
+    if (recordDecl == nullptr)
+    {
+        return "";
+    }
+
+    std::string className = recordDecl->getNameAsString();
+
+    // Check for common RAII patterns
+    if (className.find("lock") != std::string::npos || className.find("Lock") != std::string::npos)
+    {
+        return "lock_raii";
+    }
+    if (className.find("guard") != std::string::npos || className.find("Guard") != std::string::npos)
+    {
+        return "guard_raii";
+    }
+    else if (className.find("ptr") != std::string::npos)
+    {
+        return "smart_pointer_raii";
+    }
+    else if (recordDecl->hasUserDeclaredDestructor())
+    {
+        return "custom_raii";
+    }
+
+    return "";
+}
+
+auto KuzuDump::isGlobalNewDelete(const clang::Expr* expr) -> bool
+{
+    if (expr == nullptr)
+    {
+        return false;
+    }
+
+    if (const auto* newExpr = dyn_cast<CXXNewExpr>(expr))
+    {
+        return newExpr->isGlobalNew();
+    }
+    if (const auto* deleteExpr = dyn_cast<CXXDeleteExpr>(expr))
+    {
+        return deleteExpr->isGlobalDelete();
+    }
+
+    return false;
 }
 
 // Hierarchy processing methods (Phase 2)
@@ -3313,6 +3617,90 @@ void KuzuDump::VisitImplicitCastExpr(const ImplicitCastExpr* E)
 
     // Create enhanced Expression node with detailed information
     createExpressionNode(nodeId, E);
+
+    // Create hierarchy relationship if this node has a parent
+    createHierarchyRelationship(nodeId);
+
+    // Push this node as parent for potential children
+    pushParent(nodeId);
+
+    // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this node as parent after traversal
+    popParent();
+}
+
+void KuzuDump::VisitCXXNewExpr(const CXXNewExpr* E)
+{
+    if (E == nullptr)
+        return;
+
+    // Create database node for this new expression
+    int64_t nodeId = createASTNode(E);
+
+    // Create enhanced Expression node with detailed information
+    createExpressionNode(nodeId, E);
+
+    // Create memory management node for allocation tracking
+    createMemoryManagementNode(nodeId, E);
+
+    // Create hierarchy relationship if this node has a parent
+    createHierarchyRelationship(nodeId);
+
+    // Push this node as parent for potential children
+    pushParent(nodeId);
+
+    // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this node as parent after traversal
+    popParent();
+}
+
+void KuzuDump::VisitCXXDeleteExpr(const CXXDeleteExpr* E)
+{
+    if (E == nullptr)
+        return;
+
+    // Create database node for this delete expression
+    int64_t nodeId = createASTNode(E);
+
+    // Create enhanced Expression node with detailed information
+    createExpressionNode(nodeId, E);
+
+    // Create memory management node for deallocation tracking
+    createMemoryManagementNode(nodeId, E);
+
+    // Create hierarchy relationship if this node has a parent
+    createHierarchyRelationship(nodeId);
+
+    // Push this node as parent for potential children
+    pushParent(nodeId);
+
+    // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this node as parent after traversal
+    popParent();
+}
+
+void KuzuDump::VisitCXXConstructExpr(const CXXConstructExpr* E)
+{
+    if (E == nullptr)
+        return;
+
+    // Create database node for this constructor expression
+    int64_t nodeId = createASTNode(E);
+
+    // Create enhanced Expression node with detailed information
+    createExpressionNode(nodeId, E);
+
+    // Create memory management node for RAII and smart pointer tracking
+    std::string smartPointerType = detectSmartPointerType(E->getType().getTypePtr());
+    std::string raiiPattern = detectRAIIPattern(E);
+
+    if (!smartPointerType.empty() || !raiiPattern.empty())
+    {
+        createMemoryManagementNode(nodeId, E);
+    }
 
     // Create hierarchy relationship if this node has a parent
     createHierarchyRelationship(nodeId);
