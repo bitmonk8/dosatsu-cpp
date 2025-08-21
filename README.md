@@ -101,7 +101,7 @@ python build.py test --ci-mode --coverage            # CI-friendly with coverage
 
 # Code Quality
 python build.py format [--check-only]                # Format code with clang-format
-python build.py lint [--fix] [--summary-only]        # Lint with clang-tidy
+python build.py lint [--summary-only]                # Two-phase lint: auto-fix then report
 ```
 
 ### Git Integration
@@ -217,7 +217,7 @@ python build.py git-pull --rebase
 
 # 4. Pre-commit workflow
 python build.py format              # Auto-format code
-python build.py lint --fix          # Fix linting issues
+python build.py lint                 # Two-phase: auto-fix then report remaining issues
 python build.py rebuild             # Full rebuild + test
 
 # 5. Commit with validation
@@ -232,9 +232,18 @@ python build.py git-push
 The build system enforces consistent code quality:
 
 - **Formatting**: Automatic clang-format integration with project-specific style
-- **Linting**: Comprehensive clang-tidy analysis with modern C++ guidelines
+- **Linting**: Two-phase clang-tidy analysis with automatic fixes followed by remaining issue reports
 - **Testing**: Mandatory test execution before commits
 - **Pre-commit Hooks**: Optional git hooks for automatic validation
+
+#### Two-Phase Linting
+
+The `python build.py lint` command runs in two phases for optimal developer experience:
+
+1. **Phase 1 (Auto-fix)**: Runs clang-tidy with `--fix` to automatically correct common issues
+2. **Phase 2 (Report)**: Runs clang-tidy again to report issues requiring manual attention
+
+This approach reduces developer friction by handling routine fixes automatically while clearly highlighting issues that need thoughtful resolution.
 
 ### Performance Optimization
 
@@ -277,7 +286,7 @@ The project includes a comprehensive GitHub Actions workflow:
 python build.py rebuild --debug --skip-tests     # Quick build check
 python build.py test --ci-mode                   # CI-style testing
 python build.py format --check-only              # Format validation
-python build.py lint --summary-only              # Quick lint check
+python build.py lint --summary-only              # Quick two-phase lint check
 ```
 
 ## 🔧 Advanced Configuration
@@ -404,7 +413,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
    ```bash
    # Make your changes...
    python build.py format              # Auto-format
-   python build.py lint --fix          # Fix issues
+   python build.py lint                 # Two-phase: auto-fix then report
    python build.py rebuild             # Build + test
    ```
 5. **Commit** with validation:

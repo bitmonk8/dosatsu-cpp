@@ -626,8 +626,8 @@ exit 0
             return 1
         
     def cmd_lint(self, args):
-        """Lint source code."""
-        self.logger.info("=== Code Linting ===")
+        """Lint source code in two phases: auto-fix phase and report phase."""
+        self.logger.info("=== Code Linting (Two-Phase Mode) ===")
         
         # Find clang-tidy tool
         clang_tidy_tool = self.find_tool("clang-tidy")
@@ -685,82 +685,115 @@ exit 0
             self.logger.warning("No .clang-tidy configuration file found")
             self.logger.info("Using clang-tidy default configuration")
             
-        # Prepare clang-tidy command
+        # Prepare base clang-tidy command
         build_dir = compile_commands.parent
-        cmd = [str(clang_tidy_tool), f"-p={build_dir}"]
-        
-        if args.fix:
-            cmd.extend(["--fix", "--fix-errors"])
-            self.logger.info("Running clang-tidy with automatic fixes...")
-        else:
-            self.logger.info("Running clang-tidy analysis...")
-            
-        # Add files to command
-        cmd.extend([str(f) for f in files_to_lint])
-        
-        # Run clang-tidy with output capture
-        result = self.run_command(cmd, capture_output=True)
+        base_cmd = [str(clang_tidy_tool), f"-p={build_dir}"]
+        file_args = [str(f) for f in files_to_lint]
         
         # Create lint output directories
         lint_log_dir = self.artifacts_dir / "lint"
         self.ensure_directory(lint_log_dir)
         
-        # Save raw output
+        # ===== PHASE 1: Auto-fix phase =====
+        self.logger.info("\n--- Phase 1: Automatic fixes ---")
+        self.logger.info("Running clang-tidy with automatic fixes...")
+        
+        phase1_cmd = base_cmd + ["--fix", "--fix-errors"] + file_args
+        phase1_result = self.run_command(phase1_cmd, capture_output=True)
+        
+        # Save Phase 1 output
+        phase1_output_file = lint_log_dir / "clang-tidy-phase1-autofix.txt"
+        with open(phase1_output_file, 'w', encoding='utf-8') as f:
+            f.write(f"Clang-tidy Phase 1 (Auto-fix) results:\n")
+            f.write(f"Command: {' '.join(phase1_cmd)}\n")
+            f.write(f"Files analyzed: {len(files_to_lint)}\n")
+            f.write(f"Return code: {phase1_result.returncode}\n\n")
+            if phase1_result.stdout:
+                f.write("stdout:\n")
+                f.write(phase1_result.stdout)
+            if phase1_result.stderr:
+                f.write("\nstderr:\n")
+                f.write(phase1_result.stderr)
+        
+        # Analyze Phase 1 output for summary
+        phase1_output_to_analyze = phase1_result.stdout if phase1_result.stdout else ""
+        phase1_stats = self._analyze_clang_tidy_output(phase1_output_to_analyze)
+        
+        if phase1_stats['total_issues'] > 0:
+            self.logger.info(f"Phase 1: Applied automatic fixes to {phase1_stats['total_issues']} issues")
+        else:
+            self.logger.info("Phase 1: No issues found that could be automatically fixed")
+        
+        # ===== PHASE 2: Report phase =====
+        self.logger.info("\n--- Phase 2: Analysis and reporting ---")
+        self.logger.info("Running clang-tidy analysis for remaining issues...")
+        
+        phase2_cmd = base_cmd + file_args
+        phase2_result = self.run_command(phase2_cmd, capture_output=True)
+        
+        # Save Phase 2 output (this becomes the main raw output)
         raw_output_file = lint_log_dir / "clang-tidy-raw.txt"
         with open(raw_output_file, 'w', encoding='utf-8') as f:
-            f.write(f"Clang-tidy analysis results:\n")
-            f.write(f"Command: {' '.join(cmd)}\n")
+            f.write(f"Clang-tidy Phase 2 (Report) results:\n")
+            f.write(f"Command: {' '.join(phase2_cmd)}\n")
             f.write(f"Files analyzed: {len(files_to_lint)}\n")
-            f.write(f"Return code: {result.returncode}\n\n")
-            if result.stdout:
+            f.write(f"Return code: {phase2_result.returncode}\n\n")
+            if phase2_result.stdout:
                 f.write("stdout:\n")
-                f.write(result.stdout)
-            if result.stderr:
+                f.write(phase2_result.stdout)
+            if phase2_result.stderr:
                 f.write("\nstderr:\n")
-                f.write(result.stderr)
+                f.write(phase2_result.stderr)
         
-        # Analyze output and generate statistics
-        output_to_analyze = result.stdout if result.stdout else ""
-        stats = self._analyze_clang_tidy_output(output_to_analyze)
+        # Analyze Phase 2 output and generate statistics
+        phase2_output_to_analyze = phase2_result.stdout if phase2_result.stdout else ""
+        phase2_stats = self._analyze_clang_tidy_output(phase2_output_to_analyze)
         
-        # Generate comprehensive report
+        # Generate comprehensive report based on Phase 2 results
         if args.report_format == 'markdown':
             report_file = lint_log_dir / "analysis-report.md"
         else:
             report_file = lint_log_dir / "analysis-report.txt"
-        self._generate_lint_report(stats, report_file, args.report_format)
+        self._generate_lint_report(phase2_stats, report_file, args.report_format)
         
         # Print summary to console
-        self._print_lint_summary(stats)
+        self.logger.info("\n=== Final Results ===")
+        if phase1_stats['total_issues'] > 0:
+            self.logger.info(f"Phase 1: {phase1_stats['total_issues']} issues automatically fixed")
+        if phase2_stats['total_issues'] > 0:
+            self.logger.info(f"Phase 2: {phase2_stats['total_issues']} issues require manual attention")
+            self._print_lint_summary(phase2_stats)
+        else:
+            self.logger.info("Phase 2: No remaining issues found!")
         
-        # Show filtered output if there are issues (unless summary-only mode)
-        if stats['total_issues'] > 0 and not args.summary_only:
-            filtered_output = self._filter_clang_tidy_output(output_to_analyze)
+        # Show filtered output if there are remaining issues (unless summary-only mode)
+        if phase2_stats['total_issues'] > 0 and not args.summary_only:
+            filtered_output = self._filter_clang_tidy_output(phase2_output_to_analyze)
             if filtered_output.strip():
-                self.logger.info("\nDetailed clang-tidy output:")
+                self.logger.info("\nRemaining issues that require manual attention:")
                 print(filtered_output)
         
         # Log file locations
-        self.logger.info(f"Raw output saved to: {raw_output_file}")
+        self.logger.info(f"\nPhase 1 output saved to: {phase1_output_file}")
+        self.logger.info(f"Phase 2 output saved to: {raw_output_file}")
         self.logger.info(f"Analysis report saved to: {report_file}")
         
-        # Determine return status
-        if result.returncode == 0 and stats['error_count'] == 0:
-            self.logger.info("[OK] Linting completed successfully!")
+        # Determine return status based on Phase 2 results (remaining issues)
+        if phase2_result.returncode == 0 and phase2_stats['error_count'] == 0:
+            if phase1_stats['total_issues'] > 0:
+                self.logger.info("[OK] Linting completed successfully with automatic fixes applied!")
+            else:
+                self.logger.info("[OK] Linting completed successfully!")
             return 0
         else:
-            if stats['error_count'] > 0:
-                self.logger.error("Critical issues found that need attention")
-            elif stats['warning_count'] > 0:
-                self.logger.warning("Linting completed with warnings")
+            if phase2_stats['error_count'] > 0:
+                self.logger.error("Critical issues found that require manual attention")
+            elif phase2_stats['warning_count'] > 0:
+                self.logger.warning("Linting completed with warnings that require manual attention")
             else:
                 self.logger.info("Linting completed")
                 
-            if args.fix:
-                self.logger.info("Some issues may have been automatically fixed")
-            else:
-                self.logger.info("Use --fix flag to automatically fix some issues")
-            return 1 if stats['error_count'] > 0 else 0
+            return 1 if phase2_stats['error_count'] > 0 else 0
             
     def _filter_clang_tidy_output(self, output: str) -> str:
         """Filter clang-tidy output to remove noise and organize results."""
@@ -2262,7 +2295,7 @@ Examples:
   python build.py build --release          # Build release version
   python build.py test                     # Run all tests
   python build.py format --check-only      # Check formatting
-  python build.py lint --fix               # Run linter with fixes
+  python build.py lint                     # Run two-phase linter (auto-fix then report)
   python build.py clean                    # Clean artifacts
   python build.py rebuild                  # Clean, build, and test
   python build.py git-status               # Show git repository status
@@ -2317,8 +2350,7 @@ Examples:
     format_parser.add_argument('--files', nargs='*', help='Specific files to format')
     
     # Lint command
-    lint_parser = subparsers.add_parser('lint', help='Lint source code')
-    lint_parser.add_argument('--fix', action='store_true', help='Apply automatic fixes')
+    lint_parser = subparsers.add_parser('lint', help='Lint source code (two-phase: auto-fix then report)')
     lint_parser.add_argument('--files', nargs='*', help='Specific files to lint')
     lint_parser.add_argument('--target', help='Lint specific file')
     lint_parser.add_argument('--summary-only', action='store_true', help='Show only summary, skip detailed output')

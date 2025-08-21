@@ -110,7 +110,7 @@ python build.py git-pull --rebase
 
 # 4. Code quality workflow
 python build.py format                    # Auto-format all code
-python build.py lint --fix                # Fix auto-fixable issues
+python build.py lint                       # Two-phase: auto-fix then report remaining issues
 python build.py build --debug             # Incremental build
 
 # 5. Test changes
@@ -308,23 +308,55 @@ python build.py format --files src/file1.cpp src/file2.h
 
 ### Linting Standards
 
-**clang-tidy** enforces modern C++ guidelines and project-specific rules:
+**clang-tidy** enforces modern C++ guidelines and project-specific rules using a two-phase approach:
 
 ```bash
-# Run full linting analysis
+# Run two-phase linting (auto-fix then report)
 python build.py lint
-
-# Auto-fix issues where possible
-python build.py lint --fix
 
 # Quick summary without detailed output
 python build.py lint --summary-only
 
 # Generate markdown report
 python build.py lint --report-format markdown
+
+# Target specific files
+python build.py lint --files src/file1.cpp src/file2.cpp
+python build.py lint --target src/specific_file.cpp
 ```
 
 **Configuration**: `.clang-tidy` (comprehensive rule set)
+
+#### Two-Phase Linting Process
+
+The lint command automatically runs in two phases for optimal developer experience:
+
+**Phase 1: Automatic Fixes**
+- Runs `clang-tidy` with `--fix` and `--fix-errors` flags
+- Automatically fixes issues that can be safely corrected
+- Output saved to `artifacts/lint/clang-tidy-phase1-autofix.txt`
+
+**Phase 2: Report Remaining Issues**  
+- Runs `clang-tidy` without fix flags to identify remaining problems
+- Reports issues that require manual developer attention
+- Output saved to `artifacts/lint/clang-tidy-raw.txt`
+- Comprehensive analysis report generated in `artifacts/lint/analysis-report.md`
+
+**Example Output Flow**:
+```bash
+python build.py lint
+
+# Phase 1: Applied automatic fixes to 12 issues
+# Phase 2: 3 issues require manual attention
+#   - 2 warnings about code style
+#   - 1 error requiring code restructuring
+```
+
+**Benefits**:
+- **Reduced Friction**: Common issues fixed automatically
+- **Clear Focus**: Developers only see issues requiring attention  
+- **Full Transparency**: Both phases logged for review
+- **No Lost Information**: All original issues captured before fixes
 
 ### Pre-commit Hooks
 
