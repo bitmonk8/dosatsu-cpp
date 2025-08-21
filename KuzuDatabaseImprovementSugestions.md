@@ -27,39 +27,7 @@ The current schema includes:
 
 ## Critical Missing Information
 
-### 1. Source Location Information **[HIGH PRIORITY]**
-
-**Current State**: Source locations are largely empty (start_line: -1, start_column: -1)
-
-**Missing Information**:
-- Precise line and column numbers for every AST node
-- Source ranges (start and end positions)
-- File paths for cross-file references
-- Macro expansion locations
-- Include relationship tracking
-
-**Impact**: Without source locations, the database cannot:
-- Generate accurate code navigation features
-- Provide precise error reporting
-- Support refactoring tools
-- Enable jump-to-definition functionality
-
-**Suggested Implementation**:
-```cpp
-// Enhance extractSourceLocationDetailed to use SourceManager
-auto KuzuDump::extractSourceLocationDetailed(const clang::SourceLocation& loc, const SourceManager& SM)
-    -> std::tuple<std::string, int64_t, int64_t>
-{
-    if (loc.isInvalid()) return {"", -1, -1};
-    
-    auto presumedLoc = SM.getPresumedLoc(loc);
-    if (presumedLoc.isInvalid()) return {"", -1, -1};
-    
-    return {presumedLoc.getFilename(), presumedLoc.getLine(), presumedLoc.getColumn()};
-}
-```
-
-### 2. Function Bodies and Statement Detail **[HIGH PRIORITY]**
+### 1. Function Bodies and Statement Detail **[HIGH PRIORITY]**
 
 **Current State**: Function bodies are traversed but statements lack detailed information
 
@@ -103,7 +71,7 @@ CREATE NODE TABLE Expression(
 )
 ```
 
-### 3. Inheritance and Class Hierarchy **[HIGH PRIORITY]**
+### 2. Inheritance and Class Hierarchy **[HIGH PRIORITY]**
 
 **Current State**: Base classes are mentioned in text dump but not captured in database relationships
 
@@ -136,7 +104,7 @@ CREATE REL TABLE OVERRIDES(
 )
 ```
 
-### 4. Template System Enhancement **[MEDIUM PRIORITY]**
+### 3. Template System Enhancement **[MEDIUM PRIORITY]**
 
 **Current State**: Basic template declarations are captured but specialization details are limited
 
@@ -167,7 +135,7 @@ CREATE REL TABLE SPECIALIZES(
 )
 ```
 
-### 5. Preprocessor and Macro Information **[MEDIUM PRIORITY]**
+### 4. Preprocessor and Macro Information **[MEDIUM PRIORITY]**
 
 **Current State**: No preprocessor information is captured
 
@@ -184,7 +152,7 @@ CREATE REL TABLE SPECIALIZES(
 - Include optimization opportunities
 - Platform-specific code paths
 
-### 6. Comments and Documentation **[LOW PRIORITY]**
+### 5. Comments and Documentation **[LOW PRIORITY]**
 
 **Current State**: Comments are not captured
 
@@ -199,7 +167,7 @@ CREATE REL TABLE SPECIALIZES(
 - Code quality reports
 - Developer annotations analysis
 
-### 7. Namespace and Using Declarations **[MEDIUM PRIORITY]**
+### 6. Namespace and Using Declarations **[MEDIUM PRIORITY]**
 
 **Current State**: Basic namespace context is captured but using declarations are incomplete
 
@@ -220,7 +188,7 @@ CREATE NODE TABLE UsingDeclaration(
 )
 ```
 
-### 8. Memory Management and Resource Analysis **[MEDIUM PRIORITY]**
+### 7. Memory Management and Resource Analysis **[MEDIUM PRIORITY]**
 
 **Missing Information**:
 - new/delete expression tracking
@@ -229,7 +197,7 @@ CREATE NODE TABLE UsingDeclaration(
 - Memory allocation/deallocation pairs
 - Resource acquisition and release patterns
 
-### 9. Constant Expression and Compile-Time Evaluation **[LOW PRIORITY]**
+### 8. Constant Expression and Compile-Time Evaluation **[LOW PRIORITY]**
 
 **Missing Information**:
 - constexpr function evaluation results
@@ -240,28 +208,7 @@ CREATE NODE TABLE UsingDeclaration(
 
 ## Specific Implementation Recommendations
 
-### 1. Enhance SourceManager Integration
-
-```cpp
-// Add to KuzuDump class:
-class KuzuDump {
-private:
-    const SourceManager* sourceManager = nullptr;
-    
-public:
-    void setSourceManager(const SourceManager& SM) { 
-        sourceManager = &SM; 
-    }
-    
-    // Use in all location extraction
-    auto getDetailedLocation(SourceLocation loc) -> LocationInfo {
-        if (!sourceManager || loc.isInvalid()) return {};
-        // Implementation using sourceManager
-    }
-};
-```
-
-### 2. Add Statement-Level Analysis
+### 1. Add Statement-Level Analysis
 
 ```cpp
 void KuzuDump::VisitCompoundStmt(const CompoundStmt* S) {
@@ -279,7 +226,7 @@ void KuzuDump::VisitCompoundStmt(const CompoundStmt* S) {
 }
 ```
 
-### 3. Implement Inheritance Tracking
+### 2. Implement Inheritance Tracking
 
 ```cpp
 void KuzuDump::VisitCXXRecordDecl(const CXXRecordDecl* D) {

@@ -35,9 +35,12 @@ private:
     TextNodeDumper NodeDumper;
     raw_ostream& OS;  // Keep as reference for compatibility with existing code
     const bool ShowColors;
-    
+
     // Database-only mode flag (Phase 4.3)
     bool databaseOnlyMode = false;
+
+    // Source location tracking (for precise location information)
+    const SourceManager* sourceManager = nullptr;
 
     // Node tracking (always available)
     std::unordered_map<const void*, int64_t> nodeIdMap;  // Pointer -> node_id mapping
@@ -129,7 +132,8 @@ private:
 public:
     // Legacy constructors (text output only)
     KuzuDump(raw_ostream& OS, const ASTContext& Context, bool ShowColors)
-        : nullStream(nullptr), NodeDumper(OS, Context, ShowColors), OS(OS), ShowColors(ShowColors)
+        : nullStream(nullptr), NodeDumper(OS, Context, ShowColors), OS(OS), ShowColors(ShowColors),
+          sourceManager(&Context.getSourceManager())
     {
     }
 
@@ -141,16 +145,17 @@ public:
     // New database constructors (Phase 1)
     KuzuDump(std::string databasePath, const ASTContext& Context, bool ShowColors = false)
         : nullStream(std::make_unique<llvm::raw_null_ostream>()), NodeDumper(*nullStream, Context, ShowColors),
-          OS(*nullStream), ShowColors(ShowColors), databasePath(std::move(databasePath)), databaseEnabled(true)
+          OS(*nullStream), ShowColors(ShowColors), sourceManager(&Context.getSourceManager()),
+          databasePath(std::move(databasePath)), databaseEnabled(true)
     {
         initializeDatabase();
     }
-    
+
     // Database-only constructor (Phase 4.3) - No TextNodeDumper dependencies
     KuzuDump(std::string databasePath, const ASTContext& Context, bool ShowColors, bool pureDatabaseMode)
         : nullStream(std::make_unique<llvm::raw_null_ostream>()), NodeDumper(*nullStream, Context, ShowColors),
           OS(*nullStream), ShowColors(ShowColors), databaseOnlyMode(pureDatabaseMode),
-          databasePath(std::move(databasePath)), databaseEnabled(true)
+          sourceManager(&Context.getSourceManager()), databasePath(std::move(databasePath)), databaseEnabled(true)
     {
         initializeDatabase();
     }
@@ -158,7 +163,7 @@ public:
     // Hybrid constructor (temporary for development/testing)
     KuzuDump(std::string databasePath, raw_ostream& OS, const ASTContext& Context, bool ShowColors = false)
         : nullStream(nullptr), NodeDumper(OS, Context, ShowColors), OS(OS), ShowColors(ShowColors),
-          databasePath(std::move(databasePath)), databaseEnabled(true)
+          sourceManager(&Context.getSourceManager()), databasePath(std::move(databasePath)), databaseEnabled(true)
     {
         initializeDatabase();
     }

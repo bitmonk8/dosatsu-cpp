@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <ranges>
 #include <sstream>
 #include <stdexcept>
 
@@ -40,10 +41,11 @@ using namespace clang::comments;
 void KuzuDump::dumpInvalidDeclContext(const DeclContext* DC)
 {
     // Phase 4.3: Skip text dumping in database-only mode
-    if (databaseOnlyMode) {
+    if (databaseOnlyMode)
+    {
         return;
     }
-    
+
     NodeDumper.AddChild(
         [=]
         {
@@ -76,10 +78,11 @@ void KuzuDump::dumpInvalidDeclContext(const DeclContext* DC)
 void KuzuDump::dumpLookups(const DeclContext* DC, bool DumpDecls)
 {
     // Phase 4.3: Skip text dumping in database-only mode
-    if (databaseOnlyMode) {
+    if (databaseOnlyMode)
+    {
         return;
     }
-    
+
     NodeDumper.AddChild(
         [=]
         {
@@ -154,7 +157,8 @@ template <typename SpecializationDecl>
 void KuzuDump::dumpTemplateDeclSpecialization(const SpecializationDecl* D, bool DumpExplicitInst, bool DumpRefOnly)
 {
     // Phase 4.3: Skip text dumping in database-only mode but still process AST
-    if (databaseOnlyMode) {
+    if (databaseOnlyMode)
+    {
         for (const auto* RedeclWithBadType : D->redecls())
         {
             auto* Redecl = cast<SpecializationDecl>(RedeclWithBadType);
@@ -176,7 +180,7 @@ void KuzuDump::dumpTemplateDeclSpecialization(const SpecializationDecl* D, bool 
         }
         return;
     }
-    
+
     bool DumpedAny = false;
     for (const auto* RedeclWithBadType : D->redecls())
     {
@@ -599,15 +603,22 @@ auto KuzuDump::createASTNode(const clang::Decl* decl) -> int64_t
         addrStream << std::hex << (uintptr_t)decl;
         std::string memoryAddr = addrStream.str();
 
-        std::string sourceFile = extractSourceLocation(decl->getLocation());
-
         bool isImplicit = isImplicitNode(decl);
 
+        // Extract detailed source location information
+        auto [filename, startLine, startColumn] = extractSourceLocationDetailed(decl->getLocation());
+        auto [endFilename, endLine, endColumn] = extractSourceLocationDetailed(decl->getSourceRange().getEnd());
+
+        // Use start location's filename for source_file
+        std::string sourceFile = filename;
+
         // Create base AST node query using string concatenation
-        std::string query = "CREATE (n:ASTNode {node_id: " + std::to_string(nodeId) + ", node_type: '" + nodeType +
-                            "', memory_address: '" + memoryAddr + "', source_file: '" + sourceFile +
-                            "', is_implicit: " + (isImplicit ? "true" : "false") +
-                            ", start_line: -1, start_column: -1, end_line: -1, end_column: -1, raw_text: ''})";
+        std::string query =
+            "CREATE (n:ASTNode {node_id: " + std::to_string(nodeId) + ", node_type: '" + nodeType +
+            "', memory_address: '" + memoryAddr + "', source_file: '" + sourceFile +
+            "', is_implicit: " + (isImplicit ? "true" : "false") + ", start_line: " + std::to_string(startLine) +
+            ", start_column: " + std::to_string(startColumn) + ", end_line: " + std::to_string(endLine) +
+            ", end_column: " + std::to_string(endColumn) + ", raw_text: ''})";
 
         // Use batched operation for performance optimization (Phase 4)
         addToBatch(query);
@@ -663,13 +674,20 @@ auto KuzuDump::createASTNode(const clang::Stmt* stmt) -> int64_t
         addrStream << std::hex << (uintptr_t)stmt;
         std::string memoryAddr = addrStream.str();
 
-        std::string sourceFile = extractSourceLocation(stmt->getBeginLoc());
+        // Extract detailed source location information
+        auto [filename, startLine, startColumn] = extractSourceLocationDetailed(stmt->getBeginLoc());
+        auto [endFilename, endLine, endColumn] = extractSourceLocationDetailed(stmt->getEndLoc());
+
+        // Use start location's filename for source_file
+        std::string sourceFile = filename;
 
         // Create base AST node query using string concatenation
-        std::string query =
-            "CREATE (n:ASTNode {node_id: " + std::to_string(nodeId) + ", node_type: '" + nodeType +
-            "', memory_address: '" + memoryAddr + "', source_file: '" + sourceFile +
-            "', is_implicit: false, start_line: -1, start_column: -1, end_line: -1, end_column: -1, raw_text: ''})";
+        std::string query = "CREATE (n:ASTNode {node_id: " + std::to_string(nodeId) + ", node_type: '" + nodeType +
+                            "', memory_address: '" + memoryAddr + "', source_file: '" + sourceFile +
+                            "', is_implicit: false, start_line: " + std::to_string(startLine) +
+                            ", start_column: " + std::to_string(startColumn) +
+                            ", end_line: " + std::to_string(endLine) + ", end_column: " + std::to_string(endColumn) +
+                            ", raw_text: ''})";
 
         // Use batched operation for performance optimization (Phase 4)
         addToBatch(query);
@@ -709,11 +727,20 @@ auto KuzuDump::createASTNode(const clang::Type* type) -> int64_t
         addrStream << std::hex << (uintptr_t)type;
         std::string memoryAddr = addrStream.str();
 
+        // Types don't have specific source locations, so use empty values
+        std::string sourceFile = "";
+        int64_t startLine = -1;
+        int64_t startColumn = -1;
+        int64_t endLine = -1;
+        int64_t endColumn = -1;
+
         // Create base AST node query using string concatenation
         std::string query = "CREATE (n:ASTNode {node_id: " + std::to_string(nodeId) + ", node_type: '" + nodeType +
-                            "', memory_address: '" + memoryAddr +
-                            "', source_file: '', is_implicit: false, start_line: -1, start_column: -1, end_line: -1, "
-                            "end_column: -1, raw_text: ''})";
+                            "', memory_address: '" + memoryAddr + "', source_file: '" + sourceFile +
+                            "', is_implicit: false, start_line: " + std::to_string(startLine) +
+                            ", start_column: " + std::to_string(startColumn) +
+                            ", end_line: " + std::to_string(endLine) + ", end_column: " + std::to_string(endColumn) +
+                            ", raw_text: ''})";
 
         // Use batched operation for performance optimization (Phase 4)
         addToBatch(query);
@@ -851,10 +878,10 @@ auto KuzuDump::createTypeNode(clang::QualType qualType) -> int64_t
         bool isBuiltIn = isBuiltInType(qualType);
 
         std::string query = "CREATE (t:Type {node_id: " + std::to_string(typeNodeId) + ", type_name: '" + typeName +
-                            "', canonical_type: '" + typeCategory + "', size_bytes: -1, is_const: " +
-                            (qualType.isConstQualified() ? "true" : "false") + ", is_volatile: " +
-                            (qualType.isVolatileQualified() ? "true" : "false") + ", is_builtin: " +
-                            (isBuiltIn ? "true" : "false") + "})";
+                            "', canonical_type: '" + typeCategory +
+                            "', size_bytes: -1, is_const: " + (qualType.isConstQualified() ? "true" : "false") +
+                            ", is_volatile: " + (qualType.isVolatileQualified() ? "true" : "false") +
+                            ", is_builtin: " + (isBuiltIn ? "true" : "false") + "})";
 
         // Use batched operation for performance optimization (Phase 4)
         addToBatch(query);
@@ -871,7 +898,7 @@ auto KuzuDump::createTypeNode(clang::QualType qualType) -> int64_t
 // Enhanced declaration processing methods (Phase 2)
 void KuzuDump::createDeclarationNode(int64_t nodeId, const clang::NamedDecl* decl)
 {
-    if (!connection || !decl)
+    if (!connection || (decl == nullptr))
     {
         return;
     }
@@ -902,20 +929,20 @@ void KuzuDump::createDeclarationNode(int64_t nodeId, const clang::NamedDecl* dec
 
 auto KuzuDump::extractQualifiedName(const clang::NamedDecl* decl) -> std::string
 {
-    if (!decl)
+    if (decl == nullptr)
     {
         return "";
     }
 
     std::string qualifiedName = decl->getQualifiedNameAsString();
     // Replace any problematic characters for database storage
-    std::replace(qualifiedName.begin(), qualifiedName.end(), '\'', '_');
+    std::ranges::replace(qualifiedName, '\'', '_');
     return qualifiedName;
 }
 
 auto KuzuDump::extractAccessSpecifier(const clang::Decl* decl) -> std::string
 {
-    if (!decl)
+    if (decl == nullptr)
     {
         return "none";
     }
@@ -974,7 +1001,7 @@ auto KuzuDump::extractStorageClass(const clang::Decl* decl) -> std::string
 
 auto KuzuDump::extractNamespaceContext(const clang::Decl* decl) -> std::string
 {
-    if (!decl)
+    if (decl == nullptr)
     {
         return "";
     }
@@ -982,7 +1009,7 @@ auto KuzuDump::extractNamespaceContext(const clang::Decl* decl) -> std::string
     const DeclContext* context = decl->getDeclContext();
     std::vector<std::string> namespaces;
 
-    while (context && !context->isTranslationUnit())
+    while ((context != nullptr) && !context->isTranslationUnit())
     {
         if (const auto* nsDecl = dyn_cast<NamespaceDecl>(context))
         {
@@ -993,7 +1020,7 @@ auto KuzuDump::extractNamespaceContext(const clang::Decl* decl) -> std::string
         }
         else if (const auto* recordDecl = dyn_cast<RecordDecl>(context))
         {
-            if (recordDecl->getIdentifier())
+            if (recordDecl->getIdentifier() != nullptr)
             {
                 namespaces.push_back(recordDecl->getNameAsString());
             }
@@ -1001,7 +1028,7 @@ auto KuzuDump::extractNamespaceContext(const clang::Decl* decl) -> std::string
         context = context->getParent();
     }
 
-    std::reverse(namespaces.begin(), namespaces.end());
+    std::ranges::reverse(namespaces);
 
     std::string result;
     for (size_t i = 0; i < namespaces.size(); ++i)
@@ -1016,7 +1043,7 @@ auto KuzuDump::extractNamespaceContext(const clang::Decl* decl) -> std::string
 
 auto KuzuDump::isDefinition(const clang::Decl* decl) -> bool
 {
-    if (!decl)
+    if (decl == nullptr)
     {
         return false;
     }
@@ -1025,11 +1052,11 @@ auto KuzuDump::isDefinition(const clang::Decl* decl) -> bool
     {
         return funcDecl->isThisDeclarationADefinition();
     }
-    else if (const auto* varDecl = dyn_cast<VarDecl>(decl))
+    if (const auto* varDecl = dyn_cast<VarDecl>(decl))
     {
-        return varDecl->isThisDeclarationADefinition();
+        return varDecl->isThisDeclarationADefinition() != 0;
     }
-    else if (const auto* recordDecl = dyn_cast<RecordDecl>(decl))
+    if (const auto* recordDecl = dyn_cast<RecordDecl>(decl))
     {
         return recordDecl->isThisDeclarationADefinition();
     }
@@ -1060,27 +1087,35 @@ auto KuzuDump::extractSourceLocation(const clang::SourceLocation& loc) -> std::s
 auto KuzuDump::extractSourceLocationDetailed(const clang::SourceLocation& loc)
     -> std::tuple<std::string, int64_t, int64_t>
 {
-    if (loc.isInvalid())
+    if (loc.isInvalid() || (sourceManager == nullptr))
     {
         return std::make_tuple("<invalid>", -1, -1);
     }
 
     try
     {
-        // TODO: Access SourceManager through proper context
-        // For now, return simplified location information
-        // Will be enhanced once we have proper ASTContext access
+        // Use SourceManager to get precise location information
+        auto presumedLoc = sourceManager->getPresumedLoc(loc);
+        if (presumedLoc.isInvalid())
+        {
+            return std::make_tuple("<invalid>", -1, -1);
+        }
 
-        // TODO: Implement actual source location extraction once we have SourceManager access
-        // This functionality will be implemented in a future enhancement
+        // Extract filename, line, and column from the presumed location
+        std::string filename = (presumedLoc.getFilename() != nullptr) ? presumedLoc.getFilename() : "<unknown>";
+        int64_t line = presumedLoc.getLine();
+        int64_t column = presumedLoc.getColumn();
+
+        // Clean up filename for database storage (escape single quotes)
+        std::ranges::replace(filename, '\'', '_');
+
+        return std::make_tuple(filename, line, column);
     }
     catch (...)
     {
         // If any exception occurs, return invalid location
         return std::make_tuple("<exception>", -1, -1);
     }
-
-    return std::make_tuple("<no_location>", -1, -1);
 }
 
 auto KuzuDump::extractNodeType(const clang::Decl* decl) -> std::string
@@ -1139,7 +1174,7 @@ auto KuzuDump::extractTypeCategory(clang::QualType qualType) -> std::string
     }
 
     const clang::Type* type = qualType.getTypePtr();
-    if (!type)
+    if (type == nullptr)
     {
         return "invalid";
     }
@@ -1148,38 +1183,36 @@ auto KuzuDump::extractTypeCategory(clang::QualType qualType) -> std::string
     {
         return "builtin";
     }
-    else if (type->isPointerType())
+    if (type->isPointerType())
     {
         return "pointer";
     }
-    else if (type->isReferenceType())
+    if (type->isReferenceType())
     {
         return "reference";
     }
-    else if (type->isArrayType())
+    if (type->isArrayType())
     {
         return "array";
     }
-    else if (type->isFunctionType())
+    if (type->isFunctionType())
     {
         return "function";
     }
-    else if (type->isRecordType())
+    if (type->isRecordType())
     {
         return "record";
     }
-    else if (type->isEnumeralType())
+    if (type->isEnumeralType())
     {
         return "enum";
     }
-    else if (type->isTemplateTypeParmType())
+    if (type->isTemplateTypeParmType())
     {
         return "template_param";
     }
-    else
-    {
-        return "user_defined";
-    }
+    
+    return "user_defined";
 }
 
 auto KuzuDump::extractTypeQualifiers(clang::QualType qualType) -> std::string
@@ -1221,7 +1254,7 @@ auto KuzuDump::isBuiltInType(clang::QualType qualType) -> bool
     }
 
     const clang::Type* type = qualType.getTypePtr();
-    return type && type->isBuiltinType();
+    return (type != nullptr) && type->isBuiltinType();
 }
 
 auto KuzuDump::extractTypeSourceLocation(clang::QualType /*qualType*/) -> std::string
@@ -1676,11 +1709,12 @@ void KuzuDump::VisitCallExpr(const CallExpr* E)
     // Handle indirect calls through function pointers or expressions
     if (const Expr* callee = E->getCallee())
     {
-        if (const DeclRefExpr* declRef = dyn_cast<DeclRefExpr>(callee))
+        if (const auto* declRef = dyn_cast<DeclRefExpr>(callee))
         {
             // This will be handled by VisitDeclRefExpr, so we don't duplicate
+            static_cast<void>(declRef);  // Suppress unused variable warning
         }
-        else if (const MemberExpr* memberExpr = dyn_cast<MemberExpr>(callee))
+        else if (const auto* memberExpr = dyn_cast<MemberExpr>(callee))
         {
             // Handle member function calls
             if (const ValueDecl* memberDecl = memberExpr->getMemberDecl())
