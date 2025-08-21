@@ -262,6 +262,12 @@ void KuzuDump::VisitFunctionTemplateDecl(const FunctionTemplateDecl* D)
     // Create scope relationships for this template (it's in its parent scope)
     createScopeRelationships(nodeId);
 
+    // Create template metaprogramming information for this function template
+    int64_t metaNodeId = nextNodeId++;
+    int64_t instantiationDepth = extractTemplateInstantiationDepth(D);
+    createTemplateMetaprogrammingNode(metaNodeId, D, "function_template", instantiationDepth);
+    createTemplateEvaluationRelation(nodeId, metaNodeId, D->getQualifiedNameAsString());
+
     // Push this template as a new scope for its contents
     pushScope(nodeId);
 
@@ -354,6 +360,12 @@ void KuzuDump::VisitClassTemplateSpecializationDecl(const ClassTemplateSpecializ
         std::string instantiationContext = D->getQualifiedNameAsString();
 
         createSpecializesRelation(nodeId, templateNodeId, specializationKind, templateArguments, instantiationContext);
+
+        // Create template metaprogramming information for this specialization
+        int64_t metaNodeId = nextNodeId++;
+        int64_t instantiationDepth = extractTemplateInstantiationDepth(D);
+        createTemplateMetaprogrammingNode(metaNodeId, D, "class_template_specialization", instantiationDepth);
+        createTemplateEvaluationRelation(nodeId, metaNodeId, instantiationContext);
     }
 
     // Push this specialization as a new scope for its contents
@@ -411,6 +423,32 @@ void KuzuDump::VisitClassTemplatePartialSpecializationDecl(const ClassTemplateSp
 
     // Pop this partial specialization scope after traversal
     popScope();
+}
+
+void KuzuDump::VisitStaticAssertDecl(const StaticAssertDecl* D)
+{
+    if (D == nullptr)
+        return;
+
+    int64_t nodeId = createASTNode(D);
+
+    // Create the static assertion node with evaluation information
+    createStaticAssertionNode(nodeId, D);
+
+    // Create scope relationships for this static assertion
+    createScopeRelationships(nodeId);
+
+    // If this static assertion is within a class or function, create the containment relationship
+    if (const auto* parentDecl = dyn_cast<NamedDecl>(D->getDeclContext()))
+    {
+        auto it = nodeIdMap.find(parentDecl);
+        if (it != nodeIdMap.end())
+        {
+            createStaticAssertRelation(it->second, nodeId, "local_scope");
+        }
+    }
+
+    // The ASTNodeTraverser will handle automatic traversal of the assertion expression
 }
 
 void KuzuDump::initializeDatabase()
@@ -815,6 +853,41 @@ void KuzuDump::createSchema()
                            "detailed_text STRING)",
                            "Comment");
 
+        // Create ConstantExpression table for compile-time evaluation tracking
+        executeSchemaQuery("CREATE NODE TABLE ConstantExpression("
+                           "node_id INT64 PRIMARY KEY, "
+                           "is_constexpr_function BOOLEAN, "
+                           "evaluation_context STRING, "
+                           "evaluation_result STRING, "
+                           "result_type STRING, "
+                           "is_compile_time_constant BOOLEAN, "
+                           "constant_value STRING, "
+                           "constant_type STRING, "
+                           "evaluation_status STRING)",
+                           "ConstantExpression");
+
+        // Create TemplateMetaprogramming table for template evaluation
+        executeSchemaQuery("CREATE NODE TABLE TemplateMetaprogramming("
+                           "node_id INT64 PRIMARY KEY, "
+                           "template_kind STRING, "
+                           "instantiation_depth INT64, "
+                           "template_arguments STRING, "
+                           "specialized_template_id INT64, "
+                           "metaprogram_result STRING, "
+                           "dependent_types STRING, "
+                           "substitution_failure_reason STRING)",
+                           "TemplateMetaprogramming");
+
+        // Create StaticAssertion table for static_assert tracking
+        executeSchemaQuery("CREATE NODE TABLE StaticAssertion("
+                           "node_id INT64 PRIMARY KEY, "
+                           "assertion_expression STRING, "
+                           "assertion_message STRING, "
+                           "assertion_result BOOLEAN, "
+                           "failure_reason STRING, "
+                           "evaluation_context STRING)",
+                           "StaticAssertion");
+
         // Preprocessor relationships
         executeSchemaQuery("CREATE REL TABLE MACRO_EXPANSION("
                            "FROM ASTNode TO MacroDefinition, "
@@ -836,6 +909,22 @@ void KuzuDump::createSchema()
                            "FROM Declaration TO Comment, "
                            "attachment_type STRING)",
                            "HAS_COMMENT");
+
+        // Constant expression and compile-time evaluation relationships
+        executeSchemaQuery("CREATE REL TABLE HAS_CONSTANT_VALUE("
+                           "FROM Expression TO ConstantExpression, "
+                           "evaluation_stage STRING)",
+                           "HAS_CONSTANT_VALUE");
+
+        executeSchemaQuery("CREATE REL TABLE TEMPLATE_EVALUATES_TO("
+                           "FROM Declaration TO TemplateMetaprogramming, "
+                           "instantiation_context STRING)",
+                           "TEMPLATE_EVALUATES_TO");
+
+        executeSchemaQuery("CREATE REL TABLE CONTAINS_STATIC_ASSERT("
+                           "FROM Declaration TO StaticAssertion, "
+                           "assertion_scope STRING)",
+                           "CONTAINS_STATIC_ASSERT");
 
         llvm::outs() << "Database schema created successfully\n";
     }
@@ -2748,6 +2837,429 @@ auto KuzuDump::isDocumentationComment(const clang::comments::Comment* comment) -
     return (comment != nullptr) && comment->getCommentKind() == comments::CommentKind::FullComment;
 }
 
+// Constant expression and compile-time evaluation methods implementation
+void KuzuDump::createConstantExpressionNode(int64_t nodeId,
+                                             const clang::Expr* expr,
+                                             bool isConstexprFunction,
+                                             const std::string& evaluationContext)
+{
+    if (!connection || nodeId == -1 || expr == nullptr)
+    {
+        return;
+    }
+
+    try
+    {
+        std::string evaluationResult = evaluateConstantExpression(expr);
+        auto [constantValue, constantType] = extractConstantValue(expr);
+        std::string evaluationStatus = extractEvaluationStatus(expr);
+        std::string resultType = expr->getType().getAsString();
+        bool isCompileTimeConstant = expr->isConstantInitializer(const_cast<ASTContext&>(*astContext), false);
+
+        // Escape single quotes in text fields
+        std::ranges::replace(evaluationResult, '\'', '_');
+        std::ranges::replace(constantValue, '\'', '_');
+        std::ranges::replace(constantType, '\'', '_');
+        std::ranges::replace(evaluationStatus, '\'', '_');
+        std::ranges::replace(resultType, '\'', '_');
+
+        std::string query = "CREATE (ce:ConstantExpression {node_id: " + std::to_string(nodeId) + 
+                           ", is_constexpr_function: " + (isConstexprFunction ? "true" : "false") +
+                           ", evaluation_context: '" + evaluationContext +
+                           "', evaluation_result: '" + evaluationResult +
+                           "', result_type: '" + resultType +
+                           "', is_compile_time_constant: " + (isCompileTimeConstant ? "true" : "false") +
+                           ", constant_value: '" + constantValue +
+                           "', constant_type: '" + constantType +
+                           "', evaluation_status: '" + evaluationStatus + "'})";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        // Handle errors gracefully - continue processing other nodes
+    }
+}
+
+void KuzuDump::createTemplateMetaprogrammingNode(int64_t nodeId,
+                                                  const clang::Decl* templateDecl,
+                                                  const std::string& templateKind,
+                                                  int64_t instantiationDepth)
+{
+    if (!connection || nodeId == -1 || templateDecl == nullptr)
+    {
+        return;
+    }
+
+    try
+    {
+        std::string templateArguments;
+        int64_t specializedTemplateId = -1;
+        std::string metaprogramResult;
+        std::string dependentTypes;
+        std::string substitutionFailureReason;
+
+        if (const auto* classTemplateDecl = dyn_cast<ClassTemplateDecl>(templateDecl))
+        {
+            templateArguments = extractTemplateArguments(classTemplateDecl);
+        }
+        else if (const auto* functionTemplateDecl = dyn_cast<FunctionTemplateDecl>(templateDecl))
+        {
+            templateArguments = extractTemplateArguments(functionTemplateDecl);
+        }
+        else if (const auto* classTemplateSpecDecl = dyn_cast<ClassTemplateSpecializationDecl>(templateDecl))
+        {
+            const auto& args = classTemplateSpecDecl->getTemplateArgs();
+            templateArguments = extractTemplateArguments(args);
+            if (classTemplateSpecDecl->getSpecializedTemplate())
+            {
+                auto it = nodeIdMap.find(classTemplateSpecDecl->getSpecializedTemplate());
+                if (it != nodeIdMap.end())
+                {
+                    specializedTemplateId = it->second;
+                }
+            }
+        }
+
+        // Escape single quotes in text fields
+        std::ranges::replace(templateArguments, '\'', '_');
+        std::ranges::replace(metaprogramResult, '\'', '_');
+        std::ranges::replace(dependentTypes, '\'', '_');
+        std::ranges::replace(substitutionFailureReason, '\'', '_');
+
+        std::string query = "CREATE (tmp:TemplateMetaprogramming {node_id: " + std::to_string(nodeId) + 
+                           ", template_kind: '" + templateKind +
+                           "', instantiation_depth: " + std::to_string(instantiationDepth) +
+                           ", template_arguments: '" + templateArguments +
+                           "', specialized_template_id: " + std::to_string(specializedTemplateId) +
+                           ", metaprogram_result: '" + metaprogramResult +
+                           "', dependent_types: '" + dependentTypes +
+                           "', substitution_failure_reason: '" + substitutionFailureReason + "'})";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        // Handle errors gracefully - continue processing other nodes
+    }
+}
+
+void KuzuDump::createStaticAssertionNode(int64_t nodeId, const clang::StaticAssertDecl* assertDecl)
+{
+    if (!connection || nodeId == -1 || assertDecl == nullptr)
+    {
+        return;
+    }
+
+    try
+    {
+        auto [assertionExpression, assertionMessage, assertionResult] = extractStaticAssertInfo(assertDecl);
+        std::string failureReason;
+        std::string evaluationContext = "static_assert";
+
+        if (!assertionResult && assertDecl->getMessage())
+        {
+            failureReason = assertionMessage;
+        }
+
+        // Escape single quotes in text fields
+        std::ranges::replace(assertionExpression, '\'', '_');
+        std::ranges::replace(assertionMessage, '\'', '_');
+        std::ranges::replace(failureReason, '\'', '_');
+        std::ranges::replace(evaluationContext, '\'', '_');
+
+        std::string query = "CREATE (sa:StaticAssertion {node_id: " + std::to_string(nodeId) + 
+                           ", assertion_expression: '" + assertionExpression +
+                           "', assertion_message: '" + assertionMessage +
+                           "', assertion_result: " + (assertionResult ? "true" : "false") +
+                           ", failure_reason: '" + failureReason +
+                           "', evaluation_context: '" + evaluationContext + "'})";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        // Handle errors gracefully - continue processing other nodes
+    }
+}
+
+void KuzuDump::createConstantValueRelation(int64_t exprId, int64_t constantId, const std::string& stage)
+{
+    if (!connection || exprId == -1 || constantId == -1)
+    {
+        return;
+    }
+
+    std::string escapedStage = stage;
+    std::ranges::replace(escapedStage, '\'', '_');
+
+    std::string query = "MATCH (e:Expression {node_id: " + std::to_string(exprId) + "}), " +
+                       "(c:ConstantExpression {node_id: " + std::to_string(constantId) + "}) " +
+                       "CREATE (e)-[r:HAS_CONSTANT_VALUE {evaluation_stage: '" + escapedStage + "'}]->(c)";
+
+    addToBatch(query);
+}
+
+void KuzuDump::createTemplateEvaluationRelation(int64_t templateId, int64_t metaprogramId, const std::string& context)
+{
+    if (!connection || templateId == -1 || metaprogramId == -1)
+    {
+        return;
+    }
+
+    std::string escapedContext = context;
+    std::ranges::replace(escapedContext, '\'', '_');
+
+    std::string query = "MATCH (d:Declaration {node_id: " + std::to_string(templateId) + "}), " +
+                       "(tmp:TemplateMetaprogramming {node_id: " + std::to_string(metaprogramId) + "}) " +
+                       "CREATE (d)-[r:TEMPLATE_EVALUATES_TO {instantiation_context: '" + escapedContext + "'}]->(tmp)";
+
+    addToBatch(query);
+}
+
+void KuzuDump::createStaticAssertRelation(int64_t declId, int64_t assertId, const std::string& scope)
+{
+    if (!connection || declId == -1 || assertId == -1)
+    {
+        return;
+    }
+
+    std::string escapedScope = scope;
+    std::ranges::replace(escapedScope, '\'', '_');
+
+    std::string query = "MATCH (d:Declaration {node_id: " + std::to_string(declId) + "}), " +
+                       "(sa:StaticAssertion {node_id: " + std::to_string(assertId) + "}) " +
+                       "CREATE (d)-[r:CONTAINS_STATIC_ASSERT {assertion_scope: '" + escapedScope + "'}]->(sa)";
+
+    addToBatch(query);
+}
+
+// Enhanced constant expression evaluation methods
+auto KuzuDump::evaluateConstantExpression(const clang::Expr* expr) -> std::string
+{
+    if (expr == nullptr)
+    {
+        return "";
+    }
+
+    // Try to evaluate the expression at compile time
+    if (expr->isEvaluatable(*astContext))
+    {
+        clang::Expr::EvalResult result;
+        if (expr->EvaluateAsRValue(result, *astContext) && !result.HasSideEffects)
+        {
+            const auto& value = result.Val;
+            if (value.isInt())
+            {
+                return std::to_string(value.getInt().getSExtValue());
+            }
+            else if (value.isFloat())
+            {
+                return std::to_string(value.getFloat().convertToDouble());
+            }
+            else if (value.isLValue())
+            {
+                return "lvalue";
+            }
+            else if (value.isComplexInt())
+            {
+                return "complex_int";
+            }
+            else if (value.isComplexFloat())
+            {
+                return "complex_float";
+            }
+        }
+    }
+
+    return "";
+}
+
+auto KuzuDump::extractConstantValue(const clang::Expr* expr) -> std::pair<std::string, std::string>
+{
+    if (expr == nullptr)
+    {
+        return {"", ""};
+    }
+
+    std::string value;
+    std::string type = expr->getType().getAsString();
+
+    if (const auto* intLiteral = dyn_cast<IntegerLiteral>(expr))
+    {
+        value = std::to_string(intLiteral->getValue().getSExtValue());
+    }
+    else if (const auto* floatLiteral = dyn_cast<FloatingLiteral>(expr))
+    {
+        value = std::to_string(floatLiteral->getValue().convertToDouble());
+    }
+    else if (const auto* stringLiteral = dyn_cast<StringLiteral>(expr))
+    {
+        value = stringLiteral->getString().str();
+    }
+    else if (const auto* charLiteral = dyn_cast<CharacterLiteral>(expr))
+    {
+        value = std::to_string(charLiteral->getValue());
+    }
+    else if (const auto* boolLiteral = dyn_cast<CXXBoolLiteralExpr>(expr))
+    {
+        value = boolLiteral->getValue() ? "true" : "false";
+    }
+    else if (isa<CXXNullPtrLiteralExpr>(expr))
+    {
+        value = "nullptr";
+    }
+    else
+    {
+        value = evaluateConstantExpression(expr);
+    }
+
+    return {value, type};
+}
+
+auto KuzuDump::extractEvaluationStatus(const clang::Expr* expr) -> std::string
+{
+    if (expr == nullptr)
+    {
+        return "null_expression";
+    }
+
+    if (expr->isEvaluatable(*astContext))
+    {
+        return "evaluatable";
+    }
+    else if (expr->isValueDependent())
+    {
+        return "value_dependent";
+    }
+    else if (expr->isTypeDependent())
+    {
+        return "type_dependent";
+    }
+    else if (expr->containsUnexpandedParameterPack())
+    {
+        return "contains_parameter_pack";
+    }
+    else
+    {
+        return "not_evaluatable";
+    }
+}
+
+auto KuzuDump::detectConstexprFunction(const clang::FunctionDecl* func) -> bool
+{
+    if (func == nullptr)
+    {
+        return false;
+    }
+
+    return func->isConstexpr() || func->isConstexprSpecified();
+}
+
+auto KuzuDump::extractTemplateInstantiationDepth(const clang::Decl* decl) -> int64_t
+{
+    if (decl == nullptr)
+    {
+        return 0;
+    }
+
+    int64_t depth = 0;
+    const DeclContext* context = decl->getDeclContext();
+    
+    while (context)
+    {
+        if (const auto* templateDecl = dyn_cast<ClassTemplateSpecializationDecl>(context))
+        {
+            depth++;
+        }
+        else if (const auto* functionDecl = dyn_cast<FunctionDecl>(context))
+        {
+            if (functionDecl->getTemplateSpecializationInfo())
+            {
+                depth++;
+            }
+        }
+        context = context->getParent();
+    }
+
+    return depth;
+}
+
+auto KuzuDump::extractTemplateArguments(const clang::TemplateDecl* templateDecl) -> std::string
+{
+    if (templateDecl == nullptr)
+    {
+        return "";
+    }
+
+    if (const auto* templateParams = templateDecl->getTemplateParameters())
+    {
+        std::string arguments;
+        for (size_t i = 0; i < templateParams->size(); ++i)
+        {
+            if (i > 0) arguments += ", ";
+            if (const auto* namedDecl = dyn_cast<NamedDecl>(templateParams->getParam(i)))
+            {
+                arguments += namedDecl->getNameAsString();
+            }
+        }
+        return arguments;
+    }
+
+    return "";
+}
+
+auto KuzuDump::extractStaticAssertInfo(const clang::StaticAssertDecl* assertDecl) -> std::tuple<std::string, std::string, bool>
+{
+    if (assertDecl == nullptr)
+    {
+        return {"", "", false};
+    }
+
+    std::string expression;
+    std::string message;
+    bool result = true;
+
+    if (const auto* condExpr = assertDecl->getAssertExpr())
+    {
+        // Try to get the expression text
+        if (sourceManager)
+        {
+            auto range = condExpr->getSourceRange();
+            if (range.isValid())
+            {
+                expression = clang::Lexer::getSourceText(
+                    clang::CharSourceRange::getTokenRange(range),
+                    *sourceManager,
+                    astContext->getLangOpts()).str();
+            }
+        }
+        
+        // Check if the assertion would fail
+        if (condExpr->isEvaluatable(*astContext))
+        {
+            clang::Expr::EvalResult evalResult;
+            if (condExpr->EvaluateAsRValue(evalResult, *astContext))
+            {
+                if (evalResult.Val.isInt())
+                {
+                    result = evalResult.Val.getInt().getBoolValue();
+                }
+            }
+        }
+    }
+
+    if (const auto* messageExpr = assertDecl->getMessage())
+    {
+        if (const auto* stringLiteral = dyn_cast<StringLiteral>(messageExpr))
+        {
+            message = stringLiteral->getString().str();
+        }
+    }
+
+    return {expression, message, result};
+}
+
 // Preprocessor and Macro processing methods implementation
 void KuzuDump::createMacroDefinitionNode(int64_t nodeId,
                                          const std::string& macroName,
@@ -3619,6 +4131,38 @@ void KuzuDump::VisitExpr(const Expr* E)
 
     // Create enhanced Expression node with detailed information
     createExpressionNode(nodeId, E);
+
+    // Check if this is a constant expression and create additional information
+    if (isExpressionConstexpr(E) || E->isEvaluatable(*astContext))
+    {
+        // Determine if this is within a constexpr function context
+        bool isConstexprFunction = false;
+        // Check current scope stack for constexpr functions
+        for (auto scopeIt = scopeStack.rbegin(); scopeIt != scopeStack.rend(); ++scopeIt)
+        {
+            // Find the declaration corresponding to this scope
+            for (const auto& [decl, scopeNodeId] : nodeIdMap)
+            {
+                if (scopeNodeId == *scopeIt)
+                {
+                    if (const auto* funcDecl = dyn_cast<FunctionDecl>(static_cast<const Decl*>(decl)))
+                    {
+                        isConstexprFunction = detectConstexprFunction(funcDecl);
+                        if (isConstexprFunction) break;
+                    }
+                }
+            }
+            if (isConstexprFunction) break;
+        }
+
+        // Create a separate constant expression node
+        int64_t constExprNodeId = nextNodeId++;
+        std::string evaluationContext = isConstexprFunction ? "constexpr_function" : "constant_expression";
+        createConstantExpressionNode(constExprNodeId, E, isConstexprFunction, evaluationContext);
+        
+        // Create relationship between the expression and its constant evaluation
+        createConstantValueRelation(nodeId, constExprNodeId, "compile_time");
+    }
 
     // Create hierarchy relationship if this node has a parent
     createHierarchyRelationship(nodeId);

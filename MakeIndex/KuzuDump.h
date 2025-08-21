@@ -14,6 +14,7 @@
 #include "clang/AST/ASTNodeTraverser.h"
 #include "clang/AST/TextNodeDumper.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Lex/Lexer.h"
 
 #include "kuzu.hpp"
 
@@ -41,6 +42,7 @@ private:
 
     // Source location tracking (for precise location information)
     const SourceManager* sourceManager = nullptr;
+    const ASTContext* astContext = nullptr;
 
     // Node tracking (always available)
     std::unordered_map<const void*, int64_t> nodeIdMap;  // Pointer -> node_id mapping
@@ -179,7 +181,7 @@ public:
     // Legacy constructors (text output only)
     KuzuDump(raw_ostream& OS, const ASTContext& Context, bool ShowColors)
         : nullStream(nullptr), NodeDumper(OS, Context, ShowColors), OS(OS), ShowColors(ShowColors),
-          sourceManager(&Context.getSourceManager())
+          sourceManager(&Context.getSourceManager()), astContext(&Context)
     {
     }
 
@@ -192,7 +194,7 @@ public:
     KuzuDump(std::string databasePath, const ASTContext& Context, bool ShowColors = false)
         : nullStream(std::make_unique<llvm::raw_null_ostream>()), NodeDumper(*nullStream, Context, ShowColors),
           OS(*nullStream), ShowColors(ShowColors), sourceManager(&Context.getSourceManager()),
-          databasePath(std::move(databasePath)), databaseEnabled(true)
+          astContext(&Context), databasePath(std::move(databasePath)), databaseEnabled(true)
     {
         initializeDatabase();
     }
@@ -201,7 +203,7 @@ public:
     KuzuDump(std::string databasePath, const ASTContext& Context, bool ShowColors, bool pureDatabaseMode)
         : nullStream(std::make_unique<llvm::raw_null_ostream>()), NodeDumper(*nullStream, Context, ShowColors),
           OS(*nullStream), ShowColors(ShowColors), databaseOnlyMode(pureDatabaseMode),
-          sourceManager(&Context.getSourceManager()), databasePath(std::move(databasePath)), databaseEnabled(true)
+          sourceManager(&Context.getSourceManager()), astContext(&Context), databasePath(std::move(databasePath)), databaseEnabled(true)
     {
         initializeDatabase();
     }
@@ -209,7 +211,7 @@ public:
     // Hybrid constructor (temporary for development/testing)
     KuzuDump(std::string databasePath, raw_ostream& OS, const ASTContext& Context, bool ShowColors = false)
         : nullStream(nullptr), NodeDumper(OS, Context, ShowColors), OS(OS), ShowColors(ShowColors),
-          sourceManager(&Context.getSourceManager()), databasePath(std::move(databasePath)), databaseEnabled(true)
+          sourceManager(&Context.getSourceManager()), astContext(&Context), databasePath(std::move(databasePath)), databaseEnabled(true)
     {
         initializeDatabase();
     }
@@ -250,6 +252,30 @@ public:
     auto extractCommentKind(const clang::comments::Comment* comment) -> std::string;
     auto extractCommentText(const clang::comments::Comment* comment) -> std::string;
     auto isDocumentationComment(const clang::comments::Comment* comment) -> bool;
+
+    // Constant expression and compile-time evaluation methods
+    void createConstantExpressionNode(int64_t nodeId,
+                                      const clang::Expr* expr,
+                                      bool isConstexprFunction,
+                                      const std::string& evaluationContext);
+    void createTemplateMetaprogrammingNode(int64_t nodeId,
+                                           const clang::Decl* templateDecl,
+                                           const std::string& templateKind,
+                                           int64_t instantiationDepth);
+    void createStaticAssertionNode(int64_t nodeId,
+                                   const clang::StaticAssertDecl* assertDecl);
+    void createConstantValueRelation(int64_t exprId, int64_t constantId, const std::string& stage);
+    void createTemplateEvaluationRelation(int64_t templateId, int64_t metaprogramId, const std::string& context);
+    void createStaticAssertRelation(int64_t declId, int64_t assertId, const std::string& scope);
+    
+    // Enhanced constant expression evaluation methods
+    auto evaluateConstantExpression(const clang::Expr* expr) -> std::string;
+    auto extractConstantValue(const clang::Expr* expr) -> std::pair<std::string, std::string>;
+    auto extractEvaluationStatus(const clang::Expr* expr) -> std::string;
+    auto detectConstexprFunction(const clang::FunctionDecl* func) -> bool;
+    auto extractTemplateInstantiationDepth(const clang::Decl* decl) -> int64_t;
+    auto extractTemplateArguments(const clang::TemplateDecl* templateDecl) -> std::string;
+    auto extractStaticAssertInfo(const clang::StaticAssertDecl* assertDecl) -> std::tuple<std::string, std::string, bool>;
 
     // Preprocessor and Macro processing methods
     void createMacroDefinitionNode(int64_t nodeId,
@@ -296,6 +322,7 @@ public:
     void VisitVarTemplateDecl(const VarTemplateDecl* D);
     void VisitClassTemplateSpecializationDecl(const ClassTemplateSpecializationDecl* D);
     void VisitClassTemplatePartialSpecializationDecl(const ClassTemplateSpecializationDecl* D);
+    void VisitStaticAssertDecl(const StaticAssertDecl* D);
 
     void VisitStmt(const Stmt* S);
     void VisitCompoundStmt(const CompoundStmt* S);
