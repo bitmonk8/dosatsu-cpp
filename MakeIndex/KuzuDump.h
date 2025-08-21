@@ -91,6 +91,11 @@ private:
     void createReferenceRelation(int64_t fromId, int64_t toId, const std::string& kind);
     void createScopeRelation(int64_t nodeId, int64_t scopeId, const std::string& scopeKind);
     void createTemplateRelation(int64_t specializationId, int64_t templateId, const std::string& kind);
+    void createSpecializesRelation(int64_t specializationId,
+                                   int64_t templateId,
+                                   const std::string& specializationKind,
+                                   const std::string& templateArguments,
+                                   const std::string& instantiationContext);
     void createInheritanceRelation(int64_t derivedId,
                                    int64_t baseId,
                                    const std::string& inheritanceType,
@@ -213,6 +218,11 @@ public:
     template <typename TemplateDecl>
     void dumpTemplateDecl(const TemplateDecl* D, bool DumpExplicitInst);
 
+    // Enhanced template parameter processing
+    void dumpTemplateParameters(const clang::TemplateParameterList* templateParams);
+    void createTemplateParameterNode(int64_t nodeId, const clang::NamedDecl* param);
+    auto extractTemplateArguments(const clang::TemplateArgumentList& args) -> std::string;
+
     // Core Visit methods for basic AST nodes
     void VisitDecl(const Decl* D);
     void VisitFunctionDecl(const FunctionDecl* D);
@@ -224,6 +234,7 @@ public:
     void VisitFunctionTemplateDecl(const FunctionTemplateDecl* D);
     void VisitVarTemplateDecl(const VarTemplateDecl* D);
     void VisitClassTemplateSpecializationDecl(const ClassTemplateSpecializationDecl* D);
+    void VisitClassTemplatePartialSpecializationDecl(const ClassTemplateSpecializationDecl* D);
 
     void VisitStmt(const Stmt* S);
     void VisitCompoundStmt(const CompoundStmt* S);

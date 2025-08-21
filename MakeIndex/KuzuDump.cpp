@@ -227,6 +227,28 @@ void KuzuDump::dumpTemplateDecl(const TemplateDecl* D, bool DumpExplicitInst)
     }
 }
 
+void KuzuDump::dumpTemplateParameters(const clang::TemplateParameterList* templateParams)
+{
+    if (templateParams == nullptr)
+    {
+        return;
+    }
+
+    for (const auto* param : *templateParams)
+    {
+        if (param == nullptr)
+        {
+            continue;
+        }
+
+        // Create database node for this template parameter
+        int64_t nodeId = createASTNode(param);
+
+        // Create the template parameter-specific node data
+        createTemplateParameterNode(nodeId, param);
+    }
+}
+
 void KuzuDump::VisitFunctionTemplateDecl(const FunctionTemplateDecl* D)
 {
     if (D == nullptr)
@@ -273,6 +295,120 @@ void KuzuDump::VisitClassTemplateDecl(const ClassTemplateDecl* D)
 void KuzuDump::VisitVarTemplateDecl(const VarTemplateDecl* D)
 {
     dumpTemplateDecl(D, false);
+}
+
+void KuzuDump::VisitClassTemplateSpecializationDecl(const ClassTemplateSpecializationDecl* D)
+{
+    if (D == nullptr)
+        return;
+
+    // Create database node for this class template specialization
+    int64_t nodeId = createASTNode(D);
+
+    // Create scope relationships for this specialization (it's in its parent scope)
+    createScopeRelationships(nodeId);
+
+    // Handle template specialization relationships
+    if (const ClassTemplateDecl* templateDecl = D->getSpecializedTemplate())
+    {
+        // Check if the template declaration has been processed
+        auto it = nodeIdMap.find(templateDecl);
+        int64_t templateNodeId;
+        if (it != nodeIdMap.end())
+        {
+            templateNodeId = it->second;
+        }
+        else
+        {
+            // Create the template node if it doesn't exist yet
+            templateNodeId = createASTNode(templateDecl);
+        }
+
+        // Create both the legacy TEMPLATE_RELATION and enhanced SPECIALIZES relation
+        createTemplateRelation(nodeId, templateNodeId, "specializes");
+
+        // Enhanced specialization tracking with template arguments
+        std::string specializationKind;
+        switch (D->getTemplateSpecializationKind())
+        {
+        case clang::TSK_ImplicitInstantiation:
+            specializationKind = "implicit";
+            break;
+        case clang::TSK_ExplicitInstantiationDeclaration:
+            specializationKind = "explicit_declaration";
+            break;
+        case clang::TSK_ExplicitInstantiationDefinition:
+            specializationKind = "explicit_definition";
+            break;
+        case clang::TSK_ExplicitSpecialization:
+            specializationKind = "explicit_specialization";
+            break;
+        default:
+            specializationKind = "unknown";
+            break;
+        }
+
+        std::string templateArguments = extractTemplateArguments(D->getTemplateArgs());
+        std::string instantiationContext = D->getQualifiedNameAsString();
+
+        createSpecializesRelation(nodeId, templateNodeId, specializationKind, templateArguments, instantiationContext);
+    }
+
+    // Push this specialization as a new scope for its contents
+    pushScope(nodeId);
+
+    // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this specialization scope after traversal
+    popScope();
+}
+
+void KuzuDump::VisitClassTemplatePartialSpecializationDecl(const ClassTemplateSpecializationDecl* D)
+{
+    if (D == nullptr)
+        return;
+
+    // For partial specializations, we use the same logic as full specializations
+    // but we mark them as "partial" specializations
+    int64_t nodeId = createASTNode(D);
+
+    // Create scope relationships for this partial specialization (it's in its parent scope)
+    createScopeRelationships(nodeId);
+
+    // Handle template specialization relationships for partial specializations
+    if (const ClassTemplateDecl* templateDecl = D->getSpecializedTemplate())
+    {
+        // Check if the template declaration has been processed
+        auto it = nodeIdMap.find(templateDecl);
+        int64_t templateNodeId;
+        if (it != nodeIdMap.end())
+        {
+            templateNodeId = it->second;
+        }
+        else
+        {
+            // Create the template node if it doesn't exist yet
+            templateNodeId = createASTNode(templateDecl);
+        }
+
+        // Create both the legacy TEMPLATE_RELATION and enhanced SPECIALIZES relation
+        createTemplateRelation(nodeId, templateNodeId, "specializes");
+
+        // For partial specializations, we always mark them as "partial"
+        std::string specializationKind = "partial";
+        std::string templateArguments = extractTemplateArguments(D->getTemplateArgs());
+        std::string instantiationContext = D->getQualifiedNameAsString();
+
+        createSpecializesRelation(nodeId, templateNodeId, specializationKind, templateArguments, instantiationContext);
+    }
+
+    // Push this partial specialization as a new scope for its contents
+    pushScope(nodeId);
+
+    // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this partial specialization scope after traversal
+    popScope();
 }
 
 void KuzuDump::initializeDatabase()
@@ -545,6 +681,16 @@ void KuzuDump::createSchema()
                            "attribute_value STRING)",
                            "Attribute");
 
+        // Create TemplateParameter table for enhanced template system
+        executeSchemaQuery("CREATE NODE TABLE TemplateParameter("
+                           "node_id INT64 PRIMARY KEY, "
+                           "parameter_kind STRING, "
+                           "parameter_name STRING, "
+                           "has_default_argument BOOLEAN, "
+                           "default_argument_text STRING, "
+                           "is_parameter_pack BOOLEAN)",
+                           "TemplateParameter");
+
         // Create relationship tables
         executeSchemaQuery("CREATE REL TABLE PARENT_OF("
                            "FROM ASTNode TO ASTNode, "
@@ -587,6 +733,14 @@ void KuzuDump::createSchema()
                            "override_type STRING, "
                            "is_covariant_return BOOLEAN)",
                            "OVERRIDES");
+
+        // Enhanced template relationship table for detailed specializations
+        executeSchemaQuery("CREATE REL TABLE SPECIALIZES("
+                           "FROM Declaration TO Declaration, "
+                           "specialization_kind STRING, "
+                           "template_arguments STRING, "
+                           "instantiation_context STRING)",
+                           "SPECIALIZES");
 
         llvm::outs() << "Database schema created successfully\n";
     }
@@ -1724,6 +1878,196 @@ void KuzuDump::createTemplateRelation(int64_t specializationId, int64_t template
     }
 }
 
+void KuzuDump::createSpecializesRelation(int64_t specializationId,
+                                         int64_t templateId,
+                                         const std::string& specializationKind,
+                                         const std::string& templateArguments,
+                                         const std::string& instantiationContext)
+{
+    if (!connection || specializationId == -1 || templateId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        // Escape single quotes in the template arguments and context
+        std::string escapedArgs = templateArguments;
+        std::string escapedContext = instantiationContext;
+
+        // Simple escaping - replace single quotes with double quotes
+        size_t pos = 0;
+        while ((pos = escapedArgs.find('\'', pos)) != std::string::npos)
+        {
+            escapedArgs.replace(pos, 1, "''");
+            pos += 2;
+        }
+        pos = 0;
+        while ((pos = escapedContext.find('\'', pos)) != std::string::npos)
+        {
+            escapedContext.replace(pos, 1, "''");
+            pos += 2;
+        }
+
+        std::string query = "MATCH (spec:Declaration {node_id: " + std::to_string(specializationId) + "}), " +
+                            "(tmpl:Declaration {node_id: " + std::to_string(templateId) + "}) " +
+                            "CREATE (spec)-[:SPECIALIZES {specialization_kind: '" + specializationKind +
+                            "', template_arguments: '" + escapedArgs + "', instantiation_context: '" + escapedContext +
+                            "'}]->(tmpl)";
+
+        // Use batched operation for performance optimization (Phase 4)
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating SPECIALIZES relationship: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::createTemplateParameterNode(int64_t nodeId, const clang::NamedDecl* param)
+{
+    if (!connection || nodeId == -1 || param == nullptr)
+    {
+        return;
+    }
+
+    try
+    {
+        std::string parameterKind;
+        std::string parameterName = param->getNameAsString();
+        bool hasDefaultArgument = false;
+        std::string defaultArgumentText;
+        bool isParameterPack = false;
+
+        // Determine the parameter kind and extract specific information
+        if (const auto* typeParam = dyn_cast<clang::TemplateTypeParmDecl>(param))
+        {
+            parameterKind = "type";
+            hasDefaultArgument = typeParam->hasDefaultArgument();
+            if (hasDefaultArgument)
+            {
+                clang::TemplateArgumentLoc defaultArg = typeParam->getDefaultArgument();
+                if (defaultArg.getArgument().getKind() == clang::TemplateArgument::Type)
+                {
+                    defaultArgumentText = defaultArg.getArgument().getAsType().getAsString();
+                }
+            }
+            isParameterPack = typeParam->isParameterPack();
+        }
+        else if (const auto* nonTypeParam = dyn_cast<clang::NonTypeTemplateParmDecl>(param))
+        {
+            parameterKind = "non_type";
+            hasDefaultArgument = nonTypeParam->hasDefaultArgument();
+            if (hasDefaultArgument)
+            {
+                // Extract default argument text - simplified approach
+                defaultArgumentText = "default_value";  // Could be enhanced to extract actual value
+            }
+            isParameterPack = nonTypeParam->isParameterPack();
+        }
+        else if (const auto* templateParam = dyn_cast<clang::TemplateTemplateParmDecl>(param))
+        {
+            parameterKind = "template";
+            hasDefaultArgument = templateParam->hasDefaultArgument();
+            if (hasDefaultArgument)
+            {
+                // Extract template default argument - simplified
+                defaultArgumentText = "default_template";
+            }
+            isParameterPack = templateParam->isParameterPack();
+        }
+        else
+        {
+            parameterKind = "unknown";
+        }
+
+        // Escape single quotes in parameter name and default argument
+        std::string escapedName = parameterName;
+        std::string escapedDefault = defaultArgumentText;
+
+        size_t pos = 0;
+        while ((pos = escapedName.find('\'', pos)) != std::string::npos)
+        {
+            escapedName.replace(pos, 1, "''");
+            pos += 2;
+        }
+        pos = 0;
+        while ((pos = escapedDefault.find('\'', pos)) != std::string::npos)
+        {
+            escapedDefault.replace(pos, 1, "''");
+            pos += 2;
+        }
+
+        std::string hasDefaultStr = hasDefaultArgument ? "true" : "false";
+        std::string isPackStr = isParameterPack ? "true" : "false";
+
+        std::string query = "CREATE (tp:TemplateParameter {";
+        query += "node_id: " + std::to_string(nodeId) + ", ";
+        query += "parameter_kind: '" + parameterKind + "', ";
+        query += "parameter_name: '" + escapedName + "', ";
+        query += "has_default_argument: " + hasDefaultStr + ", ";
+        query += "default_argument_text: '" + escapedDefault + "', ";
+        query += "is_parameter_pack: " + isPackStr + "})";
+
+        // Use batched operation for performance optimization (Phase 4)
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating TemplateParameter node: " << e.what() << "\n";
+    }
+}
+
+auto KuzuDump::extractTemplateArguments(const clang::TemplateArgumentList& args) -> std::string
+{
+    std::string result = "[";
+
+    for (unsigned i = 0; i < args.size(); ++i)
+    {
+        if (i > 0)
+        {
+            result += ", ";
+        }
+
+        const clang::TemplateArgument& arg = args[i];
+
+        switch (arg.getKind())
+        {
+        case clang::TemplateArgument::Type:
+            result += arg.getAsType().getAsString();
+            break;
+        case clang::TemplateArgument::Integral:
+            result += std::to_string(arg.getAsIntegral().getExtValue());
+            break;
+        case clang::TemplateArgument::Declaration:
+            if (const auto* namedDecl = dyn_cast<clang::NamedDecl>(arg.getAsDecl()))
+            {
+                result += namedDecl->getNameAsString();
+            }
+            else
+            {
+                result += "declaration";
+            }
+            break;
+        case clang::TemplateArgument::NullPtr:
+            result += "nullptr";
+            break;
+        case clang::TemplateArgument::Template:
+            result += arg.getAsTemplate().getAsTemplateDecl()->getNameAsString();
+            break;
+        case clang::TemplateArgument::Pack:
+            result += "{pack of " + std::to_string(arg.pack_size()) + " args}";
+            break;
+        default:
+            result += "unknown_arg";
+            break;
+        }
+    }
+
+    result += "]";
+    return result;
+}
+
 void KuzuDump::createInheritanceRelation(int64_t derivedId,
                                          int64_t baseId,
                                          const std::string& inheritanceType,
@@ -1819,16 +2163,46 @@ void KuzuDump::VisitFunctionDecl(const FunctionDecl* D)
         {
             // Check if the template declaration has been processed
             auto it = nodeIdMap.find(templateDecl);
+            int64_t templateNodeId;
             if (it != nodeIdMap.end())
             {
-                createTemplateRelation(nodeId, it->second, "specializes");
+                templateNodeId = it->second;
             }
             else
             {
                 // Create the template node if it doesn't exist yet
-                int64_t templateNodeId = createASTNode(templateDecl);
-                createTemplateRelation(nodeId, templateNodeId, "specializes");
+                templateNodeId = createASTNode(templateDecl);
             }
+
+            // Create both the legacy TEMPLATE_RELATION and enhanced SPECIALIZES relation
+            createTemplateRelation(nodeId, templateNodeId, "specializes");
+
+            // Enhanced specialization tracking with template arguments
+            std::string specializationKind;
+            switch (specInfo->getTemplateSpecializationKind())
+            {
+            case clang::TSK_ImplicitInstantiation:
+                specializationKind = "implicit";
+                break;
+            case clang::TSK_ExplicitInstantiationDeclaration:
+                specializationKind = "explicit_declaration";
+                break;
+            case clang::TSK_ExplicitInstantiationDefinition:
+                specializationKind = "explicit_definition";
+                break;
+            case clang::TSK_ExplicitSpecialization:
+                specializationKind = "explicit_specialization";
+                break;
+            default:
+                specializationKind = "unknown";
+                break;
+            }
+
+            std::string templateArguments = extractTemplateArguments(*specInfo->TemplateArguments);
+            std::string instantiationContext = D->getQualifiedNameAsString();
+
+            createSpecializesRelation(
+                nodeId, templateNodeId, specializationKind, templateArguments, instantiationContext);
         }
     }
 
@@ -2032,37 +2406,6 @@ void KuzuDump::VisitCXXRecordDecl(const CXXRecordDecl* D)
     // The ASTNodeTraverser will handle automatic traversal
     // Pop this record scope after traversal
     popScope();
-}
-
-void KuzuDump::VisitClassTemplateSpecializationDecl(const ClassTemplateSpecializationDecl* D)
-{
-    if (D == nullptr)
-        return;
-
-    // Create database node for this class template specialization
-    int64_t nodeId = createASTNode(D);
-
-    // Create scope relationships for this specialization (it's in its parent scope)
-    createScopeRelationships(nodeId);
-
-    // Create template relationship if we can find the template declaration
-    if (const ClassTemplateDecl* templateDecl = D->getSpecializedTemplate())
-    {
-        // Check if the template declaration has been processed
-        auto it = nodeIdMap.find(templateDecl);
-        if (it != nodeIdMap.end())
-        {
-            createTemplateRelation(nodeId, it->second, "specializes");
-        }
-        else
-        {
-            // Create the template node if it doesn't exist yet
-            int64_t templateNodeId = createASTNode(templateDecl);
-            createTemplateRelation(nodeId, templateNodeId, "specializes");
-        }
-    }
-
-    // The ASTNodeTraverser will handle automatic traversal
 }
 
 void KuzuDump::VisitStmt(const Stmt* S)
