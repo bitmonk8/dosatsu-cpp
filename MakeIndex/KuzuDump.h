@@ -91,6 +91,15 @@ private:
     void createReferenceRelation(int64_t fromId, int64_t toId, const std::string& kind);
     void createScopeRelation(int64_t nodeId, int64_t scopeId, const std::string& scopeKind);
     void createTemplateRelation(int64_t specializationId, int64_t templateId, const std::string& kind);
+    void createInheritanceRelation(int64_t derivedId,
+                                   int64_t baseId,
+                                   const std::string& inheritanceType,
+                                   bool isVirtual,
+                                   const std::string& accessPath);
+    void createOverrideRelation(int64_t overridingId,
+                                int64_t overriddenId,
+                                const std::string& overrideType,
+                                bool isCovariantReturn);
 
     // Enhanced declaration processing methods (Phase 2)
     void createDeclarationNode(int64_t nodeId, const clang::NamedDecl* decl);
@@ -210,6 +219,7 @@ public:
     void VisitVarDecl(const VarDecl* D);
     void VisitParmVarDecl(const ParmVarDecl* D);
     void VisitNamespaceDecl(const NamespaceDecl* D);
+    void VisitCXXRecordDecl(const CXXRecordDecl* D);
     void VisitClassTemplateDecl(const ClassTemplateDecl* D);
     void VisitFunctionTemplateDecl(const FunctionTemplateDecl* D);
     void VisitVarTemplateDecl(const VarTemplateDecl* D);

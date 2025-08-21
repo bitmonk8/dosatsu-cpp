@@ -574,6 +574,20 @@ void KuzuDump::createSchema()
                            "specialization_type STRING)",
                            "TEMPLATE_RELATION");
 
+        // Inheritance relationship tables
+        executeSchemaQuery("CREATE REL TABLE INHERITS_FROM("
+                           "FROM Declaration TO Declaration, "
+                           "inheritance_type STRING, "
+                           "is_virtual BOOLEAN, "
+                           "base_access_path STRING)",
+                           "INHERITS_FROM");
+
+        executeSchemaQuery("CREATE REL TABLE OVERRIDES("
+                           "FROM Declaration TO Declaration, "
+                           "override_type STRING, "
+                           "is_covariant_return BOOLEAN)",
+                           "OVERRIDES");
+
         llvm::outs() << "Database schema created successfully\n";
     }
     catch (const std::exception& e)
@@ -1710,6 +1724,60 @@ void KuzuDump::createTemplateRelation(int64_t specializationId, int64_t template
     }
 }
 
+void KuzuDump::createInheritanceRelation(int64_t derivedId,
+                                         int64_t baseId,
+                                         const std::string& inheritanceType,
+                                         bool isVirtual,
+                                         const std::string& accessPath)
+{
+    if (!connection || derivedId == -1 || baseId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        std::string query = "MATCH (derived:Declaration {node_id: " + std::to_string(derivedId) + "}), " +
+                            "(base:Declaration {node_id: " + std::to_string(baseId) + "}) " +
+                            "CREATE (derived)-[:INHERITS_FROM {inheritance_type: '" + inheritanceType +
+                            "', is_virtual: " + (isVirtual ? "true" : "false") + ", base_access_path: '" + accessPath +
+                            "'}]->(base)";
+
+        // Use batched operation for performance optimization
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating INHERITS_FROM relationship: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::createOverrideRelation(int64_t overridingId,
+                                      int64_t overriddenId,
+                                      const std::string& overrideType,
+                                      bool isCovariantReturn)
+{
+    if (!connection || overridingId == -1 || overriddenId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        std::string query = "MATCH (overriding:Declaration {node_id: " + std::to_string(overridingId) + "}), " +
+                            "(overridden:Declaration {node_id: " + std::to_string(overriddenId) + "}) " +
+                            "CREATE (overriding)-[:OVERRIDES {override_type: '" + overrideType +
+                            "', is_covariant_return: " + (isCovariantReturn ? "true" : "false") + "}]->(overridden)";
+
+        // Use batched operation for performance optimization
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating OVERRIDES relationship: " << e.what() << "\n";
+    }
+}
+
 // Core Visit method implementations
 void KuzuDump::VisitDecl(const Decl* D)
 {
@@ -1816,6 +1884,153 @@ void KuzuDump::VisitNamespaceDecl(const NamespaceDecl* D)
 
     // The ASTNodeTraverser will handle automatic traversal
     // Pop this namespace scope after traversal
+    popScope();
+}
+
+void KuzuDump::VisitCXXRecordDecl(const CXXRecordDecl* D)
+{
+    if (D == nullptr)
+        return;
+
+    // Create database node for this C++ record (class/struct) declaration
+    int64_t nodeId = createASTNode(D);
+
+    // Create scope relationships for this record (it's in its parent scope)
+    createScopeRelationships(nodeId);
+
+    // Process inheritance relationships
+    if (D->hasDefinition() && D->getNumBases() > 0)
+    {
+        // Process each base class
+        for (const auto& base : D->bases())
+        {
+            if (const auto* baseDecl = base.getType()->getAsCXXRecordDecl())
+            {
+                // Create or find the base class node
+                int64_t baseNodeId = -1;
+                auto it = nodeIdMap.find(baseDecl);
+                if (it != nodeIdMap.end())
+                {
+                    baseNodeId = it->second;
+                }
+                else
+                {
+                    baseNodeId = createASTNode(baseDecl);
+                }
+
+                if (baseNodeId != -1)
+                {
+                    // Extract inheritance information
+                    std::string inheritanceType;
+                    switch (base.getAccessSpecifier())
+                    {
+                    case AS_public:
+                        inheritanceType = "public";
+                        break;
+                    case AS_protected:
+                        inheritanceType = "protected";
+                        break;
+                    case AS_private:
+                        inheritanceType = "private";
+                        break;
+                    case AS_none:
+                    default:
+                        inheritanceType = "none";
+                        break;
+                    }
+
+                    bool isVirtual = base.isVirtual();
+                    std::string accessPath = base.getType().getAsString();
+
+                    // Create inheritance relationship
+                    createInheritanceRelation(nodeId, baseNodeId, inheritanceType, isVirtual, accessPath);
+                }
+            }
+        }
+    }
+
+    // Process virtual function overrides
+    if (D->hasDefinition())
+    {
+        for (const auto* method : D->methods())
+        {
+            if (method != nullptr && method->isVirtual())
+            {
+                // Check for overridden methods
+                CXXMethodDecl::method_iterator overriddenBegin = method->begin_overridden_methods();
+                CXXMethodDecl::method_iterator overriddenEnd = method->end_overridden_methods();
+
+                for (auto it = overriddenBegin; it != overriddenEnd; ++it)
+                {
+                    const CXXMethodDecl* overriddenMethod = *it;
+                    if (overriddenMethod != nullptr)
+                    {
+                        // Create or find the overridden method node
+                        int64_t overriddenNodeId = -1;
+                        auto nodeIt = nodeIdMap.find(overriddenMethod);
+                        if (nodeIt != nodeIdMap.end())
+                        {
+                            overriddenNodeId = nodeIt->second;
+                        }
+                        else
+                        {
+                            overriddenNodeId = createASTNode(overriddenMethod);
+                        }
+
+                        // Create or find the overriding method node
+                        int64_t overridingNodeId = -1;
+                        auto overridingIt = nodeIdMap.find(method);
+                        if (overridingIt != nodeIdMap.end())
+                        {
+                            overridingNodeId = overridingIt->second;
+                        }
+                        else
+                        {
+                            overridingNodeId = createASTNode(method);
+                        }
+
+                        if (overridingNodeId != -1 && overriddenNodeId != -1)
+                        {
+                            // Determine override type
+                            std::string overrideType = "virtual";
+                            if (method->hasAttr<FinalAttr>())
+                            {
+                                overrideType = "final";
+                            }
+                            else if (method->isPureVirtual())
+                            {
+                                overrideType = "pure_virtual";
+                            }
+                            else if (method->hasAttr<OverrideAttr>())
+                            {
+                                overrideType = "override";
+                            }
+
+                            // Check for covariant return type (simplified check)
+                            bool isCovariantReturn = false;
+                            QualType overridingReturnType = method->getReturnType();
+                            QualType overriddenReturnType = overriddenMethod->getReturnType();
+                            if (!overridingReturnType->isVoidType() && !overriddenReturnType->isVoidType())
+                            {
+                                // This is a simplified check using canonical types comparison
+                                isCovariantReturn = (overridingReturnType.getCanonicalType() !=
+                                                     overriddenReturnType.getCanonicalType());
+                            }
+
+                            // Create override relationship
+                            createOverrideRelation(overridingNodeId, overriddenNodeId, overrideType, isCovariantReturn);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Push this record as a new scope for its contents
+    pushScope(nodeId);
+
+    // The ASTNodeTraverser will handle automatic traversal
+    // Pop this record scope after traversal
     popScope();
 }
 

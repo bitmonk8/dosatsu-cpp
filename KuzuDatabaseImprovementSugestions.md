@@ -29,41 +29,10 @@ The current schema includes:
 
 **IMPLEMENTED**: ✅ Function Bodies and Statement Detail enhancement has been completed and is now available in the current codebase. This included enhanced Statement and Expression table schemas with detailed information about control flow, operators, literals, and local variable declarations.
 
+**IMPLEMENTED**: ✅ Inheritance and Class Hierarchy enhancement has been completed and is now available in the current codebase. This included INHERITS_FROM and OVERRIDES relationship tables in the database schema, along with comprehensive VisitCXXRecordDecl implementation to capture inheritance relationships, virtual function override chains, and multiple inheritance support.
 
-### 1. Inheritance and Class Hierarchy **[HIGH PRIORITY]**
 
-**Current State**: Base classes are mentioned in text dump but not captured in database relationships
-
-**Missing Information**:
-- Inheritance relationships (public/private/protected/virtual)
-- Virtual function override chains
-- Interface implementation tracking
-- Multiple inheritance diamond problems
-- Virtual base class relationships
-
-**Impact**: Cannot answer queries about:
-- Class hierarchies and inheritance graphs
-- Polymorphism analysis
-- Virtual function dispatch
-- Interface compliance
-
-**Suggested Schema**:
-```sql
-CREATE REL TABLE INHERITS_FROM(
-    FROM Declaration TO Declaration,
-    inheritance_type STRING,    -- "public", "private", "protected"
-    is_virtual BOOLEAN,
-    base_access_path STRING
-)
-
-CREATE REL TABLE OVERRIDES(
-    FROM Declaration TO Declaration,
-    override_type STRING,       -- "override", "final", "pure_virtual"
-    is_covariant_return BOOLEAN
-)
-```
-
-### 2. Template System Enhancement **[MEDIUM PRIORITY]**
+### 1. Template System Enhancement **[MEDIUM PRIORITY]**
 
 **Current State**: Basic template declarations are captured but specialization details are limited
 
@@ -94,7 +63,7 @@ CREATE REL TABLE SPECIALIZES(
 )
 ```
 
-### 3. Preprocessor and Macro Information **[MEDIUM PRIORITY]**
+### 2. Preprocessor and Macro Information **[MEDIUM PRIORITY]**
 
 **Current State**: No preprocessor information is captured
 
@@ -111,7 +80,7 @@ CREATE REL TABLE SPECIALIZES(
 - Include optimization opportunities
 - Platform-specific code paths
 
-### 4. Comments and Documentation **[LOW PRIORITY]**
+### 3. Comments and Documentation **[LOW PRIORITY]**
 
 **Current State**: Comments are not captured
 
@@ -126,7 +95,7 @@ CREATE REL TABLE SPECIALIZES(
 - Code quality reports
 - Developer annotations analysis
 
-### 5. Namespace and Using Declarations **[MEDIUM PRIORITY]**
+### 4. Namespace and Using Declarations **[MEDIUM PRIORITY]**
 
 **Current State**: Basic namespace context is captured but using declarations are incomplete
 
@@ -147,7 +116,7 @@ CREATE NODE TABLE UsingDeclaration(
 )
 ```
 
-### 6. Memory Management and Resource Analysis **[MEDIUM PRIORITY]**
+### 5. Memory Management and Resource Analysis **[MEDIUM PRIORITY]**
 
 **Missing Information**:
 - new/delete expression tracking
@@ -156,7 +125,7 @@ CREATE NODE TABLE UsingDeclaration(
 - Memory allocation/deallocation pairs
 - Resource acquisition and release patterns
 
-### 7. Constant Expression and Compile-Time Evaluation **[LOW PRIORITY]**
+### 6. Constant Expression and Compile-Time Evaluation **[LOW PRIORITY]**
 
 **Missing Information**:
 - constexpr function evaluation results
@@ -167,20 +136,4 @@ CREATE NODE TABLE UsingDeclaration(
 
 ## Specific Implementation Recommendations
 
-### 1. Implement Inheritance Tracking
-
-```cpp
-void KuzuDump::VisitCXXRecordDecl(const CXXRecordDecl* D) {
-    int64_t nodeId = createASTNode(D);
-    
-    // Process base classes
-    for (const auto& base : D->bases()) {
-        if (const auto* baseDecl = base.getType()->getAsCXXRecordDecl()) {
-            int64_t baseNodeId = createASTNode(baseDecl);
-            createInheritanceRelation(nodeId, baseNodeId, 
-                                    base.getAccessSpecifier(),
-                                    base.isVirtual());
-        }
-    }
-}
-```
+The following recommendations focus on the remaining high-priority improvements after the successful implementation of inheritance tracking.
