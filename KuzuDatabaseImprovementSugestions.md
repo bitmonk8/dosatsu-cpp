@@ -27,19 +27,7 @@ The current schema includes:
 
 ## Critical Missing Information
 
-**IMPLEMENTED**: ✅ Function Bodies and Statement Detail enhancement has been completed and is now available in the current codebase. This included enhanced Statement and Expression table schemas with detailed information about control flow, operators, literals, and local variable declarations.
-
-**IMPLEMENTED**: ✅ Inheritance and Class Hierarchy enhancement has been completed and is now available in the current codebase. This included INHERITS_FROM and OVERRIDES relationship tables in the database schema, along with comprehensive VisitCXXRecordDecl implementation to capture inheritance relationships, virtual function override chains, and multiple inheritance support.
-
-
-**IMPLEMENTED**: ✅ Template System Enhancement has been completed and is now available in the current codebase. This included:
-- Enhanced TemplateParameter node table with detailed parameter information (type, non-type, template parameters)
-- SPECIALIZES relationship table with specialization kinds and template arguments
-- Template parameter extraction from template declarations
-- Enhanced template specialization tracking for both function and class templates
-- Support for partial specializations and instantiation contexts
-
-### 2. Preprocessor and Macro Information **[MEDIUM PRIORITY]**
+### 1. Preprocessor and Macro Information **[MEDIUM PRIORITY]**
 
 **Current State**: No preprocessor information is captured
 
@@ -56,7 +44,7 @@ The current schema includes:
 - Include optimization opportunities
 - Platform-specific code paths
 
-### 3. Comments and Documentation **[LOW PRIORITY]**
+### 2. Comments and Documentation **[LOW PRIORITY]**
 
 **Current State**: Comments are not captured
 
@@ -71,28 +59,7 @@ The current schema includes:
 - Code quality reports
 - Developer annotations analysis
 
-### 4. Namespace and Using Declarations **[MEDIUM PRIORITY]**
-
-**Current State**: Basic namespace context is captured but using declarations are incomplete
-
-**Missing Information**:
-- Using directives scope and impact
-- Namespace aliases resolution
-- Argument-dependent lookup (ADL) relationships
-- Using declarations for specific symbols
-
-**Suggested Enhancement**:
-```sql
-CREATE NODE TABLE UsingDeclaration(
-    node_id INT64 PRIMARY KEY,
-    using_kind STRING,          -- "directive", "declaration", "alias"
-    target_name STRING,
-    introduces_name STRING,
-    scope_impact STRING
-)
-```
-
-### 5. Memory Management and Resource Analysis **[MEDIUM PRIORITY]**
+### 3. Memory Management and Resource Analysis **[MEDIUM PRIORITY]**
 
 **Missing Information**:
 - new/delete expression tracking
@@ -101,7 +68,7 @@ CREATE NODE TABLE UsingDeclaration(
 - Memory allocation/deallocation pairs
 - Resource acquisition and release patterns
 
-### 6. Constant Expression and Compile-Time Evaluation **[LOW PRIORITY]**
+### 4. Constant Expression and Compile-Time Evaluation **[LOW PRIORITY]**
 
 **Missing Information**:
 - constexpr function evaluation results
@@ -112,4 +79,4 @@ CREATE NODE TABLE UsingDeclaration(
 
 ## Specific Implementation Recommendations
 
-The following recommendations focus on the remaining high-priority improvements after the successful implementation of inheritance tracking.
+The following recommendations focus on the remaining high-priority improvements that would enhance the generated Kuzu database with more complete AST information.

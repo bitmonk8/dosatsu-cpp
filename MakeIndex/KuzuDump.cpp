@@ -691,6 +691,15 @@ void KuzuDump::createSchema()
                            "is_parameter_pack BOOLEAN)",
                            "TemplateParameter");
 
+        // Create UsingDeclaration table for namespace and using declarations
+        executeSchemaQuery("CREATE NODE TABLE UsingDeclaration("
+                           "node_id INT64 PRIMARY KEY, "
+                           "using_kind STRING, "
+                           "target_name STRING, "
+                           "introduces_name STRING, "
+                           "scope_impact STRING)",
+                           "UsingDeclaration");
+
         // Create relationship tables
         executeSchemaQuery("CREATE REL TABLE PARENT_OF("
                            "FROM ASTNode TO ASTNode, "
@@ -812,6 +821,20 @@ auto KuzuDump::createASTNode(const clang::Decl* decl) -> int64_t
             {
                 createTypeNodeAndRelation(nodeId, functionDecl->getType());
             }
+        }
+
+        // Create specialized nodes for using declarations
+        if (const auto* usingDecl = dyn_cast<UsingDecl>(decl))
+        {
+            createUsingDeclarationNode(nodeId, usingDecl);
+        }
+        else if (const auto* usingDirectiveDecl = dyn_cast<UsingDirectiveDecl>(decl))
+        {
+            createUsingDirectiveNode(nodeId, usingDirectiveDecl);
+        }
+        else if (const auto* namespaceAliasDecl = dyn_cast<NamespaceAliasDecl>(decl))
+        {
+            createNamespaceAliasNode(nodeId, namespaceAliasDecl);
         }
 
         return nodeId;
@@ -1067,6 +1090,126 @@ auto KuzuDump::createTypeNode(clang::QualType qualType) -> int64_t
     {
         llvm::errs() << "Exception creating Type node: " << e.what() << "\n";
         return -1;
+    }
+}
+
+// UsingDeclaration-specific node creation methods
+void KuzuDump::createUsingDeclarationNode(int64_t nodeId, const clang::UsingDecl* decl)
+{
+    if (!connection || (decl == nullptr))
+    {
+        return;
+    }
+
+    try
+    {
+        std::string usingKind = "declaration";
+        std::string targetName = "";
+        std::string introducesName = "";
+        std::string scopeImpact = "current";
+
+        // Extract using declaration information
+        if (const auto* nestedNameSpec = decl->getQualifier())
+        {
+            // Get the qualified name being used
+            std::string qualifierStr;
+            llvm::raw_string_ostream qualifierStream(qualifierStr);
+            nestedNameSpec->print(qualifierStream, clang::PrintingPolicy(clang::LangOptions()));
+            targetName = qualifierStr + decl->getNameAsString();
+        }
+        else
+        {
+            targetName = decl->getNameAsString();
+        }
+
+        introducesName = decl->getNameAsString();
+
+        // Escape single quotes in strings for database storage
+        std::ranges::replace(targetName, '\'', '_');
+        std::ranges::replace(introducesName, '\'', '_');
+
+        std::string query = "CREATE (u:UsingDeclaration {node_id: " + std::to_string(nodeId) + ", using_kind: '" +
+                            usingKind + "', target_name: '" + targetName + "', introduces_name: '" + introducesName +
+                            "', scope_impact: '" + scopeImpact + "'})";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating UsingDeclaration node: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::createUsingDirectiveNode(int64_t nodeId, const clang::UsingDirectiveDecl* decl)
+{
+    if (!connection || (decl == nullptr))
+    {
+        return;
+    }
+
+    try
+    {
+        std::string usingKind = "directive";
+        std::string targetName = "";
+        std::string introducesName = "";
+        std::string scopeImpact = "current";
+
+        // Extract using directive information
+        if (const auto* nominatedNS = decl->getNominatedNamespace())
+        {
+            targetName = nominatedNS->getQualifiedNameAsString();
+            introducesName = "*";  // Directive brings in all names from namespace
+        }
+
+        // Escape single quotes in strings for database storage
+        std::ranges::replace(targetName, '\'', '_');
+
+        std::string query = "CREATE (u:UsingDeclaration {node_id: " + std::to_string(nodeId) + ", using_kind: '" +
+                            usingKind + "', target_name: '" + targetName + "', introduces_name: '" + introducesName +
+                            "', scope_impact: '" + scopeImpact + "'})";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating UsingDirective node: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::createNamespaceAliasNode(int64_t nodeId, const clang::NamespaceAliasDecl* decl)
+{
+    if (!connection || (decl == nullptr))
+    {
+        return;
+    }
+
+    try
+    {
+        std::string usingKind = "alias";
+        std::string targetName = "";
+        std::string introducesName = "";
+        std::string scopeImpact = "current";
+
+        // Extract namespace alias information
+        if (const auto* aliasedNS = decl->getNamespace())
+        {
+            targetName = aliasedNS->getQualifiedNameAsString();
+        }
+        introducesName = decl->getNameAsString();
+
+        // Escape single quotes in strings for database storage
+        std::ranges::replace(targetName, '\'', '_');
+        std::ranges::replace(introducesName, '\'', '_');
+
+        std::string query = "CREATE (u:UsingDeclaration {node_id: " + std::to_string(nodeId) + ", using_kind: '" +
+                            usingKind + "', target_name: '" + targetName + "', introduces_name: '" + introducesName +
+                            "', scope_impact: '" + scopeImpact + "'})";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating NamespaceAlias node: " << e.what() << "\n";
     }
 }
 
@@ -2259,6 +2402,123 @@ void KuzuDump::VisitNamespaceDecl(const NamespaceDecl* D)
     // The ASTNodeTraverser will handle automatic traversal
     // Pop this namespace scope after traversal
     popScope();
+}
+
+void KuzuDump::VisitUsingDecl(const UsingDecl* D)
+{
+    if (D == nullptr)
+        return;
+
+    // Create database node for this using declaration
+    int64_t nodeId = createASTNode(D);
+
+    // Create specialized UsingDeclaration node
+    createUsingDeclarationNode(nodeId, D);
+
+    // Create scope relationships for this using declaration
+    createScopeRelationships(nodeId);
+
+    // Create reference relationships to the used declarations
+    for (const auto* shadow : D->shadows())
+    {
+        if (const auto* usedDecl = shadow->getTargetDecl())
+        {
+            // Create or find the used declaration node
+            auto it = nodeIdMap.find(usedDecl);
+            int64_t usedNodeId;
+            if (it != nodeIdMap.end())
+            {
+                usedNodeId = it->second;
+            }
+            else
+            {
+                usedNodeId = createASTNode(usedDecl);
+            }
+
+            if (usedNodeId != -1)
+            {
+                createReferenceRelation(nodeId, usedNodeId, "using");
+            }
+        }
+    }
+
+    // The ASTNodeTraverser will handle automatic traversal
+}
+
+void KuzuDump::VisitUsingDirectiveDecl(const UsingDirectiveDecl* D)
+{
+    if (D == nullptr)
+        return;
+
+    // Create database node for this using directive declaration
+    int64_t nodeId = createASTNode(D);
+
+    // Create specialized UsingDeclaration node
+    createUsingDirectiveNode(nodeId, D);
+
+    // Create scope relationships for this using directive
+    createScopeRelationships(nodeId);
+
+    // Create reference relationship to the nominated namespace
+    if (const auto* nominatedNS = D->getNominatedNamespace())
+    {
+        // Create or find the nominated namespace node
+        auto it = nodeIdMap.find(nominatedNS);
+        int64_t nsNodeId;
+        if (it != nodeIdMap.end())
+        {
+            nsNodeId = it->second;
+        }
+        else
+        {
+            nsNodeId = createASTNode(nominatedNS);
+        }
+
+        if (nsNodeId != -1)
+        {
+            createReferenceRelation(nodeId, nsNodeId, "using_directive");
+        }
+    }
+
+    // The ASTNodeTraverser will handle automatic traversal
+}
+
+void KuzuDump::VisitNamespaceAliasDecl(const NamespaceAliasDecl* D)
+{
+    if (D == nullptr)
+        return;
+
+    // Create database node for this namespace alias declaration
+    int64_t nodeId = createASTNode(D);
+
+    // Create specialized UsingDeclaration node (aliases are treated as a kind of using)
+    createNamespaceAliasNode(nodeId, D);
+
+    // Create scope relationships for this namespace alias
+    createScopeRelationships(nodeId);
+
+    // Create reference relationship to the aliased namespace
+    if (const auto* aliasedNS = D->getNamespace())
+    {
+        // Create or find the aliased namespace node
+        auto it = nodeIdMap.find(aliasedNS);
+        int64_t aliasedNodeId;
+        if (it != nodeIdMap.end())
+        {
+            aliasedNodeId = it->second;
+        }
+        else
+        {
+            aliasedNodeId = createASTNode(aliasedNS);
+        }
+
+        if (aliasedNodeId != -1)
+        {
+            createReferenceRelation(nodeId, aliasedNodeId, "namespace_alias");
+        }
+    }
+
+    // The ASTNodeTraverser will handle automatic traversal
 }
 
 void KuzuDump::VisitCXXRecordDecl(const CXXRecordDecl* D)

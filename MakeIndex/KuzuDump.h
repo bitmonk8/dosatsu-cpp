@@ -108,6 +108,9 @@ private:
 
     // Enhanced declaration processing methods (Phase 2)
     void createDeclarationNode(int64_t nodeId, const clang::NamedDecl* decl);
+    void createUsingDeclarationNode(int64_t nodeId, const clang::UsingDecl* decl);
+    void createUsingDirectiveNode(int64_t nodeId, const clang::UsingDirectiveDecl* decl);
+    void createNamespaceAliasNode(int64_t nodeId, const clang::NamespaceAliasDecl* decl);
     auto extractQualifiedName(const clang::NamedDecl* decl) -> std::string;
     auto extractAccessSpecifier(const clang::Decl* decl) -> std::string;
     auto extractStorageClass(const clang::Decl* decl) -> std::string;
@@ -229,6 +232,9 @@ public:
     void VisitVarDecl(const VarDecl* D);
     void VisitParmVarDecl(const ParmVarDecl* D);
     void VisitNamespaceDecl(const NamespaceDecl* D);
+    void VisitUsingDecl(const UsingDecl* D);
+    void VisitUsingDirectiveDecl(const UsingDirectiveDecl* D);
+    void VisitNamespaceAliasDecl(const NamespaceAliasDecl* D);
     void VisitCXXRecordDecl(const CXXRecordDecl* D);
     void VisitClassTemplateDecl(const ClassTemplateDecl* D);
     void VisitFunctionTemplateDecl(const FunctionTemplateDecl* D);

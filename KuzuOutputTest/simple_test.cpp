@@ -35,6 +35,7 @@ namespace Mathematics {
         private:
             T width, height;
         public:
+            Rectangle() : Shape<T>(), width(T{}), height(T{}) {}
             Rectangle(T w, T h) : Shape<T>(w * h, 2 * (w + h)), width(w), height(h) {}
             
             // Override virtual function
@@ -64,6 +65,7 @@ namespace Mathematics {
         template<typename T>
         class PrintableRectangle : public Rectangle<T>, public Drawable, public Printable {
         public:
+            PrintableRectangle() : Rectangle<T>() {}
             PrintableRectangle(T w, T h) : Rectangle<T>(w, h) {}
             
             void draw() const override {
@@ -113,14 +115,14 @@ private:
     size_t size;
 public:
     Container(size_t s = 0) : size(s) {
-        data = new T[size];
+        data = (size > 0) ? new T[size]() : nullptr;
     }
     
     ~Container() { delete[] data; }
     
     // Copy constructor
     Container(const Container& other) : size(other.size) {
-        data = new T[size];
+        data = (size > 0) ? new T[size]() : nullptr;
         for (size_t i = 0; i < size; ++i) {
             data[i] = other.data[i];
         }
@@ -137,7 +139,7 @@ public:
         if (this != &other) {
             delete[] data;
             size = other.size;
-            data = new T[size];
+            data = (size > 0) ? new T[size]() : nullptr;
             for (size_t i = 0; i < size; ++i) {
                 data[i] = other.data[i];
             }
