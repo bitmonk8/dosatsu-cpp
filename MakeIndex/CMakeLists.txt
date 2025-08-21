@@ -13,6 +13,8 @@ add_executable(MakeIndex
     NoWarningScope_Leave.h
 )
 
+target_link_directories(MakeIndex PRIVATE ${LLVM_BIN_DIR}/lib)
+
 # Copy KuzuDB DLL to output directory on Windows
 if(WIN32)
     # Define the DLL name for Windows
@@ -56,22 +58,11 @@ set_target_properties(MakeIndex PROPERTIES
 # Include directories
 target_include_directories(MakeIndex PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/3rdParty/include  # For doctest
+    ${CMAKE_SOURCE_DIR}/3rdParty/include
+    ${LLVM_HEADERS_DIR}
 )
 
 target_link_libraries(MakeIndex PRIVATE kuzu::kuzu)
-
-# Add LLVM include directories manually if linking doesn't work
-if(TARGET LLVMSupport)
-    # Add the main LLVM include directories
-    target_include_directories(MakeIndex PRIVATE 
-        "${CMAKE_BINARY_DIR}/_deps/llvm-src/llvm/include"
-        "${CMAKE_BINARY_DIR}/_deps/llvm-build/include"
-        "${CMAKE_BINARY_DIR}/_deps/llvm-src/clang/include"
-        "${CMAKE_BINARY_DIR}/_deps/llvm-build/tools/clang/include"
-    )
-    message(STATUS "Added LLVM/Clang include directories manually")
-endif()
 
 # Platform-specific compiler flags
 if(WIN32 AND MSVC)
@@ -80,25 +71,66 @@ if(WIN32 AND MSVC)
     )
 endif()
 
-# Link against LLVM libraries
-if(TARGET ClangLibraries)
-    target_link_libraries(MakeIndex PRIVATE ClangLibraries LLVMCommon)
-    message(STATUS "Linking MakeIndex against ClangLibraries and LLVMCommon")
-else()
-    # Fallback to individual libraries if convenience targets aren't available
-    message(STATUS "Using individual LLVM libraries")
+target_link_libraries(MakeIndex PRIVATE
+    clangFrontend
+    clangTooling
+    clangDriver
+    clangSerialization
+    clangCodeGen
+    clangSema
+    clangParse
+    clangAST
+    clangASTMatchers
+    clangAnalysis
+    clangStaticAnalyzerCore
+    clangEdit
+    clangRewrite
+    clangLex
+    clangAPINotes
+    clangBasic
+    clangSupport
+
+    LLVMFrontendOpenMP
+    LLVMFrontendAtomic
+    LLVMSupport
+    LLVMCodeGen
+    LLVMCore
+    LLVMMC
+    LLVMMCParser
+    LLVMAnalysis
+    LLVMBitstreamReader
+    LLVMRemarks
+    LLVMDemangle
+    LLVMDebugInfoDWARF
+    LLVMOption
+    LLVMProfileData
+    LLVMTargetParser
+    LLVMObject
+    LLVMBinaryFormat
+    LLVMTextAPI
+    LLVMBitReader
+    LLVMBitWriter
+    LLVMTransformUtils
+    LLVMWindowsDriver
+    LLVMScalarOpts
+    LLVMInstCombine
+    LLVMipo
+    LLVMAsmParser
+    LLVMIRReader
+    LLVMCodeGenTypes
+    LLVMFrontendOffloading
+    LLVMAsmPrinter
+    LLVMSelectionDAG
+    LLVMGlobalISel
+)
+
+if(WIN32)
     target_link_libraries(MakeIndex PRIVATE
-        clangAST
-        clangBasic
-        clangFrontend
-        clangTooling
-        clangSerialization
-        LLVMSupport
-        LLVMCore
-        LLVMMC
-        LLVMAnalysis
+        version.lib
+        ntdll.lib
+        ole32.lib
+        oleaut32.lib
     )
-    message(STATUS "Linking MakeIndex against individual LLVM libraries")
 endif()
 
 message(STATUS "Configured MakeIndex executable target")

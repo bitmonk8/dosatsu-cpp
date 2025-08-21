@@ -1,10 +1,10 @@
-#define DOCTEST_CONFIG_IMPLEMENT
 #include "ASTDumpAction.h"
 #include "CompilationDatabaseLoader.h"
 
+// clang-format off
+#define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
-// clang-format off
 #include "NoWarningScope_Enter.h"
 #include "clang/Tooling/Tooling.h"
 #include "clang/Tooling/CommonOptionsParser.h"

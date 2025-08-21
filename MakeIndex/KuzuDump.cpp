@@ -11,9 +11,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "KuzuDump.h"
+
 // clang-format off
 #include "NoWarningScope_Enter.h"
-#include "KuzuDump.h"
+
 #include "clang/AST/ASTConcept.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclLookups.h"
@@ -22,6 +24,8 @@
 #include "clang/Basic/SourceManager.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "kuzu.hpp"
+
 #include "NoWarningScope_Leave.h"
 // clang-format on
 
@@ -29,8 +33,6 @@
 #include <filesystem>
 #include <sstream>
 #include <stdexcept>
-
-#include "kuzu.hpp"
 
 using namespace clang;
 using namespace clang::comments;
@@ -1222,7 +1224,7 @@ auto KuzuDump::isBuiltInType(clang::QualType qualType) -> bool
     return type && type->isBuiltinType();
 }
 
-auto KuzuDump::extractTypeSourceLocation(clang::QualType qualType) -> std::string
+auto KuzuDump::extractTypeSourceLocation(clang::QualType /*qualType*/) -> std::string
 {
     // For now, types don't have specific source locations
     // This could be enhanced in the future to show where types are defined

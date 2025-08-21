@@ -10,17 +10,19 @@
 
 // clang-format off
 #include "NoWarningScope_Enter.h"
+
 #include "clang/AST/ASTNodeTraverser.h"
 #include "clang/AST/TextNodeDumper.h"
 #include "clang/Basic/SourceManager.h"
+
+#include "kuzu.hpp"
+
 #include "NoWarningScope_Leave.h"
 // clang-format on
 
 #include <memory>
 #include <string>
 #include <unordered_map>
-
-#include "kuzu.hpp"
 
 namespace clang
 {
