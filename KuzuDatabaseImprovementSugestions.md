@@ -27,22 +27,7 @@ The current schema includes:
 
 ## Critical Missing Information
 
-### 1. Comments and Documentation **[LOW PRIORITY]**
-
-**Current State**: Comments are not captured
-
-**Missing Information**:
-- Function and class documentation comments
-- TODO/FIXME/HACK markers
-- Doxygen-style documentation
-- License headers
-
-**Impact**: Cannot generate:
-- API documentation
-- Code quality reports
-- Developer annotations analysis
-
-### 2. Constant Expression and Compile-Time Evaluation **[LOW PRIORITY]**
+### 1. Constant Expression and Compile-Time Evaluation **[LOW PRIORITY]**
 
 **Missing Information**:
 - constexpr function evaluation results

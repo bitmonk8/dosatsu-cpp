@@ -21,6 +21,8 @@
 #include "clang/AST/DeclLookups.h"
 #include "clang/AST/JSONNodeDumper.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/RawCommentList.h"
+#include "clang/AST/Comment.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -803,6 +805,16 @@ void KuzuDump::createSchema()
                            "pragma_kind STRING)",
                            "PragmaDirective");
 
+        // Create Comment table for documentation and comments
+        executeSchemaQuery("CREATE NODE TABLE Comment("
+                           "node_id INT64 PRIMARY KEY, "
+                           "comment_text STRING, "
+                           "comment_kind STRING, "
+                           "is_documentation BOOLEAN, "
+                           "brief_text STRING, "
+                           "detailed_text STRING)",
+                           "Comment");
+
         // Preprocessor relationships
         executeSchemaQuery("CREATE REL TABLE MACRO_EXPANSION("
                            "FROM ASTNode TO MacroDefinition, "
@@ -819,6 +831,11 @@ void KuzuDump::createSchema()
                            "FROM ASTNode TO MacroDefinition, "
                            "definition_context STRING)",
                            "DEFINES");
+
+        executeSchemaQuery("CREATE REL TABLE HAS_COMMENT("
+                           "FROM Declaration TO Comment, "
+                           "attachment_type STRING)",
+                           "HAS_COMMENT");
 
         llvm::outs() << "Database schema created successfully\n";
     }
@@ -1307,6 +1324,9 @@ void KuzuDump::createDeclarationNode(int64_t nodeId, const clang::NamedDecl* dec
 
         // Use batched operation for performance optimization (Phase 4)
         addToBatch(query);
+
+        // Process comments for this declaration
+        processComments(decl, nodeId);
     }
     catch (const std::exception& e)
     {
@@ -2073,7 +2093,7 @@ auto KuzuDump::extractMemoryOperationType(const clang::Expr* expr) -> std::strin
     {
         return "deallocation";
     }
-    else if (isa<CXXConstructExpr>(expr))
+    if (isa<CXXConstructExpr>(expr))
     {
         return "construction";
     }
@@ -2201,11 +2221,11 @@ auto KuzuDump::detectSmartPointerType(const clang::Type* type) -> std::string
     {
         return "shared_ptr";
     }
-    else if (typeName.find("std::weak_ptr") != std::string::npos)
+    if (typeName.find("std::weak_ptr") != std::string::npos)
     {
         return "weak_ptr";
     }
-    else if (typeName.find("std::auto_ptr") != std::string::npos)
+    if (typeName.find("std::auto_ptr") != std::string::npos)
     {
         return "auto_ptr";
     }
@@ -2243,11 +2263,11 @@ auto KuzuDump::detectRAIIPattern(const clang::CXXConstructExpr* constructExpr) -
     {
         return "guard_raii";
     }
-    else if (className.find("ptr") != std::string::npos)
+    if (className.find("ptr") != std::string::npos)
     {
         return "smart_pointer_raii";
     }
-    else if (recordDecl->hasUserDeclaredDestructor())
+    if (recordDecl->hasUserDeclaredDestructor())
     {
         return "custom_raii";
     }
@@ -2566,6 +2586,166 @@ auto KuzuDump::extractTemplateArguments(const clang::TemplateArgumentList& args)
 
     result += "]";
     return result;
+}
+
+// Comment processing methods implementation
+void KuzuDump::createCommentNode(int64_t nodeId,
+                                 const std::string& commentText,
+                                 const std::string& commentKind,
+                                 bool isDocumentationComment,
+                                 const std::string& briefText,
+                                 const std::string& detailedText)
+{
+    if (!connection || nodeId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        // Escape single quotes in strings for database storage
+        std::string escapedText = commentText;
+        std::string escapedBrief = briefText;
+        std::string escapedDetailed = detailedText;
+        std::string escapedKind = commentKind;
+
+        // Replace single quotes with double quotes to avoid SQL injection
+        std::ranges::replace(escapedText, '\'', '"');
+        std::ranges::replace(escapedBrief, '\'', '"');
+        std::ranges::replace(escapedDetailed, '\'', '"');
+        std::ranges::replace(escapedKind, '\'', '"');
+
+        std::string query = "CREATE (c:Comment {node_id: " + std::to_string(nodeId) + ", comment_text: '" +
+                            escapedText + "'" + ", comment_kind: '" + escapedKind + "'" +
+                            ", is_documentation: " + (isDocumentationComment ? "true" : "false") + ", brief_text: '" +
+                            escapedBrief + "'" + ", detailed_text: '" + escapedDetailed + "'})";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Error creating comment node: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::createCommentRelation(int64_t declId, int64_t commentId)
+{
+    if (!connection || declId == -1 || commentId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        std::string query = "MATCH (d:Declaration {node_id: " + std::to_string(declId) + "}), " +
+                            "(c:Comment {node_id: " + std::to_string(commentId) + "}) " +
+                            "CREATE (d)-[:HAS_COMMENT {attachment_type: 'documentation'}]->(c)";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Error creating comment relation: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::processComments(const clang::Decl* decl, int64_t declId)
+{
+    if ((decl == nullptr) || (sourceManager == nullptr))
+    {
+        return;
+    }
+
+    // Get the AST context from the declaration
+    const ASTContext& context = decl->getASTContext();
+
+    // Try to get raw comment for this declaration
+    const RawComment* rawComment = context.getRawCommentForAnyRedecl(decl);
+    if (rawComment != nullptr)
+    {
+        // Create a comment node
+        int64_t commentId = nextNodeId++;
+
+        std::string commentText = rawComment->getRawText(*sourceManager).str();
+        std::string commentKind = rawComment->getKind() == RawComment::RCK_OrdinaryBCPL ? "BCPL"
+                                  : rawComment->getKind() == RawComment::RCK_OrdinaryC  ? "C"
+                                                                                        : "Invalid";
+        bool isDocumentation = rawComment->isDocumentation();
+
+        std::string briefText;
+        std::string detailedText;
+
+        // Try to parse structured comment if it's documentation
+        if (isDocumentation)
+        {
+            const comments::FullComment* fullComment = context.getCommentForDecl(decl, nullptr);
+            if (fullComment != nullptr)
+            {
+                // Extract brief and detailed text from structured comment
+                briefText = extractCommentText(fullComment);
+                detailedText = briefText;  // For now, use same text for both
+            }
+        }
+
+        createCommentNode(commentId, commentText, commentKind, isDocumentation, briefText, detailedText);
+        createCommentRelation(declId, commentId);
+    }
+}
+
+auto KuzuDump::extractCommentKind(const clang::comments::Comment* comment) -> std::string
+{
+    if (comment == nullptr)
+    {
+        return "unknown";
+    }
+
+    switch (comment->getCommentKind())
+    {
+    case comments::CommentKind::FullComment:
+        return "FullComment";
+    case comments::CommentKind::ParagraphComment:
+        return "Paragraph";
+    case comments::CommentKind::BlockCommandComment:
+        return "BlockCommand";
+    case comments::CommentKind::ParamCommandComment:
+        return "ParamCommand";
+    case comments::CommentKind::TParamCommandComment:
+        return "TParamCommand";
+    case comments::CommentKind::VerbatimBlockComment:
+        return "VerbatimBlock";
+    case comments::CommentKind::VerbatimBlockLineComment:
+        return "VerbatimBlockLine";
+    case comments::CommentKind::VerbatimLineComment:
+        return "VerbatimLine";
+    case comments::CommentKind::TextComment:
+        return "Text";
+    case comments::CommentKind::InlineCommandComment:
+        return "InlineCommand";
+    case comments::CommentKind::HTMLStartTagComment:
+        return "HTMLStartTag";
+    case comments::CommentKind::HTMLEndTagComment:
+        return "HTMLEndTag";
+    default:
+        return "unknown";
+    }
+}
+
+auto KuzuDump::extractCommentText(const clang::comments::Comment* comment) -> std::string
+{
+    if (comment == nullptr)
+    {
+        return "";
+    }
+
+    // For now, return a simple text extraction
+    // In a more sophisticated implementation, we could walk the comment AST
+    // and extract formatted text
+    return "Comment text extraction";  // Placeholder - would need more sophisticated implementation
+}
+
+auto KuzuDump::isDocumentationComment(const clang::comments::Comment* comment) -> bool
+{
+    return (comment != nullptr) && comment->getCommentKind() == comments::CommentKind::FullComment;
 }
 
 // Preprocessor and Macro processing methods implementation

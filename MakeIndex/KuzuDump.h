@@ -238,6 +238,19 @@ public:
     void createTemplateParameterNode(int64_t nodeId, const clang::NamedDecl* param);
     auto extractTemplateArguments(const clang::TemplateArgumentList& args) -> std::string;
 
+    // Comment processing methods
+    void createCommentNode(int64_t nodeId,
+                           const std::string& commentText,
+                           const std::string& commentKind,
+                           bool isDocumentationComment,
+                           const std::string& briefText = "",
+                           const std::string& detailedText = "");
+    void createCommentRelation(int64_t declId, int64_t commentId);
+    void processComments(const clang::Decl* decl, int64_t declId);
+    auto extractCommentKind(const clang::comments::Comment* comment) -> std::string;
+    auto extractCommentText(const clang::comments::Comment* comment) -> std::string;
+    auto isDocumentationComment(const clang::comments::Comment* comment) -> bool;
+
     // Preprocessor and Macro processing methods
     void createMacroDefinitionNode(int64_t nodeId,
                                    const std::string& macroName,
