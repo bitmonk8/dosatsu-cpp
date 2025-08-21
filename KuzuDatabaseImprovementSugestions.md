@@ -27,24 +27,7 @@ The current schema includes:
 
 ## Critical Missing Information
 
-### 1. Preprocessor and Macro Information **[MEDIUM PRIORITY]**
-
-**Current State**: No preprocessor information is captured
-
-**Missing Information**:
-- Macro definitions and their expansions
-- Include file relationships and order
-- Conditional compilation (#if/#ifdef)
-- Pragma directives
-- Header guard analysis
-
-**Impact**: Cannot analyze:
-- Build dependency graphs
-- Macro usage patterns
-- Include optimization opportunities
-- Platform-specific code paths
-
-### 2. Comments and Documentation **[LOW PRIORITY]**
+### 1. Comments and Documentation **[LOW PRIORITY]**
 
 **Current State**: Comments are not captured
 
@@ -59,7 +42,7 @@ The current schema includes:
 - Code quality reports
 - Developer annotations analysis
 
-### 3. Memory Management and Resource Analysis **[MEDIUM PRIORITY]**
+### 2. Memory Management and Resource Analysis **[MEDIUM PRIORITY]**
 
 **Missing Information**:
 - new/delete expression tracking
@@ -68,7 +51,7 @@ The current schema includes:
 - Memory allocation/deallocation pairs
 - Resource acquisition and release patterns
 
-### 4. Constant Expression and Compile-Time Evaluation **[LOW PRIORITY]**
+### 3. Constant Expression and Compile-Time Evaluation **[LOW PRIORITY]**
 
 **Missing Information**:
 - constexpr function evaluation results

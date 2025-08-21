@@ -226,6 +226,36 @@ public:
     void createTemplateParameterNode(int64_t nodeId, const clang::NamedDecl* param);
     auto extractTemplateArguments(const clang::TemplateArgumentList& args) -> std::string;
 
+    // Preprocessor and Macro processing methods
+    void createMacroDefinitionNode(int64_t nodeId,
+                                   const std::string& macroName,
+                                   bool isFunctionLike,
+                                   const std::vector<std::string>& parameters,
+                                   const std::string& replacementText,
+                                   bool isBuiltin = false,
+                                   bool isConditional = false);
+    void createIncludeDirectiveNode(int64_t nodeId,
+                                    const std::string& includePath,
+                                    bool isSystemInclude,
+                                    bool isAngled,
+                                    const std::string& resolvedPath,
+                                    int64_t includeDepth);
+    void createConditionalDirectiveNode(int64_t nodeId,
+                                        const std::string& directiveType,
+                                        const std::string& conditionText,
+                                        bool isTrueBranch,
+                                        int64_t nestingLevel);
+    void createPragmaDirectiveNode(int64_t nodeId,
+                                   const std::string& pragmaName,
+                                   const std::string& pragmaText,
+                                   const std::string& pragmaKind);
+    void createMacroExpansionRelation(int64_t fromId,
+                                      int64_t macroId,
+                                      const std::string& expansionContext,
+                                      const std::string& expansionArguments);
+    void createIncludesRelation(int64_t fromId, int64_t includeId, int64_t includeOrder);
+    void createDefinesRelation(int64_t fromId, int64_t macroId, const std::string& definitionContext);
+
     // Core Visit methods for basic AST nodes
     void VisitDecl(const Decl* D);
     void VisitFunctionDecl(const FunctionDecl* D);

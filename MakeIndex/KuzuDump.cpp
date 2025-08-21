@@ -751,6 +751,59 @@ void KuzuDump::createSchema()
                            "instantiation_context STRING)",
                            "SPECIALIZES");
 
+        // Preprocessor and Macro Information tables
+        executeSchemaQuery("CREATE NODE TABLE MacroDefinition("
+                           "node_id INT64 PRIMARY KEY, "
+                           "macro_name STRING, "
+                           "is_function_like BOOLEAN, "
+                           "parameter_count INT64, "
+                           "parameter_names STRING, "
+                           "replacement_text STRING, "
+                           "is_builtin BOOLEAN, "
+                           "is_conditional BOOLEAN)",
+                           "MacroDefinition");
+
+        executeSchemaQuery("CREATE NODE TABLE IncludeDirective("
+                           "node_id INT64 PRIMARY KEY, "
+                           "include_path STRING, "
+                           "is_system_include BOOLEAN, "
+                           "is_angled BOOLEAN, "
+                           "resolved_path STRING, "
+                           "include_depth INT64)",
+                           "IncludeDirective");
+
+        executeSchemaQuery("CREATE NODE TABLE ConditionalDirective("
+                           "node_id INT64 PRIMARY KEY, "
+                           "directive_type STRING, "
+                           "condition_text STRING, "
+                           "is_true_branch BOOLEAN, "
+                           "nesting_level INT64)",
+                           "ConditionalDirective");
+
+        executeSchemaQuery("CREATE NODE TABLE PragmaDirective("
+                           "node_id INT64 PRIMARY KEY, "
+                           "pragma_name STRING, "
+                           "pragma_text STRING, "
+                           "pragma_kind STRING)",
+                           "PragmaDirective");
+
+        // Preprocessor relationships
+        executeSchemaQuery("CREATE REL TABLE MACRO_EXPANSION("
+                           "FROM ASTNode TO MacroDefinition, "
+                           "expansion_context STRING, "
+                           "expansion_arguments STRING)",
+                           "MACRO_EXPANSION");
+
+        executeSchemaQuery("CREATE REL TABLE INCLUDES("
+                           "FROM ASTNode TO IncludeDirective, "
+                           "include_order INT64)",
+                           "INCLUDES");
+
+        executeSchemaQuery("CREATE REL TABLE DEFINES("
+                           "FROM ASTNode TO MacroDefinition, "
+                           "definition_context STRING)",
+                           "DEFINES");
+
         llvm::outs() << "Database schema created successfully\n";
     }
     catch (const std::exception& e)
@@ -2209,6 +2262,236 @@ auto KuzuDump::extractTemplateArguments(const clang::TemplateArgumentList& args)
 
     result += "]";
     return result;
+}
+
+// Preprocessor and Macro processing methods implementation
+void KuzuDump::createMacroDefinitionNode(int64_t nodeId,
+                                         const std::string& macroName,
+                                         bool isFunctionLike,
+                                         const std::vector<std::string>& parameters,
+                                         const std::string& replacementText,
+                                         bool isBuiltin,
+                                         bool isConditional)
+{
+    if (!connection || nodeId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        // Escape single quotes in strings for database storage
+        std::string escapedName = macroName;
+        std::string escapedReplacement = replacementText;
+        std::string parametersStr;
+
+        // Join parameters into a single string
+        for (size_t i = 0; i < parameters.size(); ++i)
+        {
+            if (i > 0)
+                parametersStr += ", ";
+            parametersStr += parameters[i];
+        }
+
+        // Escape strings
+        std::ranges::replace(escapedName, '\'', '_');
+        std::ranges::replace(escapedReplacement, '\'', '_');
+        std::ranges::replace(parametersStr, '\'', '_');
+
+        std::string query = "CREATE (m:MacroDefinition {" + std::string("node_id: ") + std::to_string(nodeId) + ", " +
+                            "macro_name: '" + escapedName + "', " +
+                            "is_function_like: " + (isFunctionLike ? "true" : "false") + ", " +
+                            "parameter_count: " + std::to_string(parameters.size()) + ", " + "parameter_names: '" +
+                            parametersStr + "', " + "replacement_text: '" + escapedReplacement + "', " +
+                            "is_builtin: " + (isBuiltin ? "true" : "false") + ", " +
+                            "is_conditional: " + (isConditional ? "true" : "false") + "})";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating MacroDefinition node: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::createIncludeDirectiveNode(int64_t nodeId,
+                                          const std::string& includePath,
+                                          bool isSystemInclude,
+                                          bool isAngled,
+                                          const std::string& resolvedPath,
+                                          int64_t includeDepth)
+{
+    if (!connection || nodeId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        // Escape single quotes in strings for database storage
+        std::string escapedIncludePath = includePath;
+        std::string escapedResolvedPath = resolvedPath;
+
+        std::ranges::replace(escapedIncludePath, '\'', '_');
+        std::ranges::replace(escapedResolvedPath, '\'', '_');
+
+        std::string query = "CREATE (i:IncludeDirective {" + std::string("node_id: ") + std::to_string(nodeId) + ", " +
+                            "include_path: '" + escapedIncludePath + "', " +
+                            "is_system_include: " + (isSystemInclude ? "true" : "false") + ", " +
+                            "is_angled: " + (isAngled ? "true" : "false") + ", " + "resolved_path: '" +
+                            escapedResolvedPath + "', " + "include_depth: " + std::to_string(includeDepth) + "})";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating IncludeDirective node: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::createConditionalDirectiveNode(int64_t nodeId,
+                                              const std::string& directiveType,
+                                              const std::string& conditionText,
+                                              bool isTrueBranch,
+                                              int64_t nestingLevel)
+{
+    if (!connection || nodeId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        // Escape single quotes in strings for database storage
+        std::string escapedDirectiveType = directiveType;
+        std::string escapedConditionText = conditionText;
+
+        std::ranges::replace(escapedDirectiveType, '\'', '_');
+        std::ranges::replace(escapedConditionText, '\'', '_');
+
+        std::string query = "CREATE (c:ConditionalDirective {" + std::string("node_id: ") + std::to_string(nodeId) +
+                            ", " + "directive_type: '" + escapedDirectiveType + "', " + "condition_text: '" +
+                            escapedConditionText + "', " + "is_true_branch: " + (isTrueBranch ? "true" : "false") +
+                            ", " + "nesting_level: " + std::to_string(nestingLevel) + "})";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating ConditionalDirective node: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::createPragmaDirectiveNode(int64_t nodeId,
+                                         const std::string& pragmaName,
+                                         const std::string& pragmaText,
+                                         const std::string& pragmaKind)
+{
+    if (!connection || nodeId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        // Escape single quotes in strings for database storage
+        std::string escapedPragmaName = pragmaName;
+        std::string escapedPragmaText = pragmaText;
+        std::string escapedPragmaKind = pragmaKind;
+
+        std::ranges::replace(escapedPragmaName, '\'', '_');
+        std::ranges::replace(escapedPragmaText, '\'', '_');
+        std::ranges::replace(escapedPragmaKind, '\'', '_');
+
+        std::string query = "CREATE (p:PragmaDirective {" + std::string("node_id: ") + std::to_string(nodeId) + ", " +
+                            "pragma_name: '" + escapedPragmaName + "', " + "pragma_text: '" + escapedPragmaText +
+                            "', " + "pragma_kind: '" + escapedPragmaKind + "'})";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating PragmaDirective node: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::createMacroExpansionRelation(int64_t fromId,
+                                            int64_t macroId,
+                                            const std::string& expansionContext,
+                                            const std::string& expansionArguments)
+{
+    if (!connection || fromId == -1 || macroId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        // Escape single quotes in strings for database storage
+        std::string escapedContext = expansionContext;
+        std::string escapedArguments = expansionArguments;
+
+        std::ranges::replace(escapedContext, '\'', '_');
+        std::ranges::replace(escapedArguments, '\'', '_');
+
+        std::string query = "MATCH (from:ASTNode {node_id: " + std::to_string(fromId) + "}), " +
+                            "(macro:MacroDefinition {node_id: " + std::to_string(macroId) + "}) " +
+                            "CREATE (from)-[:MACRO_EXPANSION {expansion_context: '" + escapedContext +
+                            "', expansion_arguments: '" + escapedArguments + "'}]->(macro)";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating MACRO_EXPANSION relationship: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::createIncludesRelation(int64_t fromId, int64_t includeId, int64_t includeOrder)
+{
+    if (!connection || fromId == -1 || includeId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        std::string query = "MATCH (from:ASTNode {node_id: " + std::to_string(fromId) + "}), " +
+                            "(include:IncludeDirective {node_id: " + std::to_string(includeId) + "}) " +
+                            "CREATE (from)-[:INCLUDES {include_order: " + std::to_string(includeOrder) +
+                            "}]->(include)";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating INCLUDES relationship: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::createDefinesRelation(int64_t fromId, int64_t macroId, const std::string& definitionContext)
+{
+    if (!connection || fromId == -1 || macroId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        // Escape single quotes in strings for database storage
+        std::string escapedContext = definitionContext;
+        std::ranges::replace(escapedContext, '\'', '_');
+
+        std::string query = "MATCH (from:ASTNode {node_id: " + std::to_string(fromId) + "}), " +
+                            "(macro:MacroDefinition {node_id: " + std::to_string(macroId) + "}) " +
+                            "CREATE (from)-[:DEFINES {definition_context: '" + escapedContext + "'}]->(macro)";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating DEFINES relationship: " << e.what() << "\n";
+    }
 }
 
 void KuzuDump::createInheritanceRelation(int64_t derivedId,
