@@ -100,6 +100,23 @@ private:
     auto extractNamespaceContext(const clang::Decl* decl) -> std::string;
     auto isDefinition(const clang::Decl* decl) -> bool;
 
+    // Enhanced statement and expression processing methods
+    void createStatementNode(int64_t nodeId, const clang::Stmt* stmt);
+    void createExpressionNode(int64_t nodeId, const clang::Expr* expr);
+    auto extractStatementKind(const clang::Stmt* stmt) -> std::string;
+    auto extractControlFlowType(const clang::Stmt* stmt) -> std::string;
+    auto extractConditionText(const clang::Stmt* stmt) -> std::string;
+    auto hasStatementSideEffects(const clang::Stmt* stmt) -> bool;
+    auto isCompoundStatement(const clang::Stmt* stmt) -> bool;
+    auto isStatementConstexpr(const clang::Stmt* stmt) -> bool;
+    auto extractExpressionKind(const clang::Expr* expr) -> std::string;
+    auto extractValueCategory(const clang::Expr* expr) -> std::string;
+    auto extractLiteralValue(const clang::Expr* expr) -> std::string;
+    auto extractOperatorKind(const clang::Expr* expr) -> std::string;
+    auto isExpressionConstexpr(const clang::Expr* expr) -> bool;
+    auto extractEvaluationResult(const clang::Expr* expr) -> std::string;
+    auto extractImplicitCastKind(const clang::Expr* expr) -> std::string;
+
     // Type processing methods (Phase 2)
     auto createTypeNodeAndRelation(int64_t declNodeId, clang::QualType qualType) -> int64_t;
     auto createTypeNode(clang::QualType qualType) -> int64_t;

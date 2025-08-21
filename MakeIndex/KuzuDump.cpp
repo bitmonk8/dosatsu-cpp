@@ -515,20 +515,27 @@ void KuzuDump::createSchema()
                            "is_builtin BOOLEAN)",
                            "Type");
 
-        // Create Statement table
+        // Create enhanced Statement table
         executeSchemaQuery("CREATE NODE TABLE Statement("
                            "node_id INT64 PRIMARY KEY, "
                            "statement_kind STRING, "
-                           "has_side_effects BOOLEAN)",
+                           "has_side_effects BOOLEAN, "
+                           "is_compound BOOLEAN, "
+                           "control_flow_type STRING, "
+                           "condition_text STRING, "
+                           "is_constexpr BOOLEAN)",
                            "Statement");
 
-        // Create Expression table
+        // Create enhanced Expression table
         executeSchemaQuery("CREATE NODE TABLE Expression("
                            "node_id INT64 PRIMARY KEY, "
                            "expression_kind STRING, "
                            "value_category STRING, "
                            "literal_value STRING, "
-                           "operator_kind STRING)",
+                           "operator_kind STRING, "
+                           "is_constexpr BOOLEAN, "
+                           "evaluation_result STRING, "
+                           "implicit_cast_kind STRING)",
                            "Expression");
 
         // Create Attribute table
@@ -1211,7 +1218,7 @@ auto KuzuDump::extractTypeCategory(clang::QualType qualType) -> std::string
     {
         return "template_param";
     }
-    
+
     return "user_defined";
 }
 
@@ -1262,6 +1269,341 @@ auto KuzuDump::extractTypeSourceLocation(clang::QualType /*qualType*/) -> std::s
     // For now, types don't have specific source locations
     // This could be enhanced in the future to show where types are defined
     return "<type_location>";
+}
+
+// Enhanced statement and expression processing methods implementation
+void KuzuDump::createStatementNode(int64_t nodeId, const clang::Stmt* stmt)
+{
+    if (!connection || (stmt == nullptr))
+    {
+        return;
+    }
+
+    try
+    {
+        std::string statementKind = extractStatementKind(stmt);
+        std::string controlFlowType = extractControlFlowType(stmt);
+        std::string conditionText = extractConditionText(stmt);
+        bool hasSideEffects = hasStatementSideEffects(stmt);
+        bool isCompound = isCompoundStatement(stmt);
+        bool isConstexpr = isStatementConstexpr(stmt);
+
+        // Escape single quotes in text fields
+        std::ranges::replace(conditionText, '\'', '_');
+
+        std::string query = "CREATE (s:Statement {node_id: " + std::to_string(nodeId) + ", statement_kind: '" +
+                            statementKind + "', has_side_effects: " + (hasSideEffects ? "true" : "false") +
+                            ", is_compound: " + (isCompound ? "true" : "false") + ", control_flow_type: '" +
+                            controlFlowType + "', condition_text: '" + conditionText +
+                            "', is_constexpr: " + (isConstexpr ? "true" : "false") + "})";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating Statement node: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::createExpressionNode(int64_t nodeId, const clang::Expr* expr)
+{
+    if (!connection || (expr == nullptr))
+    {
+        return;
+    }
+
+    try
+    {
+        std::string expressionKind = extractExpressionKind(expr);
+        std::string valueCategory = extractValueCategory(expr);
+        std::string literalValue = extractLiteralValue(expr);
+        std::string operatorKind = extractOperatorKind(expr);
+        std::string evaluationResult = extractEvaluationResult(expr);
+        std::string implicitCastKind = extractImplicitCastKind(expr);
+        bool isConstexpr = isExpressionConstexpr(expr);
+
+        // Escape single quotes in text fields
+        std::ranges::replace(literalValue, '\'', '_');
+        std::ranges::replace(evaluationResult, '\'', '_');
+
+        std::string query = "CREATE (e:Expression {node_id: " + std::to_string(nodeId) + ", expression_kind: '" +
+                            expressionKind + "', value_category: '" + valueCategory + "', literal_value: '" +
+                            literalValue + "', operator_kind: '" + operatorKind +
+                            "', is_constexpr: " + (isConstexpr ? "true" : "false") + ", evaluation_result: '" +
+                            evaluationResult + "', implicit_cast_kind: '" + implicitCastKind + "'})";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating Expression node: " << e.what() << "\n";
+    }
+}
+
+auto KuzuDump::extractStatementKind(const clang::Stmt* stmt) -> std::string
+{
+    if (stmt == nullptr)
+    {
+        return "unknown";
+    }
+    return stmt->getStmtClassName();
+}
+
+auto KuzuDump::extractControlFlowType(const clang::Stmt* stmt) -> std::string
+{
+    if (stmt == nullptr)
+    {
+        return "none";
+    }
+
+    if (isa<IfStmt>(stmt))
+        return "if";
+    if (isa<WhileStmt>(stmt))
+        return "while";
+    if (isa<ForStmt>(stmt))
+        return "for";
+    if (isa<DoStmt>(stmt))
+        return "do";
+    if (isa<SwitchStmt>(stmt))
+        return "switch";
+    if (isa<CaseStmt>(stmt))
+        return "case";
+    if (isa<DefaultStmt>(stmt))
+        return "default";
+    if (isa<BreakStmt>(stmt))
+        return "break";
+    if (isa<ContinueStmt>(stmt))
+        return "continue";
+    if (isa<ReturnStmt>(stmt))
+        return "return";
+    if (isa<GotoStmt>(stmt))
+        return "goto";
+    if (isa<LabelStmt>(stmt))
+        return "label";
+
+    return "none";
+}
+
+auto KuzuDump::extractConditionText(const clang::Stmt* stmt) -> std::string
+{
+    if (stmt == nullptr)
+    {
+        return "";
+    }
+
+    if (const auto* ifStmt = dyn_cast<IfStmt>(stmt))
+    {
+        if ([[maybe_unused]] const Expr* cond = ifStmt->getCond())
+        {
+            // For now, return a placeholder. In a full implementation, we'd need
+            // a way to get the source text of the condition expression
+            return "if_condition";
+        }
+    }
+    else if (const auto* whileStmt = dyn_cast<WhileStmt>(stmt))
+    {
+        if ([[maybe_unused]] const Expr* cond = whileStmt->getCond())
+        {
+            return "while_condition";
+        }
+    }
+    else if (const auto* forStmt = dyn_cast<ForStmt>(stmt))
+    {
+        if ([[maybe_unused]] const Expr* cond = forStmt->getCond())
+        {
+            return "for_condition";
+        }
+    }
+
+    return "";
+}
+
+auto KuzuDump::hasStatementSideEffects(const clang::Stmt* stmt) -> bool
+{
+    if (stmt == nullptr)
+    {
+        return false;
+    }
+
+    // Most statements that can have side effects
+    if (isa<CallExpr>(stmt) || isa<CXXOperatorCallExpr>(stmt))
+        return true;
+    if (isa<BinaryOperator>(stmt))
+    {
+        const auto* binOp = cast<BinaryOperator>(stmt);
+        return binOp->isAssignmentOp() || binOp->isCompoundAssignmentOp();
+    }
+    if (isa<UnaryOperator>(stmt))
+    {
+        const auto* unaryOp = cast<UnaryOperator>(stmt);
+        return unaryOp->isIncrementDecrementOp();
+    }
+    if (isa<CXXNewExpr>(stmt) || isa<CXXDeleteExpr>(stmt))
+        return true;
+    if (isa<CXXThrowExpr>(stmt))
+        return true;
+
+    return false;
+}
+
+auto KuzuDump::isCompoundStatement(const clang::Stmt* stmt) -> bool
+{
+    return stmt != nullptr && isa<CompoundStmt>(stmt);
+}
+
+auto KuzuDump::isStatementConstexpr(const clang::Stmt* stmt) -> bool
+{
+    if (stmt == nullptr)
+    {
+        return false;
+    }
+
+    // Check if this is a constexpr if statement (C++17 feature)
+    if (const auto* ifStmt = dyn_cast<IfStmt>(stmt))
+    {
+        return ifStmt->isConstexpr();
+    }
+
+    // For expressions, check if they're constant expressions
+    if (const auto* expr = dyn_cast<Expr>(stmt))
+    {
+        return isExpressionConstexpr(expr);
+    }
+
+    return false;
+}
+
+auto KuzuDump::extractExpressionKind(const clang::Expr* expr) -> std::string
+{
+    if (expr == nullptr)
+    {
+        return "unknown";
+    }
+    return expr->getStmtClassName();
+}
+
+auto KuzuDump::extractValueCategory(const clang::Expr* expr) -> std::string
+{
+    if (expr == nullptr)
+    {
+        return "unknown";
+    }
+
+    switch (expr->getValueKind())
+    {
+    case VK_PRValue:
+        return "prvalue";
+    case VK_LValue:
+        return "lvalue";
+    case VK_XValue:
+        return "xvalue";
+    default:
+        return "unknown";
+    }
+}
+
+auto KuzuDump::extractLiteralValue(const clang::Expr* expr) -> std::string
+{
+    if (expr == nullptr)
+    {
+        return "";
+    }
+
+    if (const auto* intLit = dyn_cast<IntegerLiteral>(expr))
+    {
+        return std::to_string(intLit->getValue().getSExtValue());
+    }
+    if (const auto* floatLit = dyn_cast<FloatingLiteral>(expr))
+    {
+        return std::to_string(floatLit->getValueAsApproximateDouble());
+    }
+    if (const auto* stringLit = dyn_cast<StringLiteral>(expr))
+    {
+        return stringLit->getString().str();
+    }
+    if (const auto* charLit = dyn_cast<CharacterLiteral>(expr))
+    {
+        return std::to_string(charLit->getValue());
+    }
+    if (const auto* boolLit = dyn_cast<CXXBoolLiteralExpr>(expr))
+    {
+        return boolLit->getValue() ? "true" : "false";
+    }
+    if (isa<CXXNullPtrLiteralExpr>(expr))
+    {
+        return "nullptr";
+    }
+
+    return "";
+}
+
+auto KuzuDump::extractOperatorKind(const clang::Expr* expr) -> std::string
+{
+    if (expr == nullptr)
+    {
+        return "";
+    }
+
+    if (const auto* binOp = dyn_cast<BinaryOperator>(expr))
+    {
+        return binOp->getOpcodeStr().str();
+    }
+    if (const auto* unaryOp = dyn_cast<UnaryOperator>(expr))
+    {
+        return UnaryOperator::getOpcodeStr(unaryOp->getOpcode()).str();
+    }
+    if (const auto* cxxOp = dyn_cast<CXXOperatorCallExpr>(expr))
+    {
+        return getOperatorSpelling(cxxOp->getOperator());
+    }
+
+    return "";
+}
+
+auto KuzuDump::isExpressionConstexpr(const clang::Expr* expr) -> bool
+{
+    if (expr == nullptr)
+    {
+        return false;
+    }
+
+    // Check if the expression is a constant expression
+    // Simplified approach - check if it's a literal or has constant value
+    return isa<IntegerLiteral>(expr) || isa<FloatingLiteral>(expr) || isa<StringLiteral>(expr) ||
+           isa<CharacterLiteral>(expr) || isa<CXXBoolLiteralExpr>(expr) || isa<CXXNullPtrLiteralExpr>(expr);
+}
+
+auto KuzuDump::extractEvaluationResult(const clang::Expr* expr) -> std::string
+{
+    if (expr == nullptr)
+    {
+        return "";
+    }
+
+    // For constant expressions, try to get their evaluated value
+    // Simplified approach - just check if it's a literal
+    if (isa<IntegerLiteral>(expr) || isa<FloatingLiteral>(expr) || isa<StringLiteral>(expr) ||
+        isa<CharacterLiteral>(expr) || isa<CXXBoolLiteralExpr>(expr) || isa<CXXNullPtrLiteralExpr>(expr))
+    {
+        return extractLiteralValue(expr);
+    }
+
+    return "";
+}
+
+auto KuzuDump::extractImplicitCastKind(const clang::Expr* expr) -> std::string
+{
+    if (expr == nullptr)
+    {
+        return "";
+    }
+
+    if (const auto* castExpr = dyn_cast<ImplicitCastExpr>(expr))
+    {
+        return castExpr->getCastKindName();
+    }
+
+    return "";
 }
 
 // Hierarchy processing methods (Phase 2)
@@ -1534,9 +1876,21 @@ void KuzuDump::VisitCompoundStmt(const CompoundStmt* S)
         return;
 
     // Create database node for this compound statement
-    [[maybe_unused]] int64_t nodeId = createASTNode(S);
+    int64_t nodeId = createASTNode(S);
+
+    // Create enhanced Statement node with detailed information
+    createStatementNode(nodeId, S);
+
+    // Create hierarchy relationship if this node has a parent
+    createHierarchyRelationship(nodeId);
+
+    // Push this node as parent for potential children
+    pushParent(nodeId);
 
     // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this node as parent after traversal
+    popParent();
 }
 
 void KuzuDump::VisitDeclStmt(const DeclStmt* S)
@@ -1545,9 +1899,37 @@ void KuzuDump::VisitDeclStmt(const DeclStmt* S)
         return;
 
     // Create database node for this declaration statement
-    [[maybe_unused]] int64_t nodeId = createASTNode(S);
+    int64_t nodeId = createASTNode(S);
+
+    // Create enhanced Statement node with detailed information
+    createStatementNode(nodeId, S);
+
+    // Create hierarchy relationship if this node has a parent
+    createHierarchyRelationship(nodeId);
+
+    // Create scope relationships for this declaration statement
+    createScopeRelationships(nodeId);
+
+    // Push this node as parent for potential children
+    pushParent(nodeId);
+
+    // Process each declaration in this statement
+    for (const auto* decl : S->decls())
+    {
+        if (const auto* varDecl = dyn_cast<VarDecl>(decl))
+        {
+            // Create the variable declaration node
+            int64_t varNodeId = createASTNode(varDecl);
+
+            // Create scope relationships for this local variable
+            createScopeRelationships(varNodeId);
+        }
+    }
 
     // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this node as parent after traversal
+    popParent();
 }
 
 void KuzuDump::VisitReturnStmt(const ReturnStmt* S)
@@ -1556,9 +1938,21 @@ void KuzuDump::VisitReturnStmt(const ReturnStmt* S)
         return;
 
     // Create database node for this return statement
-    [[maybe_unused]] int64_t nodeId = createASTNode(S);
+    int64_t nodeId = createASTNode(S);
+
+    // Create enhanced Statement node with detailed information
+    createStatementNode(nodeId, S);
+
+    // Create hierarchy relationship if this node has a parent
+    createHierarchyRelationship(nodeId);
+
+    // Push this node as parent for potential children
+    pushParent(nodeId);
 
     // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this node as parent after traversal
+    popParent();
 }
 
 void KuzuDump::VisitIfStmt(const IfStmt* S)
@@ -1567,9 +1961,21 @@ void KuzuDump::VisitIfStmt(const IfStmt* S)
         return;
 
     // Create database node for this if statement
-    [[maybe_unused]] int64_t nodeId = createASTNode(S);
+    int64_t nodeId = createASTNode(S);
+
+    // Create enhanced Statement node with detailed information
+    createStatementNode(nodeId, S);
+
+    // Create hierarchy relationship if this node has a parent
+    createHierarchyRelationship(nodeId);
+
+    // Push this node as parent for potential children
+    pushParent(nodeId);
 
     // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this node as parent after traversal
+    popParent();
 }
 
 void KuzuDump::VisitWhileStmt(const WhileStmt* S)
@@ -1578,9 +1984,21 @@ void KuzuDump::VisitWhileStmt(const WhileStmt* S)
         return;
 
     // Create database node for this while statement
-    [[maybe_unused]] int64_t nodeId = createASTNode(S);
+    int64_t nodeId = createASTNode(S);
+
+    // Create enhanced Statement node with detailed information
+    createStatementNode(nodeId, S);
+
+    // Create hierarchy relationship if this node has a parent
+    createHierarchyRelationship(nodeId);
+
+    // Push this node as parent for potential children
+    pushParent(nodeId);
 
     // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this node as parent after traversal
+    popParent();
 }
 
 void KuzuDump::VisitForStmt(const ForStmt* S)
@@ -1589,9 +2007,21 @@ void KuzuDump::VisitForStmt(const ForStmt* S)
         return;
 
     // Create database node for this for statement
-    [[maybe_unused]] int64_t nodeId = createASTNode(S);
+    int64_t nodeId = createASTNode(S);
+
+    // Create enhanced Statement node with detailed information
+    createStatementNode(nodeId, S);
+
+    // Create hierarchy relationship if this node has a parent
+    createHierarchyRelationship(nodeId);
+
+    // Push this node as parent for potential children
+    pushParent(nodeId);
 
     // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this node as parent after traversal
+    popParent();
 }
 
 void KuzuDump::VisitExpr(const Expr* E)
@@ -1601,6 +2031,9 @@ void KuzuDump::VisitExpr(const Expr* E)
 
     // Create database node for this expression
     int64_t nodeId = createASTNode(E);
+
+    // Create enhanced Expression node with detailed information
+    createExpressionNode(nodeId, E);
 
     // Create hierarchy relationship if this node has a parent
     createHierarchyRelationship(nodeId);
@@ -1651,7 +2084,13 @@ void KuzuDump::VisitIntegerLiteral(const IntegerLiteral* E)
         return;
 
     // Create database node for this integer literal
-    [[maybe_unused]] int64_t nodeId = createASTNode(E);
+    int64_t nodeId = createASTNode(E);
+
+    // Create enhanced Expression node with detailed information
+    createExpressionNode(nodeId, E);
+
+    // Create hierarchy relationship if this node has a parent
+    createHierarchyRelationship(nodeId);
 
     // The ASTNodeTraverser will handle automatic traversal
 }
@@ -1662,9 +2101,21 @@ void KuzuDump::VisitBinaryOperator(const BinaryOperator* E)
         return;
 
     // Create database node for this binary operator
-    [[maybe_unused]] int64_t nodeId = createASTNode(E);
+    int64_t nodeId = createASTNode(E);
+
+    // Create enhanced Expression node with detailed information
+    createExpressionNode(nodeId, E);
+
+    // Create hierarchy relationship if this node has a parent
+    createHierarchyRelationship(nodeId);
+
+    // Push this node as parent for potential children
+    pushParent(nodeId);
 
     // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this node as parent after traversal
+    popParent();
 }
 
 void KuzuDump::VisitUnaryOperator(const UnaryOperator* E)
@@ -1673,9 +2124,21 @@ void KuzuDump::VisitUnaryOperator(const UnaryOperator* E)
         return;
 
     // Create database node for this unary operator
-    [[maybe_unused]] int64_t nodeId = createASTNode(E);
+    int64_t nodeId = createASTNode(E);
+
+    // Create enhanced Expression node with detailed information
+    createExpressionNode(nodeId, E);
+
+    // Create hierarchy relationship if this node has a parent
+    createHierarchyRelationship(nodeId);
+
+    // Push this node as parent for potential children
+    pushParent(nodeId);
 
     // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this node as parent after traversal
+    popParent();
 }
 
 void KuzuDump::VisitCallExpr(const CallExpr* E)
@@ -1745,7 +2208,19 @@ void KuzuDump::VisitImplicitCastExpr(const ImplicitCastExpr* E)
         return;
 
     // Create database node for this implicit cast expression
-    [[maybe_unused]] int64_t nodeId = createASTNode(E);
+    int64_t nodeId = createASTNode(E);
+
+    // Create enhanced Expression node with detailed information
+    createExpressionNode(nodeId, E);
+
+    // Create hierarchy relationship if this node has a parent
+    createHierarchyRelationship(nodeId);
+
+    // Push this node as parent for potential children
+    pushParent(nodeId);
 
     // The ASTNodeTraverser will handle automatic traversal
+
+    // Pop this node as parent after traversal
+    popParent();
 }

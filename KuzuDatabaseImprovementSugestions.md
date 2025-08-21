@@ -27,51 +27,10 @@ The current schema includes:
 
 ## Critical Missing Information
 
-### 1. Function Bodies and Statement Detail **[HIGH PRIORITY]**
+**IMPLEMENTED**: ✅ Function Bodies and Statement Detail enhancement has been completed and is now available in the current codebase. This included enhanced Statement and Expression table schemas with detailed information about control flow, operators, literals, and local variable declarations.
 
-**Current State**: Function bodies are traversed but statements lack detailed information
 
-**Missing Information**:
-- Control flow statements (if/while/for conditions and bodies)
-- Expression details (operators, operands, literal values)
-- Local variable declarations within function bodies
-- Exception handling constructs (try/catch/throw)
-- Return statement analysis
-- Lambda expressions and captures
-
-**Impact**: Cannot analyze:
-- Code complexity metrics
-- Data flow analysis
-- Dead code detection
-- Variable usage patterns
-
-**Suggested Schema Extensions**:
-```sql
--- Enhanced Statement table
-CREATE NODE TABLE Statement(
-    node_id INT64 PRIMARY KEY,
-    statement_kind STRING,
-    has_side_effects BOOLEAN,
-    is_compound BOOLEAN,
-    control_flow_type STRING,  -- "if", "while", "for", "switch", etc.
-    condition_text STRING,
-    is_constexpr BOOLEAN
-)
-
--- Enhanced Expression table  
-CREATE NODE TABLE Expression(
-    node_id INT64 PRIMARY KEY,
-    expression_kind STRING,
-    value_category STRING,     -- lvalue, rvalue, xvalue
-    literal_value STRING,
-    operator_kind STRING,
-    is_constexpr BOOLEAN,
-    evaluation_result STRING,  -- for constant expressions
-    implicit_cast_kind STRING
-)
-```
-
-### 2. Inheritance and Class Hierarchy **[HIGH PRIORITY]**
+### 1. Inheritance and Class Hierarchy **[HIGH PRIORITY]**
 
 **Current State**: Base classes are mentioned in text dump but not captured in database relationships
 
@@ -104,7 +63,7 @@ CREATE REL TABLE OVERRIDES(
 )
 ```
 
-### 3. Template System Enhancement **[MEDIUM PRIORITY]**
+### 2. Template System Enhancement **[MEDIUM PRIORITY]**
 
 **Current State**: Basic template declarations are captured but specialization details are limited
 
@@ -135,7 +94,7 @@ CREATE REL TABLE SPECIALIZES(
 )
 ```
 
-### 4. Preprocessor and Macro Information **[MEDIUM PRIORITY]**
+### 3. Preprocessor and Macro Information **[MEDIUM PRIORITY]**
 
 **Current State**: No preprocessor information is captured
 
@@ -152,7 +111,7 @@ CREATE REL TABLE SPECIALIZES(
 - Include optimization opportunities
 - Platform-specific code paths
 
-### 5. Comments and Documentation **[LOW PRIORITY]**
+### 4. Comments and Documentation **[LOW PRIORITY]**
 
 **Current State**: Comments are not captured
 
@@ -167,7 +126,7 @@ CREATE REL TABLE SPECIALIZES(
 - Code quality reports
 - Developer annotations analysis
 
-### 6. Namespace and Using Declarations **[MEDIUM PRIORITY]**
+### 5. Namespace and Using Declarations **[MEDIUM PRIORITY]**
 
 **Current State**: Basic namespace context is captured but using declarations are incomplete
 
@@ -188,7 +147,7 @@ CREATE NODE TABLE UsingDeclaration(
 )
 ```
 
-### 7. Memory Management and Resource Analysis **[MEDIUM PRIORITY]**
+### 6. Memory Management and Resource Analysis **[MEDIUM PRIORITY]**
 
 **Missing Information**:
 - new/delete expression tracking
@@ -197,7 +156,7 @@ CREATE NODE TABLE UsingDeclaration(
 - Memory allocation/deallocation pairs
 - Resource acquisition and release patterns
 
-### 8. Constant Expression and Compile-Time Evaluation **[LOW PRIORITY]**
+### 7. Constant Expression and Compile-Time Evaluation **[LOW PRIORITY]**
 
 **Missing Information**:
 - constexpr function evaluation results
@@ -208,25 +167,7 @@ CREATE NODE TABLE UsingDeclaration(
 
 ## Specific Implementation Recommendations
 
-### 1. Add Statement-Level Analysis
-
-```cpp
-void KuzuDump::VisitCompoundStmt(const CompoundStmt* S) {
-    // Current basic implementation
-    int64_t nodeId = createASTNode(S);
-    
-    // Enhanced: Analyze contained statements
-    for (const auto* childStmt : S->children()) {
-        Visit(childStmt);
-        // Create detailed relationships
-    }
-    
-    // Add compound statement metadata
-    createStatementMetadata(nodeId, S->size(), S->hasLocalStorage());
-}
-```
-
-### 2. Implement Inheritance Tracking
+### 1. Implement Inheritance Tracking
 
 ```cpp
 void KuzuDump::VisitCXXRecordDecl(const CXXRecordDecl* D) {
