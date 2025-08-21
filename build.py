@@ -626,8 +626,12 @@ exit 0
             return 1
         
     def cmd_lint(self, args):
-        """Lint source code in two phases: auto-fix phase and report phase."""
-        self.logger.info("=== Code Linting (Two-Phase Mode) ===")
+        """Lint source code with performance optimizations: conditional Phase 2, per-file processing."""
+        mode_desc = "Fast Mode (Auto-fix only)" if args.fast else "Two-Phase Mode"
+        # Default to per-file unless explicitly requested batch mode
+        use_batch_processing = args.batch
+        processing_desc = "Batch processing" if use_batch_processing else "Per-file processing"
+        self.logger.info(f"=== Code Linting ({mode_desc}, {processing_desc}) ===")
         
         # Find clang-tidy tool
         clang_tidy_tool = self.find_tool("clang-tidy")
@@ -685,115 +689,19 @@ exit 0
             self.logger.warning("No .clang-tidy configuration file found")
             self.logger.info("Using clang-tidy default configuration")
             
-        # Prepare base clang-tidy command
-        build_dir = compile_commands.parent
-        base_cmd = [str(clang_tidy_tool), f"-p={build_dir}"]
-        file_args = [str(f) for f in files_to_lint]
-        
         # Create lint output directories
         lint_log_dir = self.artifacts_dir / "lint"
         self.ensure_directory(lint_log_dir)
         
-        # ===== PHASE 1: Auto-fix phase =====
-        self.logger.info("\n--- Phase 1: Automatic fixes ---")
-        self.logger.info("Running clang-tidy with automatic fixes...")
+        # Prepare base clang-tidy command
+        build_dir = compile_commands.parent
+        base_cmd = [str(clang_tidy_tool), f"-p={build_dir}"]
         
-        phase1_cmd = base_cmd + ["--fix", "--fix-errors"] + file_args
-        phase1_result = self.run_command(phase1_cmd, capture_output=True)
-        
-        # Save Phase 1 output
-        phase1_output_file = lint_log_dir / "clang-tidy-phase1-autofix.txt"
-        with open(phase1_output_file, 'w', encoding='utf-8') as f:
-            f.write(f"Clang-tidy Phase 1 (Auto-fix) results:\n")
-            f.write(f"Command: {' '.join(phase1_cmd)}\n")
-            f.write(f"Files analyzed: {len(files_to_lint)}\n")
-            f.write(f"Return code: {phase1_result.returncode}\n\n")
-            if phase1_result.stdout:
-                f.write("stdout:\n")
-                f.write(phase1_result.stdout)
-            if phase1_result.stderr:
-                f.write("\nstderr:\n")
-                f.write(phase1_result.stderr)
-        
-        # Analyze Phase 1 output for summary
-        phase1_output_to_analyze = phase1_result.stdout if phase1_result.stdout else ""
-        phase1_stats = self._analyze_clang_tidy_output(phase1_output_to_analyze)
-        
-        if phase1_stats['total_issues'] > 0:
-            self.logger.info(f"Phase 1: Applied automatic fixes to {phase1_stats['total_issues']} issues")
+        # Choose processing method: per-file is default, batch only when explicitly requested
+        if use_batch_processing:
+            return self._lint_batch(args, base_cmd, files_to_lint, lint_log_dir)
         else:
-            self.logger.info("Phase 1: No issues found that could be automatically fixed")
-        
-        # ===== PHASE 2: Report phase =====
-        self.logger.info("\n--- Phase 2: Analysis and reporting ---")
-        self.logger.info("Running clang-tidy analysis for remaining issues...")
-        
-        phase2_cmd = base_cmd + file_args
-        phase2_result = self.run_command(phase2_cmd, capture_output=True)
-        
-        # Save Phase 2 output (this becomes the main raw output)
-        raw_output_file = lint_log_dir / "clang-tidy-raw.txt"
-        with open(raw_output_file, 'w', encoding='utf-8') as f:
-            f.write(f"Clang-tidy Phase 2 (Report) results:\n")
-            f.write(f"Command: {' '.join(phase2_cmd)}\n")
-            f.write(f"Files analyzed: {len(files_to_lint)}\n")
-            f.write(f"Return code: {phase2_result.returncode}\n\n")
-            if phase2_result.stdout:
-                f.write("stdout:\n")
-                f.write(phase2_result.stdout)
-            if phase2_result.stderr:
-                f.write("\nstderr:\n")
-                f.write(phase2_result.stderr)
-        
-        # Analyze Phase 2 output and generate statistics
-        phase2_output_to_analyze = phase2_result.stdout if phase2_result.stdout else ""
-        phase2_stats = self._analyze_clang_tidy_output(phase2_output_to_analyze)
-        
-        # Generate comprehensive report based on Phase 2 results
-        if args.report_format == 'markdown':
-            report_file = lint_log_dir / "analysis-report.md"
-        else:
-            report_file = lint_log_dir / "analysis-report.txt"
-        self._generate_lint_report(phase2_stats, report_file, args.report_format)
-        
-        # Print summary to console
-        self.logger.info("\n=== Final Results ===")
-        if phase1_stats['total_issues'] > 0:
-            self.logger.info(f"Phase 1: {phase1_stats['total_issues']} issues automatically fixed")
-        if phase2_stats['total_issues'] > 0:
-            self.logger.info(f"Phase 2: {phase2_stats['total_issues']} issues require manual attention")
-            self._print_lint_summary(phase2_stats)
-        else:
-            self.logger.info("Phase 2: No remaining issues found!")
-        
-        # Show filtered output if there are remaining issues (unless summary-only mode)
-        if phase2_stats['total_issues'] > 0 and not args.summary_only:
-            filtered_output = self._filter_clang_tidy_output(phase2_output_to_analyze)
-            if filtered_output.strip():
-                self.logger.info("\nRemaining issues that require manual attention:")
-                print(filtered_output)
-        
-        # Log file locations
-        self.logger.info(f"\nPhase 1 output saved to: {phase1_output_file}")
-        self.logger.info(f"Phase 2 output saved to: {raw_output_file}")
-        self.logger.info(f"Analysis report saved to: {report_file}")
-        
-        # Determine return status based on Phase 2 results (remaining issues)
-        if phase2_result.returncode == 0 and phase2_stats['error_count'] == 0:
-            if phase1_stats['total_issues'] > 0:
-                self.logger.info("[OK] Linting completed successfully with automatic fixes applied!")
-            else:
-                self.logger.info("[OK] Linting completed successfully!")
-            return 0
-        else:
-            if phase2_stats['error_count'] > 0:
-                self.logger.error("Critical issues found that require manual attention")
-            elif phase2_stats['warning_count'] > 0:
-                self.logger.warning("Linting completed with warnings that require manual attention")
-            else:
-                self.logger.info("Linting completed")
-                
-            return 1 if phase2_stats['error_count'] > 0 else 0
+            return self._lint_per_file(args, base_cmd, files_to_lint, lint_log_dir)
             
     def _filter_clang_tidy_output(self, output: str) -> str:
         """Filter clang-tidy output to remove noise and organize results."""
@@ -1019,6 +927,321 @@ exit 0
                 for file_path, count in sorted_files[:3]:
                     rel_path = Path(file_path).name  # Just filename for brevity
                     self.logger.info(f"  - {rel_path}: {count} issues")
+    
+    def _lint_batch(self, args, base_cmd, files_to_lint, lint_log_dir):
+        """Execute lint in traditional batch mode with performance optimizations."""
+        file_args = [str(f) for f in files_to_lint]
+        
+        # ===== PHASE 1: Auto-fix phase =====
+        self.logger.info("\n--- Phase 1: Automatic fixes ---")
+        self.logger.info("Running clang-tidy with automatic fixes...")
+        
+        phase1_cmd = base_cmd + ["--fix", "--fix-errors"] + file_args
+        phase1_result = self.run_command(phase1_cmd, capture_output=True)
+        
+        # Save Phase 1 output
+        phase1_output_file = lint_log_dir / "clang-tidy-phase1-autofix.txt"
+        with open(phase1_output_file, 'w', encoding='utf-8') as f:
+            f.write(f"Clang-tidy Phase 1 (Auto-fix) results:\n")
+            f.write(f"Command: {' '.join(phase1_cmd)}\n")
+            f.write(f"Files analyzed: {len(files_to_lint)}\n")
+            f.write(f"Return code: {phase1_result.returncode}\n\n")
+            if phase1_result.stdout:
+                f.write("stdout:\n")
+                f.write(phase1_result.stdout)
+            if phase1_result.stderr:
+                f.write("\nstderr:\n")
+                f.write(phase1_result.stderr)
+        
+        # Analyze Phase 1 output for summary
+        phase1_output_to_analyze = phase1_result.stdout if phase1_result.stdout else ""
+        phase1_stats = self._analyze_clang_tidy_output(phase1_output_to_analyze)
+        
+        if phase1_stats['total_issues'] > 0:
+            self.logger.info(f"Phase 1: Applied automatic fixes to {phase1_stats['total_issues']} issues")
+        else:
+            self.logger.info("Phase 1: No issues found that could be automatically fixed")
+        
+        # Initialize phase2_stats in case we skip Phase 2
+        phase2_stats = {'total_issues': 0, 'error_count': 0, 'warning_count': 0, 'note_count': 0}
+        raw_output_file = lint_log_dir / "clang-tidy-raw.txt"
+        
+        # ===== PERFORMANCE OPTIMIZATION: Skip Phase 2 if fast mode or no issues in Phase 1 =====
+        skip_phase2 = args.fast or (phase1_stats['total_issues'] == 0 and phase1_result.returncode == 0)
+        
+        if skip_phase2:
+            if args.fast:
+                self.logger.info("\n--- Phase 2: Skipped (Fast mode) ---")
+            else:
+                self.logger.info("\n--- Phase 2: Skipped (No issues found in Phase 1) ---")
+            
+            # Create empty Phase 2 output file for consistency
+            with open(raw_output_file, 'w', encoding='utf-8') as f:
+                f.write("Clang-tidy Phase 2 (Report) results: SKIPPED\n")
+                f.write(f"Reason: {'Fast mode enabled' if args.fast else 'No issues found in Phase 1'}\n")
+                f.write(f"Files that would be analyzed: {len(files_to_lint)}\n\n")
+        else:
+            # ===== PHASE 2: Report phase (only files with issues) =====
+            files_with_issues = self._get_files_with_issues(phase1_stats, files_to_lint)
+            
+            if not files_with_issues:
+                # This shouldn't happen since we already check phase1_stats['total_issues'] == 0 above
+                # But just in case, skip Phase 2
+                self.logger.info("\n--- Phase 2: Skipped (No files with issues identified) ---")
+                with open(raw_output_file, 'w', encoding='utf-8') as f:
+                    f.write("Clang-tidy Phase 2 (Report) results: SKIPPED\n")
+                    f.write("Reason: No files with issues identified from Phase 1\n")
+                    f.write(f"Files that would be analyzed: {len(files_to_lint)}\n\n")
+                phase2_stats = {'total_issues': 0, 'error_count': 0, 'warning_count': 0, 'note_count': 0}
+            else:
+                self.logger.info("\n--- Phase 2: Analysis and reporting ---")
+                files_with_issues_count = len(files_with_issues)
+                files_skipped_count = len(files_to_lint) - files_with_issues_count
+                
+                if files_skipped_count > 0:
+                    self.logger.info(f"Processing {files_with_issues_count} files with issues (skipping {files_skipped_count} clean files)")
+                else:
+                    self.logger.info(f"Processing {files_with_issues_count} files with issues")
+                
+                # Only process files that had issues in Phase 1
+                phase2_file_args = [str(f) for f in files_with_issues]
+                phase2_cmd = base_cmd + phase2_file_args
+                phase2_result = self.run_command(phase2_cmd, capture_output=True)
+                
+                # Save Phase 2 output (this becomes the main raw output)
+                with open(raw_output_file, 'w', encoding='utf-8') as f:
+                    f.write(f"Clang-tidy Phase 2 (Report) results:\n")
+                    f.write(f"Command: {' '.join(phase2_cmd)}\n")
+                    f.write(f"Files analyzed: {files_with_issues_count} (of {len(files_to_lint)} total)\n")
+                    f.write(f"Files with issues from Phase 1: {[str(f) for f in files_with_issues]}\n")
+                    f.write(f"Files skipped (clean): {files_skipped_count}\n")
+                    f.write(f"Return code: {phase2_result.returncode}\n\n")
+                    if phase2_result.stdout:
+                        f.write("stdout:\n")
+                        f.write(phase2_result.stdout)
+                    if phase2_result.stderr:
+                        f.write("\nstderr:\n")
+                        f.write(phase2_result.stderr)
+                
+                # Analyze Phase 2 output and generate statistics
+                phase2_output_to_analyze = phase2_result.stdout if phase2_result.stdout else ""
+                phase2_stats = self._analyze_clang_tidy_output(phase2_output_to_analyze)
+        
+        return self._finalize_lint_results(args, phase1_stats, phase2_stats, phase1_output_file, raw_output_file, lint_log_dir, skip_phase2)
+    
+    def _lint_per_file(self, args, base_cmd, files_to_lint, lint_log_dir):
+        """Execute lint with per-file processing and progress reporting."""
+        total_files = len(files_to_lint)
+        self.logger.info(f"Processing {total_files} files individually...")
+        
+        # Aggregate statistics
+        aggregate_phase1_stats = {'total_issues': 0, 'error_count': 0, 'warning_count': 0, 'note_count': 0, 'by_severity': {}, 'by_check': {}, 'by_file': {}, 'issues': []}
+        aggregate_phase2_stats = {'total_issues': 0, 'error_count': 0, 'warning_count': 0, 'note_count': 0, 'by_severity': {}, 'by_check': {}, 'by_file': {}, 'issues': []}
+        
+        # Output files for aggregated results
+        phase1_output_file = lint_log_dir / "clang-tidy-phase1-autofix.txt"
+        raw_output_file = lint_log_dir / "clang-tidy-raw.txt"
+        
+        all_phase1_output = []
+        all_phase2_output = []
+        files_with_issues = []
+        
+        for i, file_path in enumerate(files_to_lint, 1):
+            rel_path = file_path.relative_to(self.project_root) if file_path.is_relative_to(self.project_root) else file_path
+            self.logger.info(f"[{i}/{total_files}] Processing {rel_path}")
+            
+            file_arg = [str(file_path)]
+            
+            # ===== PHASE 1 for this file =====
+            phase1_cmd = base_cmd + ["--fix", "--fix-errors"] + file_arg
+            phase1_result = self.run_command(phase1_cmd, capture_output=True)
+            
+            # Analyze Phase 1 output
+            phase1_output = phase1_result.stdout if phase1_result.stdout else ""
+            phase1_stats = self._analyze_clang_tidy_output(phase1_output)
+            
+            if phase1_stats['total_issues'] > 0:
+                self.logger.info(f"    +- Phase 1: Fixed {phase1_stats['total_issues']} issues")
+                files_with_issues.append(str(rel_path))
+            else:
+                self.logger.info(f"    +- Phase 1: No fixable issues")
+            
+            # Aggregate Phase 1 statistics
+            self._merge_stats(aggregate_phase1_stats, phase1_stats)
+            all_phase1_output.append(f"=== {file_path} ===\n{phase1_output}\n")
+            
+            # ===== PHASE 2 for this file (conditional) =====
+            skip_phase2_for_file = args.fast or (phase1_stats['total_issues'] == 0 and phase1_result.returncode == 0)
+            
+            if skip_phase2_for_file:
+                reason = "Fast mode" if args.fast else "No issues in Phase 1"
+                self.logger.info(f"    +- Phase 2: Skipped ({reason})")
+                all_phase2_output.append(f"=== {file_path} ===\nSKIPPED: {reason}\n")
+            else:
+                phase2_cmd = base_cmd + file_arg
+                phase2_result = self.run_command(phase2_cmd, capture_output=True)
+                
+                # Analyze Phase 2 output
+                phase2_output = phase2_result.stdout if phase2_result.stdout else ""
+                phase2_stats = self._analyze_clang_tidy_output(phase2_output)
+                
+                if phase2_stats['total_issues'] > 0:
+                    self.logger.info(f"    +- Phase 2: {phase2_stats['total_issues']} issues need manual attention")
+                else:
+                    self.logger.info(f"    +- Phase 2: No remaining issues")
+                
+                # Aggregate Phase 2 statistics
+                self._merge_stats(aggregate_phase2_stats, phase2_stats)
+                all_phase2_output.append(f"=== {file_path} ===\n{phase2_output}\n")
+        
+        # Write aggregated output files
+        with open(phase1_output_file, 'w', encoding='utf-8') as f:
+            f.write(f"Clang-tidy Phase 1 (Auto-fix) results - Per-file processing:\n")
+            f.write(f"Total files processed: {total_files}\n")
+            f.write(f"Files with fixable issues: {len(files_with_issues)}\n")
+            if files_with_issues:
+                f.write(f"Files that had fixes applied: {', '.join(files_with_issues)}\n")
+            f.write(f"Total issues fixed: {aggregate_phase1_stats['total_issues']}\n\n")
+            f.write("=== PER-FILE RESULTS ===\n")
+            f.write('\n'.join(all_phase1_output))
+        
+        with open(raw_output_file, 'w', encoding='utf-8') as f:
+            f.write(f"Clang-tidy Phase 2 (Report) results - Per-file processing:\n")
+            f.write(f"Total files processed: {total_files}\n")
+            f.write(f"Total remaining issues: {aggregate_phase2_stats['total_issues']}\n\n")
+            f.write("=== PER-FILE RESULTS ===\n")
+            f.write('\n'.join(all_phase2_output))
+        
+        # Determine if Phase 2 was skipped for all files
+        skip_phase2 = args.fast or aggregate_phase1_stats['total_issues'] == 0
+        
+        return self._finalize_lint_results(args, aggregate_phase1_stats, aggregate_phase2_stats, phase1_output_file, raw_output_file, lint_log_dir, skip_phase2)
+    
+    def _get_files_with_issues(self, stats, files_to_lint):
+        """Get list of files that had issues based on analysis statistics."""
+        if not stats or stats['total_issues'] == 0:
+            return []
+        
+        # Get files that had issues from the by_file statistics
+        files_with_issues = set(stats['by_file'].keys())
+        
+        # Convert to Path objects and filter to only include files we were actually linting
+        files_to_lint_str = {str(f) for f in files_to_lint}
+        result_files = []
+        
+        for file_path in files_with_issues:
+            # clang-tidy might report absolute paths, so we need to match them properly
+            file_path_obj = Path(file_path)
+            if str(file_path_obj) in files_to_lint_str:
+                result_files.append(file_path_obj)
+            else:
+                # Try to match by relative path
+                for lint_file in files_to_lint:
+                    if file_path_obj.name == lint_file.name and file_path_obj.suffix == lint_file.suffix:
+                        result_files.append(lint_file)
+                        break
+        
+        return result_files
+    
+    def _merge_stats(self, aggregate_stats, file_stats):
+        """Merge file-level statistics into aggregate statistics."""
+        aggregate_stats['total_issues'] += file_stats['total_issues']
+        aggregate_stats['error_count'] += file_stats['error_count']
+        aggregate_stats['warning_count'] += file_stats['warning_count']
+        aggregate_stats['note_count'] += file_stats['note_count']
+        
+        # Merge dictionaries
+        for key, value in file_stats['by_severity'].items():
+            aggregate_stats['by_severity'][key] = aggregate_stats['by_severity'].get(key, 0) + value
+        
+        for key, value in file_stats['by_check'].items():
+            aggregate_stats['by_check'][key] = aggregate_stats['by_check'].get(key, 0) + value
+        
+        for key, value in file_stats['by_file'].items():
+            aggregate_stats['by_file'][key] = aggregate_stats['by_file'].get(key, 0) + value
+        
+        # Extend issues list
+        aggregate_stats['issues'].extend(file_stats['issues'])
+    
+    def _finalize_lint_results(self, args, phase1_stats, phase2_stats, phase1_output_file, raw_output_file, lint_log_dir, skip_phase2):
+        """Finalize lint results and generate reports."""
+        # Generate comprehensive report based on Phase 2 results (or Phase 1 if Phase 2 was skipped)
+        report_stats = phase2_stats if not skip_phase2 else phase1_stats
+        
+        if args.report_format == 'markdown':
+            report_file = lint_log_dir / "analysis-report.md"
+        else:
+            report_file = lint_log_dir / "analysis-report.txt"
+        self._generate_lint_report(report_stats, report_file, args.report_format)
+        
+        # Print summary to console
+        self.logger.info("\n=== Final Results ===")
+        if phase1_stats['total_issues'] > 0:
+            self.logger.info(f"Phase 1: {phase1_stats['total_issues']} issues automatically fixed")
+        else:
+            self.logger.info("Phase 1: No issues found that could be automatically fixed")
+        
+        if skip_phase2:
+            if args.fast:
+                self.logger.info("Phase 2: Skipped (Fast mode)")
+            else:
+                self.logger.info("Phase 2: Skipped (No issues found)")
+        elif phase2_stats['total_issues'] > 0:
+            self.logger.info(f"Phase 2: {phase2_stats['total_issues']} issues require manual attention")
+            self._print_lint_summary(phase2_stats)
+        else:
+            self.logger.info("Phase 2: No remaining issues found!")
+        
+        # Show filtered output if there are remaining issues (unless summary-only mode)
+        if not skip_phase2 and phase2_stats['total_issues'] > 0 and not args.summary_only:
+            # Read the raw output file and filter it
+            with open(raw_output_file, 'r', encoding='utf-8') as f:
+                raw_content = f.read()
+            
+            # Extract just the clang-tidy output from the file
+            if "=== PER-FILE RESULTS ===" in raw_content:
+                # For per-file processing, extract output from each file section
+                sections = raw_content.split("=== PER-FILE RESULTS ===")[1].split("=== ")
+                filtered_sections = []
+                for section in sections[1:]:  # Skip first empty section
+                    if "SKIPPED:" not in section:
+                        file_output = section.split("\n", 1)[1] if "\n" in section else ""
+                        filtered_output = self._filter_clang_tidy_output(file_output)
+                        if filtered_output.strip():
+                            file_path = section.split("\n")[0].replace(" ===", "")
+                            filtered_sections.append(f"=== {file_path} ===\n{filtered_output}")
+                
+                if filtered_sections:
+                    self.logger.info("\nRemaining issues that require manual attention:")
+                    print('\n'.join(filtered_sections))
+            else:
+                # For batch processing, filter the stdout section
+                if "stdout:\n" in raw_content:
+                    stdout_section = raw_content.split("stdout:\n")[1]
+                    if "\nstderr:\n" in stdout_section:
+                        stdout_section = stdout_section.split("\nstderr:\n")[0]
+                    filtered_output = self._filter_clang_tidy_output(stdout_section)
+                    if filtered_output.strip():
+                        self.logger.info("\nRemaining issues that require manual attention:")
+                        print(filtered_output)
+        
+        # Log file locations
+        self.logger.info(f"\nPhase 1 output saved to: {phase1_output_file}")
+        self.logger.info(f"Phase 2 output saved to: {raw_output_file}")
+        self.logger.info(f"Analysis report saved to: {report_file}")
+        
+        # Determine return status based on results
+        final_stats = phase2_stats if not skip_phase2 else phase1_stats
+        
+        if final_stats['error_count'] == 0:
+            if phase1_stats['total_issues'] > 0:
+                self.logger.info("[OK] Linting completed successfully with automatic fixes applied!")
+            else:
+                self.logger.info("[OK] Linting completed successfully!")
+            return 0
+        else:
+            self.logger.error("Critical issues found that require manual attention")
+            return 1
     
     def cmd_compile_db(self, args):
         """Generate or manage compilation database."""
@@ -2295,7 +2518,9 @@ Examples:
   python build.py build --release          # Build release version
   python build.py test                     # Run all tests
   python build.py format --check-only      # Check formatting
-  python build.py lint                     # Run two-phase linter (auto-fix then report)
+  python build.py lint                     # Run two-phase linter with per-file progress (default)
+  python build.py lint --fast              # Run fast linter (auto-fix only, skip Phase 2)
+  python build.py lint --batch             # Run linter in batch mode (faster but less responsive)
   python build.py clean                    # Clean artifacts
   python build.py rebuild                  # Clean, build, and test
   python build.py git-status               # Show git repository status
@@ -2355,6 +2580,9 @@ Examples:
     lint_parser.add_argument('--target', help='Lint specific file')
     lint_parser.add_argument('--summary-only', action='store_true', help='Show only summary, skip detailed output')
     lint_parser.add_argument('--report-format', choices=['text', 'markdown'], default='markdown', help='Report format for generated files')
+    lint_parser.add_argument('--fast', action='store_true', help='Fast mode: skip Phase 2 analysis (auto-fix only)')
+    lint_parser.add_argument('--per-file', action='store_true', help='Process files individually with progress reporting (default)')
+    lint_parser.add_argument('--batch', action='store_true', help='Process all files in batch mode (faster but less responsive)')
     
     # Compilation Database command
     compile_db_parser = subparsers.add_parser('compile-db', help='Generate and manage compilation database')
