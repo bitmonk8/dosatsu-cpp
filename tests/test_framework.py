@@ -100,12 +100,31 @@ class TestFramework:
     def query_to_list(self, cypher_query: str) -> List[Dict[str, Any]]:
         """Execute a query and return results as a list of dictionaries"""
         result = self.query(cypher_query)
-        return [dict(row) for row in result]
+        results = []
+        try:
+            columns = result.get_column_names()
+            for row in result:
+                row_dict = {}
+                for i, value in enumerate(row):
+                    if i < len(columns):
+                        row_dict[columns[i]] = value
+                results.append(row_dict)
+        except Exception as e:
+            print(f"Error converting query results: {e}")
+        return results
     
     def query_count(self, cypher_query: str) -> int:
         """Execute a query and return the count of results"""
-        results = self.query_to_list(cypher_query)
-        return len(results)
+        try:
+            results = self.query_to_list(cypher_query)
+            # If this is a count query that returns a single value, extract it
+            if len(results) == 1 and len(results[0]) == 1:
+                count_value = list(results[0].values())[0]
+                return int(count_value) if count_value is not None else 0
+            return len(results)
+        except Exception as e:
+            print(f"Query error: {e}")
+            return 0
     
     def assert_query_count(self, cypher_query: str, expected_count: int, message: str = ""):
         """Assert that a query returns the expected number of results"""
@@ -140,8 +159,12 @@ class TestFramework:
         
         for table in node_tables:
             try:
-                count = self.query_count(f"MATCH (n:{table}) RETURN count(n) as count")
-                tables[table] = count
+                # Use a simple count query
+                result_list = self.query_to_list(f"MATCH (n:{table}) RETURN count(n) as count")
+                if result_list and 'count' in result_list[0]:
+                    tables[table] = result_list[0]['count']
+                else:
+                    tables[table] = 0
             except Exception as e:
                 tables[table] = f"Error: {e}"
         
@@ -157,9 +180,9 @@ class TestFramework:
         
         print("\n=== Sample ASTNode entries ===")
         try:
-            sample_nodes = self.query_to_list("MATCH (n:ASTNode) RETURN n.node_type, n.source_file, n.start_line LIMIT 10")
+            sample_nodes = self.query_to_list("MATCH (n:ASTNode) RETURN n.node_type as node_type, n.source_file as source_file, n.start_line as start_line LIMIT 10")
             for node in sample_nodes:
-                print(f"  {node['n.node_type']} in {node['n.source_file']}:{node['n.start_line']}")
+                print(f"  {node['node_type']} in {node['source_file']}:{node['start_line']}")
         except Exception as e:
             print(f"Error getting sample nodes: {e}")
 
@@ -189,10 +212,10 @@ class BaseTest:
         try:
             self.setup()
             self.run()
-            print(f"✓ {self.test_name} PASSED")
+            print(f"[PASS] {self.test_name}")
             return True
         except Exception as e:
-            print(f"✗ {self.test_name} FAILED: {e}")
+            print(f"[FAIL] {self.test_name}: {e}")
             return False
         finally:
             self.teardown()

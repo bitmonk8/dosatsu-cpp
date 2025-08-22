@@ -27,6 +27,8 @@ add_executable(MakeIndex
     CommentProcessor.h
     AdvancedAnalyzer.cpp
     AdvancedAnalyzer.h
+    GlobalDatabaseManager.cpp
+    GlobalDatabaseManager.h
     NoWarningScope_Enter.h
     NoWarningScope_Leave.h
 )

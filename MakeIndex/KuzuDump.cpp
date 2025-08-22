@@ -17,7 +17,7 @@
 using namespace clang;
 
 KuzuDump::KuzuDump(raw_ostream& OS, const ASTContext& Context, bool ShowColors)
-    : nullStream(nullptr), NodeDumper(OS, Context, ShowColors), OS(OS)
+    : nullStream(nullptr), NodeDumper(OS, Context, ShowColors), OS(OS), database(nullptr)
 {
     initializeAnalyzers(Context);
 }
@@ -26,9 +26,13 @@ KuzuDump::KuzuDump(std::string databasePath, const ASTContext& Context, bool Sho
     : nullStream(std::make_unique<llvm::raw_null_ostream>()), NodeDumper(*nullStream, Context, ShowColors),
       OS(*nullStream)
 {
-    // Initialize database
-    database = std::make_unique<KuzuDatabase>(std::move(databasePath));
-    database->initialize();
+    // Get global database instance - initialize if not already done
+    auto& dbManager = GlobalDatabaseManager::getInstance();
+    if (!dbManager.isInitialized())
+    {
+        dbManager.initializeDatabase(databasePath);
+    }
+    database = dbManager.getDatabase();
 
     initializeAnalyzers(Context);
 }
@@ -37,9 +41,13 @@ KuzuDump::KuzuDump(std::string databasePath, const ASTContext& Context, bool Sho
     : nullStream(std::make_unique<llvm::raw_null_ostream>()), NodeDumper(*nullStream, Context, ShowColors),
       OS(*nullStream), databaseOnlyMode(pureDatabaseMode)
 {
-    // Initialize database
-    database = std::make_unique<KuzuDatabase>(std::move(databasePath));
-    database->initialize();
+    // Get global database instance - initialize if not already done
+    auto& dbManager = GlobalDatabaseManager::getInstance();
+    if (!dbManager.isInitialized())
+    {
+        dbManager.initializeDatabase(databasePath);
+    }
+    database = dbManager.getDatabase();
 
     initializeAnalyzers(Context);
 }
@@ -50,8 +58,8 @@ void KuzuDump::initializeAnalyzers(const ASTContext& Context)
 {
     if (!database)
     {
-        // For text-only mode, create a dummy database
-        database = std::make_unique<KuzuDatabase>("");
+        // For text-only mode, we don't need a database
+        return;
     }
 
     // Initialize all analyzers

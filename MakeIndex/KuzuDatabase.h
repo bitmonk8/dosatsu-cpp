@@ -63,6 +63,10 @@ public:
     /// Check if database is properly initialized
     [[nodiscard]] auto isInitialized() const -> bool { return connection != nullptr; }
 
+    /// Get the next available node ID
+    /// \return A unique node ID for this database instance
+    auto getNextNodeId() -> int64_t { return nextNodeId++; }
+
 private:
     /// Create the complete database schema
     void createSchema();
@@ -76,6 +80,9 @@ private:
     std::vector<std::string> pendingQueries;
     bool transactionActive = false;
     size_t totalOperations = 0;
+    
+    // Global node ID counter for uniqueness across all files
+    int64_t nextNodeId = 1;
 };
 
 }  // namespace clang

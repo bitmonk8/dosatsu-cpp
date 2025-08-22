@@ -96,10 +96,9 @@ private:
 
     // Node tracking
     std::unordered_map<const void*, int64_t> nodeIdMap;  // Pointer -> node_id mapping
-    int64_t nextNodeId = 1;
 
-    /// Get the next available node ID
-    auto getNextNodeId() -> int64_t { return nextNodeId++; }
+    /// Get the next available node ID from the database
+    auto getNextNodeId() -> int64_t;
 };
 
 }  // namespace clang

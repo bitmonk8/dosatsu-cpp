@@ -12,6 +12,7 @@
 #include "AdvancedAnalyzer.h"
 #include "CommentProcessor.h"
 #include "DeclarationAnalyzer.h"
+#include "GlobalDatabaseManager.h"
 #include "KuzuDatabase.h"
 #include "ScopeManager.h"
 #include "StatementAnalyzer.h"
@@ -44,7 +45,7 @@ private:
     bool databaseOnlyMode = false;
 
     // Modular components - each handles a specific responsibility
-    std::unique_ptr<KuzuDatabase> database;
+    KuzuDatabase* database;  // No longer owned by this instance
     std::unique_ptr<ASTNodeProcessor> nodeProcessor;
     std::unique_ptr<ScopeManager> scopeManager;
     std::unique_ptr<TypeAnalyzer> typeAnalyzer;
@@ -102,7 +103,7 @@ private:
     void processStatement(const Stmt* S);
 
     /// Get database instance (for legacy compatibility)
-    [[nodiscard]] auto getDatabase() const -> KuzuDatabase* { return database.get(); }
+    [[nodiscard]] auto getDatabase() const -> KuzuDatabase* { return database; }
 };
 
 }  // namespace clang

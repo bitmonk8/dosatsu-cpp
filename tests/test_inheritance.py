@@ -11,9 +11,9 @@ class TestInheritanceTest(BaseTest):
     def run(self):
         """Test inheritance relationships and virtual function overrides"""
         
-        # Test that we have class declarations
+        # Test that we have class declarations  
         self.framework.assert_query_has_results(
-            "MATCH (n:Declaration) WHERE n.node_type = 'CXXRecordDecl' RETURN n LIMIT 1",
+            "MATCH (a:ASTNode), (d:Declaration) WHERE a.node_type = 'CXXRecordDecl' AND a.node_id = d.node_id RETURN d LIMIT 1",
             "Should have C++ class declarations"
         )
         
@@ -25,7 +25,7 @@ class TestInheritanceTest(BaseTest):
         
         for class_name in expected_classes:
             results = self.framework.query_count(
-                f"MATCH (n:Declaration) WHERE n.node_type = 'CXXRecordDecl' AND n.name = '{class_name}' RETURN n"
+                f"MATCH (a:ASTNode), (d:Declaration) WHERE a.node_type = 'CXXRecordDecl' AND a.node_id = d.node_id AND d.name = '{class_name}' RETURN d"
             )
             if results == 0:
                 print(f"Warning: Class {class_name} not found")

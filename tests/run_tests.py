@@ -21,10 +21,10 @@ if __name__ == "__main__":
     
     print()
     if success:
-        print("🎉 All tests passed!")
+        print("*** All tests passed! ***")
         print("The CppGraphIndex system is working correctly.")
     else:
-        print("❌ Some tests failed.")
+        print("*** Some tests failed. ***")
         print("Check the output above for details.")
     
     sys.exit(0 if success else 1)

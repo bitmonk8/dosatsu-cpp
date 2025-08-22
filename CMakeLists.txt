@@ -136,14 +136,14 @@ else()
 endif()
 
 # Tests will be added in Phase 4
-if(EXISTS "${CMAKE_SOURCE_DIR}/tests")
+if(EXISTS "${CMAKE_SOURCE_DIR}/tests/CMakeLists.txt")
     message(STATUS "Adding tests directory...")
     add_subdirectory(tests)
     
     # Enable testing
     enable_testing()
 else()
-    message(STATUS "Tests directory not found - will be created in Phase 4")
+    message(STATUS "Tests directory not found or not configured - will be created in Phase 4")
 endif()
 
 # Display configuration summary

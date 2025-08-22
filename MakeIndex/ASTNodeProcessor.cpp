@@ -181,6 +181,11 @@ auto ASTNodeProcessor::getNodeId(const void* ptr) -> int64_t
     return (it != nodeIdMap.end()) ? it->second : -1;
 }
 
+auto ASTNodeProcessor::getNextNodeId() -> int64_t
+{
+    return database.getNextNodeId();
+}
+
 auto ASTNodeProcessor::hasNode(const void* ptr) const -> bool
 {
     return nodeIdMap.find(ptr) != nodeIdMap.end();
