@@ -714,22 +714,6 @@ void KuzuDump::createSchema()
                            "implicit_cast_kind STRING)",
                            "Expression");
 
-        // Create MemoryManagement table for memory allocation/deallocation tracking
-        executeSchemaQuery("CREATE NODE TABLE MemoryManagement("
-                           "node_id INT64 PRIMARY KEY, "
-                           "operation_type STRING, "
-                           "allocation_type STRING, "
-                           "is_array BOOLEAN, "
-                           "placement_args STRING, "
-                           "deallocator_kind STRING, "
-                           "size_expression STRING, "
-                           "alignment_expression STRING, "
-                           "is_global_new BOOLEAN, "
-                           "is_global_delete BOOLEAN, "
-                           "smart_pointer_type STRING, "
-                           "raii_pattern STRING)",
-                           "MemoryManagement");
-
         // Create Attribute table
         executeSchemaQuery("CREATE NODE TABLE Attribute("
                            "node_id INT64 PRIMARY KEY, "
@@ -1829,77 +1813,6 @@ void KuzuDump::createExpressionNode(int64_t nodeId, const clang::Expr* expr)
     }
 }
 
-void KuzuDump::createMemoryManagementNode(int64_t nodeId, const clang::Expr* expr)
-{
-    if (!connection || (expr == nullptr))
-    {
-        return;
-    }
-
-    try
-    {
-        std::string operationType = extractMemoryOperationType(expr);
-        std::string allocationType = "";
-        std::string deallocatorKind = "";
-        std::string placementArgs = "";
-        std::string sizeExpression = "";
-        std::string alignmentExpression = "";
-        bool isArray = false;
-        bool isGlobalNew = false;
-        bool isGlobalDelete = false;
-        std::string smartPointerType = "";
-        std::string raiiPattern = "";
-
-        // Handle CXXNewExpr
-        if (const auto* newExpr = dyn_cast<CXXNewExpr>(expr))
-        {
-            allocationType = extractAllocationType(newExpr);
-            placementArgs = extractPlacementArgs(newExpr);
-            sizeExpression = extractSizeExpression(newExpr);
-            alignmentExpression = extractAlignmentExpression(newExpr);
-            isArray = newExpr->isArray();
-            isGlobalNew = isGlobalNewDelete(newExpr);
-        }
-        // Handle CXXDeleteExpr
-        else if (const auto* deleteExpr = dyn_cast<CXXDeleteExpr>(expr))
-        {
-            deallocatorKind = extractDeallocatorKind(deleteExpr);
-            isArray = deleteExpr->isArrayForm();
-            isGlobalDelete = isGlobalNewDelete(deleteExpr);
-        }
-        // Handle CXXConstructExpr for RAII and smart pointers
-        else if (const auto* constructExpr = dyn_cast<CXXConstructExpr>(expr))
-        {
-            smartPointerType = detectSmartPointerType(constructExpr->getType().getTypePtr());
-            raiiPattern = detectRAIIPattern(constructExpr);
-        }
-
-        // Escape single quotes in text fields
-        std::ranges::replace(allocationType, '\'', '_');
-        std::ranges::replace(deallocatorKind, '\'', '_');
-        std::ranges::replace(placementArgs, '\'', '_');
-        std::ranges::replace(sizeExpression, '\'', '_');
-        std::ranges::replace(alignmentExpression, '\'', '_');
-        std::ranges::replace(smartPointerType, '\'', '_');
-        std::ranges::replace(raiiPattern, '\'', '_');
-
-        std::string query = "CREATE (m:MemoryManagement {node_id: " + std::to_string(nodeId) + ", operation_type: '" +
-                            operationType + "', allocation_type: '" + allocationType +
-                            "', is_array: " + (isArray ? "true" : "false") + ", placement_args: '" + placementArgs +
-                            "', deallocator_kind: '" + deallocatorKind + "', size_expression: '" + sizeExpression +
-                            "', alignment_expression: '" + alignmentExpression +
-                            "', is_global_new: " + (isGlobalNew ? "true" : "false") +
-                            ", is_global_delete: " + (isGlobalDelete ? "true" : "false") + ", smart_pointer_type: '" +
-                            smartPointerType + "', raii_pattern: '" + raiiPattern + "'})";
-
-        addToBatch(query);
-    }
-    catch (const std::exception& e)
-    {
-        llvm::errs() << "Exception creating MemoryManagement node: " << e.what() << "\n";
-    }
-}
-
 auto KuzuDump::extractStatementKind(const clang::Stmt* stmt) -> std::string
 {
     if (stmt == nullptr)
@@ -2164,223 +2077,6 @@ auto KuzuDump::extractImplicitCastKind(const clang::Expr* expr) -> std::string
     }
 
     return "";
-}
-
-// Memory management analysis methods
-auto KuzuDump::extractMemoryOperationType(const clang::Expr* expr) -> std::string
-{
-    if (expr == nullptr)
-    {
-        return "unknown";
-    }
-
-    if (isa<CXXNewExpr>(expr))
-    {
-        return "allocation";
-    }
-    if (isa<CXXDeleteExpr>(expr))
-    {
-        return "deallocation";
-    }
-    if (isa<CXXConstructExpr>(expr))
-    {
-        return "construction";
-    }
-
-    return "other";
-}
-
-auto KuzuDump::extractAllocationType(const clang::CXXNewExpr* newExpr) -> std::string
-{
-    if (newExpr == nullptr)
-    {
-        return "";
-    }
-
-    std::string result = newExpr->getType().getAsString();
-
-    if (newExpr->isArray())
-    {
-        result += "_array";
-    }
-
-    if (newExpr->getNumPlacementArgs() > 0)
-    {
-        result += "_placement";
-    }
-
-    return result;
-}
-
-auto KuzuDump::extractDeallocatorKind(const clang::CXXDeleteExpr* deleteExpr) -> std::string
-{
-    if (deleteExpr == nullptr)
-    {
-        return "";
-    }
-
-    std::string result = "";
-
-    if (deleteExpr->isArrayForm())
-    {
-        result = "array_delete";
-    }
-    else
-    {
-        result = "scalar_delete";
-    }
-
-    if (deleteExpr->isGlobalDelete())
-    {
-        result = "global_" + result;
-    }
-
-    return result;
-}
-
-auto KuzuDump::extractPlacementArgs(const clang::CXXNewExpr* newExpr) -> std::string
-{
-    if (newExpr == nullptr || newExpr->getNumPlacementArgs() == 0)
-    {
-        return "";
-    }
-
-    std::string result = "";
-    for (unsigned i = 0; i < newExpr->getNumPlacementArgs(); ++i)
-    {
-        if (i > 0)
-            result += ", ";
-        if (const Expr* arg = newExpr->getPlacementArg(i))
-        {
-            result += arg->getStmtClassName();
-        }
-    }
-
-    return result;
-}
-
-auto KuzuDump::extractSizeExpression(const clang::CXXNewExpr* newExpr) -> std::string
-{
-    if (newExpr == nullptr)
-    {
-        return "";
-    }
-
-    if (newExpr->isArray())
-    {
-        if (const Expr* sizeExpr = newExpr->getArraySize().value_or(nullptr))
-        {
-            return sizeExpr->getStmtClassName();
-        }
-    }
-
-    return "";
-}
-
-auto KuzuDump::extractAlignmentExpression(const clang::CXXNewExpr* newExpr) -> std::string
-{
-    if (newExpr == nullptr)
-    {
-        return "";
-    }
-
-    // Check for aligned allocation (C++17 feature)
-    if (newExpr->passAlignment())
-    {
-        return "aligned_allocation";
-    }
-
-    return "";
-}
-
-auto KuzuDump::detectSmartPointerType(const clang::Type* type) -> std::string
-{
-    if (type == nullptr)
-    {
-        return "";
-    }
-
-    std::string typeName = type->getCanonicalTypeInternal().getAsString();
-
-    if (typeName.find("std::unique_ptr") != std::string::npos)
-    {
-        return "unique_ptr";
-    }
-    if (typeName.find("std::shared_ptr") != std::string::npos)
-    {
-        return "shared_ptr";
-    }
-    if (typeName.find("std::weak_ptr") != std::string::npos)
-    {
-        return "weak_ptr";
-    }
-    if (typeName.find("std::auto_ptr") != std::string::npos)
-    {
-        return "auto_ptr";
-    }
-
-    return "";
-}
-
-auto KuzuDump::detectRAIIPattern(const clang::CXXConstructExpr* constructExpr) -> std::string
-{
-    if (constructExpr == nullptr)
-    {
-        return "";
-    }
-
-    const CXXConstructorDecl* constructor = constructExpr->getConstructor();
-    if (constructor == nullptr)
-    {
-        return "";
-    }
-
-    const CXXRecordDecl* recordDecl = constructor->getParent();
-    if (recordDecl == nullptr)
-    {
-        return "";
-    }
-
-    std::string className = recordDecl->getNameAsString();
-
-    // Check for common RAII patterns
-    if (className.find("lock") != std::string::npos || className.find("Lock") != std::string::npos)
-    {
-        return "lock_raii";
-    }
-    if (className.find("guard") != std::string::npos || className.find("Guard") != std::string::npos)
-    {
-        return "guard_raii";
-    }
-    if (className.find("ptr") != std::string::npos)
-    {
-        return "smart_pointer_raii";
-    }
-    if (recordDecl->hasUserDeclaredDestructor())
-    {
-        return "custom_raii";
-    }
-
-    return "";
-}
-
-auto KuzuDump::isGlobalNewDelete(const clang::Expr* expr) -> bool
-{
-    if (expr == nullptr)
-    {
-        return false;
-    }
-
-    if (const auto* newExpr = dyn_cast<CXXNewExpr>(expr))
-    {
-        return newExpr->isGlobalNew();
-    }
-    if (const auto* deleteExpr = dyn_cast<CXXDeleteExpr>(expr))
-    {
-        return deleteExpr->isGlobalDelete();
-    }
-
-    return false;
 }
 
 // Hierarchy processing methods (Phase 2)
@@ -2839,9 +2535,9 @@ auto KuzuDump::isDocumentationComment(const clang::comments::Comment* comment) -
 
 // Constant expression and compile-time evaluation methods implementation
 void KuzuDump::createConstantExpressionNode(int64_t nodeId,
-                                             const clang::Expr* expr,
-                                             bool isConstexprFunction,
-                                             const std::string& evaluationContext)
+                                            const clang::Expr* expr,
+                                            bool isConstexprFunction,
+                                            const std::string& evaluationContext)
 {
     if (!connection || nodeId == -1 || expr == nullptr)
     {
@@ -2863,28 +2559,25 @@ void KuzuDump::createConstantExpressionNode(int64_t nodeId,
         std::ranges::replace(evaluationStatus, '\'', '_');
         std::ranges::replace(resultType, '\'', '_');
 
-        std::string query = "CREATE (ce:ConstantExpression {node_id: " + std::to_string(nodeId) + 
-                           ", is_constexpr_function: " + (isConstexprFunction ? "true" : "false") +
-                           ", evaluation_context: '" + evaluationContext +
-                           "', evaluation_result: '" + evaluationResult +
-                           "', result_type: '" + resultType +
-                           "', is_compile_time_constant: " + (isCompileTimeConstant ? "true" : "false") +
-                           ", constant_value: '" + constantValue +
-                           "', constant_type: '" + constantType +
-                           "', evaluation_status: '" + evaluationStatus + "'})";
+        std::string query =
+            "CREATE (ce:ConstantExpression {node_id: " + std::to_string(nodeId) +
+            ", is_constexpr_function: " + (isConstexprFunction ? "true" : "false") + ", evaluation_context: '" +
+            evaluationContext + "', evaluation_result: '" + evaluationResult + "', result_type: '" + resultType +
+            "', is_compile_time_constant: " + (isCompileTimeConstant ? "true" : "false") + ", constant_value: '" +
+            constantValue + "', constant_type: '" + constantType + "', evaluation_status: '" + evaluationStatus + "'})";
 
         addToBatch(query);
     }
     catch (const std::exception& e)
     {
-        // Handle errors gracefully - continue processing other nodes
+        llvm::errs() << "Exception creating ConstantExpression node: " << e.what() << "\n";
     }
 }
 
 void KuzuDump::createTemplateMetaprogrammingNode(int64_t nodeId,
-                                                  const clang::Decl* templateDecl,
-                                                  const std::string& templateKind,
-                                                  int64_t instantiationDepth)
+                                                 const clang::Decl* templateDecl,
+                                                 const std::string& templateKind,
+                                                 int64_t instantiationDepth)
 {
     if (!connection || nodeId == -1 || templateDecl == nullptr)
     {
@@ -2911,7 +2604,7 @@ void KuzuDump::createTemplateMetaprogrammingNode(int64_t nodeId,
         {
             const auto& args = classTemplateSpecDecl->getTemplateArgs();
             templateArguments = extractTemplateArguments(args);
-            if (classTemplateSpecDecl->getSpecializedTemplate())
+            if (classTemplateSpecDecl->getSpecializedTemplate() != nullptr)
             {
                 auto it = nodeIdMap.find(classTemplateSpecDecl->getSpecializedTemplate());
                 if (it != nodeIdMap.end())
@@ -2927,20 +2620,18 @@ void KuzuDump::createTemplateMetaprogrammingNode(int64_t nodeId,
         std::ranges::replace(dependentTypes, '\'', '_');
         std::ranges::replace(substitutionFailureReason, '\'', '_');
 
-        std::string query = "CREATE (tmp:TemplateMetaprogramming {node_id: " + std::to_string(nodeId) + 
-                           ", template_kind: '" + templateKind +
-                           "', instantiation_depth: " + std::to_string(instantiationDepth) +
-                           ", template_arguments: '" + templateArguments +
-                           "', specialized_template_id: " + std::to_string(specializedTemplateId) +
-                           ", metaprogram_result: '" + metaprogramResult +
-                           "', dependent_types: '" + dependentTypes +
-                           "', substitution_failure_reason: '" + substitutionFailureReason + "'})";
+        std::string query =
+            "CREATE (tmp:TemplateMetaprogramming {node_id: " + std::to_string(nodeId) + ", template_kind: '" +
+            templateKind + "', instantiation_depth: " + std::to_string(instantiationDepth) + ", template_arguments: '" +
+            templateArguments + "', specialized_template_id: " + std::to_string(specializedTemplateId) +
+            ", metaprogram_result: '" + metaprogramResult + "', dependent_types: '" + dependentTypes +
+            "', substitution_failure_reason: '" + substitutionFailureReason + "'})";
 
         addToBatch(query);
     }
     catch (const std::exception& e)
     {
-        // Handle errors gracefully - continue processing other nodes
+        llvm::errs() << "Exception creating TemplateMetaprogramming node: " << e.what() << "\n";
     }
 }
 
@@ -2957,7 +2648,7 @@ void KuzuDump::createStaticAssertionNode(int64_t nodeId, const clang::StaticAsse
         std::string failureReason;
         std::string evaluationContext = "static_assert";
 
-        if (!assertionResult && assertDecl->getMessage())
+        if (!assertionResult && (assertDecl->getMessage() != nullptr))
         {
             failureReason = assertionMessage;
         }
@@ -2968,18 +2659,17 @@ void KuzuDump::createStaticAssertionNode(int64_t nodeId, const clang::StaticAsse
         std::ranges::replace(failureReason, '\'', '_');
         std::ranges::replace(evaluationContext, '\'', '_');
 
-        std::string query = "CREATE (sa:StaticAssertion {node_id: " + std::to_string(nodeId) + 
-                           ", assertion_expression: '" + assertionExpression +
-                           "', assertion_message: '" + assertionMessage +
-                           "', assertion_result: " + (assertionResult ? "true" : "false") +
-                           ", failure_reason: '" + failureReason +
-                           "', evaluation_context: '" + evaluationContext + "'})";
+        std::string query = "CREATE (sa:StaticAssertion {node_id: " + std::to_string(nodeId) +
+                            ", assertion_expression: '" + assertionExpression + "', assertion_message: '" +
+                            assertionMessage + "', assertion_result: " + (assertionResult ? "true" : "false") +
+                            ", failure_reason: '" + failureReason + "', evaluation_context: '" + evaluationContext +
+                            "'})";
 
         addToBatch(query);
     }
     catch (const std::exception& e)
     {
-        // Handle errors gracefully - continue processing other nodes
+        llvm::errs() << "Exception creating StaticAssertion node: " << e.what() << "\n";
     }
 }
 
@@ -2994,8 +2684,8 @@ void KuzuDump::createConstantValueRelation(int64_t exprId, int64_t constantId, c
     std::ranges::replace(escapedStage, '\'', '_');
 
     std::string query = "MATCH (e:Expression {node_id: " + std::to_string(exprId) + "}), " +
-                       "(c:ConstantExpression {node_id: " + std::to_string(constantId) + "}) " +
-                       "CREATE (e)-[r:HAS_CONSTANT_VALUE {evaluation_stage: '" + escapedStage + "'}]->(c)";
+                        "(c:ConstantExpression {node_id: " + std::to_string(constantId) + "}) " +
+                        "CREATE (e)-[r:HAS_CONSTANT_VALUE {evaluation_stage: '" + escapedStage + "'}]->(c)";
 
     addToBatch(query);
 }
@@ -3011,8 +2701,8 @@ void KuzuDump::createTemplateEvaluationRelation(int64_t templateId, int64_t meta
     std::ranges::replace(escapedContext, '\'', '_');
 
     std::string query = "MATCH (d:Declaration {node_id: " + std::to_string(templateId) + "}), " +
-                       "(tmp:TemplateMetaprogramming {node_id: " + std::to_string(metaprogramId) + "}) " +
-                       "CREATE (d)-[r:TEMPLATE_EVALUATES_TO {instantiation_context: '" + escapedContext + "'}]->(tmp)";
+                        "(tmp:TemplateMetaprogramming {node_id: " + std::to_string(metaprogramId) + "}) " +
+                        "CREATE (d)-[r:TEMPLATE_EVALUATES_TO {instantiation_context: '" + escapedContext + "'}]->(tmp)";
 
     addToBatch(query);
 }
@@ -3028,8 +2718,8 @@ void KuzuDump::createStaticAssertRelation(int64_t declId, int64_t assertId, cons
     std::ranges::replace(escapedScope, '\'', '_');
 
     std::string query = "MATCH (d:Declaration {node_id: " + std::to_string(declId) + "}), " +
-                       "(sa:StaticAssertion {node_id: " + std::to_string(assertId) + "}) " +
-                       "CREATE (d)-[r:CONTAINS_STATIC_ASSERT {assertion_scope: '" + escapedScope + "'}]->(sa)";
+                        "(sa:StaticAssertion {node_id: " + std::to_string(assertId) + "}) " +
+                        "CREATE (d)-[r:CONTAINS_STATIC_ASSERT {assertion_scope: '" + escapedScope + "'}]->(sa)";
 
     addToBatch(query);
 }
@@ -3053,19 +2743,19 @@ auto KuzuDump::evaluateConstantExpression(const clang::Expr* expr) -> std::strin
             {
                 return std::to_string(value.getInt().getSExtValue());
             }
-            else if (value.isFloat())
+            if (value.isFloat())
             {
                 return std::to_string(value.getFloat().convertToDouble());
             }
-            else if (value.isLValue())
+            if (value.isLValue())
             {
                 return "lvalue";
             }
-            else if (value.isComplexInt())
+            if (value.isComplexInt())
             {
                 return "complex_int";
             }
-            else if (value.isComplexFloat())
+            if (value.isComplexFloat())
             {
                 return "complex_float";
             }
@@ -3128,22 +2818,20 @@ auto KuzuDump::extractEvaluationStatus(const clang::Expr* expr) -> std::string
     {
         return "evaluatable";
     }
-    else if (expr->isValueDependent())
+    if (expr->isValueDependent())
     {
         return "value_dependent";
     }
-    else if (expr->isTypeDependent())
+    if (expr->isTypeDependent())
     {
         return "type_dependent";
     }
-    else if (expr->containsUnexpandedParameterPack())
+    if (expr->containsUnexpandedParameterPack())
     {
         return "contains_parameter_pack";
     }
-    else
-    {
-        return "not_evaluatable";
-    }
+
+    return "not_evaluatable";
 }
 
 auto KuzuDump::detectConstexprFunction(const clang::FunctionDecl* func) -> bool
@@ -3165,16 +2853,16 @@ auto KuzuDump::extractTemplateInstantiationDepth(const clang::Decl* decl) -> int
 
     int64_t depth = 0;
     const DeclContext* context = decl->getDeclContext();
-    
-    while (context)
+
+    while (context != nullptr)
     {
-        if (const auto* templateDecl = dyn_cast<ClassTemplateSpecializationDecl>(context))
+        if (isa<ClassTemplateSpecializationDecl>(context))
         {
             depth++;
         }
         else if (const auto* functionDecl = dyn_cast<FunctionDecl>(context))
         {
-            if (functionDecl->getTemplateSpecializationInfo())
+            if (functionDecl->getTemplateSpecializationInfo() != nullptr)
             {
                 depth++;
             }
@@ -3195,9 +2883,10 @@ auto KuzuDump::extractTemplateArguments(const clang::TemplateDecl* templateDecl)
     if (const auto* templateParams = templateDecl->getTemplateParameters())
     {
         std::string arguments;
-        for (size_t i = 0; i < templateParams->size(); ++i)
+        for (unsigned int i = 0; i < templateParams->size(); ++i)
         {
-            if (i > 0) arguments += ", ";
+            if (i > 0)
+                arguments += ", ";
             if (const auto* namedDecl = dyn_cast<NamedDecl>(templateParams->getParam(i)))
             {
                 arguments += namedDecl->getNameAsString();
@@ -3209,7 +2898,8 @@ auto KuzuDump::extractTemplateArguments(const clang::TemplateDecl* templateDecl)
     return "";
 }
 
-auto KuzuDump::extractStaticAssertInfo(const clang::StaticAssertDecl* assertDecl) -> std::tuple<std::string, std::string, bool>
+auto KuzuDump::extractStaticAssertInfo(const clang::StaticAssertDecl* assertDecl)
+    -> std::tuple<std::string, std::string, bool>
 {
     if (assertDecl == nullptr)
     {
@@ -3223,18 +2913,18 @@ auto KuzuDump::extractStaticAssertInfo(const clang::StaticAssertDecl* assertDecl
     if (const auto* condExpr = assertDecl->getAssertExpr())
     {
         // Try to get the expression text
-        if (sourceManager)
+        if (sourceManager != nullptr)
         {
             auto range = condExpr->getSourceRange();
             if (range.isValid())
             {
-                expression = clang::Lexer::getSourceText(
-                    clang::CharSourceRange::getTokenRange(range),
-                    *sourceManager,
-                    astContext->getLangOpts()).str();
+                expression = clang::Lexer::getSourceText(clang::CharSourceRange::getTokenRange(range),
+                                                         *sourceManager,
+                                                         astContext->getLangOpts())
+                                 .str();
             }
         }
-        
+
         // Check if the assertion would fail
         if (condExpr->isEvaluatable(*astContext))
         {
@@ -4148,18 +3838,20 @@ void KuzuDump::VisitExpr(const Expr* E)
                     if (const auto* funcDecl = dyn_cast<FunctionDecl>(static_cast<const Decl*>(decl)))
                     {
                         isConstexprFunction = detectConstexprFunction(funcDecl);
-                        if (isConstexprFunction) break;
+                        if (isConstexprFunction)
+                            break;
                     }
                 }
             }
-            if (isConstexprFunction) break;
+            if (isConstexprFunction)
+                break;
         }
 
         // Create a separate constant expression node
         int64_t constExprNodeId = nextNodeId++;
         std::string evaluationContext = isConstexprFunction ? "constexpr_function" : "constant_expression";
         createConstantExpressionNode(constExprNodeId, E, isConstexprFunction, evaluationContext);
-        
+
         // Create relationship between the expression and its constant evaluation
         createConstantValueRelation(nodeId, constExprNodeId, "compile_time");
     }
@@ -4341,90 +4033,6 @@ void KuzuDump::VisitImplicitCastExpr(const ImplicitCastExpr* E)
 
     // Create enhanced Expression node with detailed information
     createExpressionNode(nodeId, E);
-
-    // Create hierarchy relationship if this node has a parent
-    createHierarchyRelationship(nodeId);
-
-    // Push this node as parent for potential children
-    pushParent(nodeId);
-
-    // The ASTNodeTraverser will handle automatic traversal
-
-    // Pop this node as parent after traversal
-    popParent();
-}
-
-void KuzuDump::VisitCXXNewExpr(const CXXNewExpr* E)
-{
-    if (E == nullptr)
-        return;
-
-    // Create database node for this new expression
-    int64_t nodeId = createASTNode(E);
-
-    // Create enhanced Expression node with detailed information
-    createExpressionNode(nodeId, E);
-
-    // Create memory management node for allocation tracking
-    createMemoryManagementNode(nodeId, E);
-
-    // Create hierarchy relationship if this node has a parent
-    createHierarchyRelationship(nodeId);
-
-    // Push this node as parent for potential children
-    pushParent(nodeId);
-
-    // The ASTNodeTraverser will handle automatic traversal
-
-    // Pop this node as parent after traversal
-    popParent();
-}
-
-void KuzuDump::VisitCXXDeleteExpr(const CXXDeleteExpr* E)
-{
-    if (E == nullptr)
-        return;
-
-    // Create database node for this delete expression
-    int64_t nodeId = createASTNode(E);
-
-    // Create enhanced Expression node with detailed information
-    createExpressionNode(nodeId, E);
-
-    // Create memory management node for deallocation tracking
-    createMemoryManagementNode(nodeId, E);
-
-    // Create hierarchy relationship if this node has a parent
-    createHierarchyRelationship(nodeId);
-
-    // Push this node as parent for potential children
-    pushParent(nodeId);
-
-    // The ASTNodeTraverser will handle automatic traversal
-
-    // Pop this node as parent after traversal
-    popParent();
-}
-
-void KuzuDump::VisitCXXConstructExpr(const CXXConstructExpr* E)
-{
-    if (E == nullptr)
-        return;
-
-    // Create database node for this constructor expression
-    int64_t nodeId = createASTNode(E);
-
-    // Create enhanced Expression node with detailed information
-    createExpressionNode(nodeId, E);
-
-    // Create memory management node for RAII and smart pointer tracking
-    std::string smartPointerType = detectSmartPointerType(E->getType().getTypePtr());
-    std::string raiiPattern = detectRAIIPattern(E);
-
-    if (!smartPointerType.empty() || !raiiPattern.empty())
-    {
-        createMemoryManagementNode(nodeId, E);
-    }
 
     // Create hierarchy relationship if this node has a parent
     createHierarchyRelationship(nodeId);
