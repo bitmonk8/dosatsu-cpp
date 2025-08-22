@@ -85,21 +85,13 @@ auto RealMain(int argc, char** argv) -> int
     llvm::outs() << "MakeIndex starting with options:\n";
     llvm::outs() << "  Compile commands: " << CompileCommandsPath << "\n";
     if (useDatabaseOutput)
-    {
         llvm::outs() << "  Database output: " << DatabasePath << "\n";
-    }
     else
-    {
         llvm::outs() << "  Text output: " << OutputFile << "\n";
-    }
     if (!FilterPattern.empty())
-    {
         llvm::outs() << "  Filter pattern: " << FilterPattern << "\n";
-    }
     else
-    {
         llvm::outs() << "  Filter: none (processing all files)\n";
-    }
     llvm::outs() << "\n";
 
     // Load compilation database
@@ -116,33 +108,23 @@ auto RealMain(int argc, char** argv) -> int
     // Filter source files based on command line option
     std::string filterPattern;
     if (FilterPattern.empty())
-    {
         filterPattern = "*";
-    }
     else
-    {
         filterPattern = FilterPattern.getValue();
-    }
     auto sourceFiles = clang::CompilationDatabaseLoader::filterSourceFiles(*database, filterPattern);
 
     llvm::outs() << "Found " << sourceFiles.size() << " source files";
     if (!FilterPattern.empty())
-    {
         llvm::outs() << " matching pattern '" << FilterPattern << "'";
-    }
     llvm::outs() << ":\n";
 
     // Display first few files for verification
     size_t displayCount = std::min(sourceFiles.size(), size_t(10));
     for (size_t i = 0; i < displayCount; ++i)
-    {
         llvm::outs() << "  " << (i + 1) << ". " << sourceFiles[i] << "\n";
-    }
 
     if (sourceFiles.size() > displayCount)
-    {
         llvm::outs() << "  ... and " << (sourceFiles.size() - displayCount) << " more files\n";
-    }
     llvm::outs() << "\n";
 
     // Check if we have any files to process
@@ -150,9 +132,7 @@ auto RealMain(int argc, char** argv) -> int
     {
         llvm::errs() << "Error: No source files found";
         if (!FilterPattern.empty())
-        {
             llvm::errs() << " matching pattern '" << FilterPattern << "'";
-        }
         llvm::errs() << " in compilation database\n";
         return 1;
     }
@@ -202,34 +182,24 @@ auto RealMain(int argc, char** argv) -> int
             auto create() -> std::unique_ptr<clang::FrontendAction> override
             {
                 if (usingDatabase)
-                {
                     return std::make_unique<clang::MakeIndexASTDumpAction>(databasePath);
-                }
                 return std::make_unique<clang::MakeIndexASTDumpAction>(*OS);
             }
         };
 
         std::unique_ptr<MakeIndexASTDumpActionFactory> ActionFactory;
         if (useDatabaseOutput)
-        {
             ActionFactory = std::make_unique<MakeIndexASTDumpActionFactory>(DatabasePath);
-        }
         else
-        {
             ActionFactory = std::make_unique<MakeIndexASTDumpActionFactory>(*OutputFileStream);
-        }
 
         // Run the tool
         int Result = Tool.run(ActionFactory.get());
 
         if (Result == 0)
-        {
             llvm::outs() << "AST processing completed successfully!\n";
-        }
         else
-        {
             llvm::errs() << "AST processing completed with errors (exit code: " << Result << ")\n";
-        }
 
         return Result;
     }
@@ -296,20 +266,12 @@ void PrintStackTrace()
                        nullptr) != 0)
     {
         if (SymFromAddr(process, frame.AddrPC.Offset, nullptr, symbol) != 0)
-        {
             if (SymGetLineFromAddr64(process, frame.AddrPC.Offset, &displacement, &line) != 0)
-            {
                 std::cout << symbol->Name << " - " << line.FileName << ":" << line.LineNumber << std::endl;
-            }
             else
-            {
                 std::cout << symbol->Name << " - address: 0x" << std::hex << symbol->Address << std::dec << std::endl;
-            }
-        }
         else
-        {
             std::cout << "<unknown function> - address: 0x" << std::hex << frame.AddrPC.Offset << std::dec << std::endl;
-        }
     }
 
     free(symbol);

@@ -71,20 +71,14 @@ auto CompilationDatabaseLoader::filterSourceFiles(const CompilationDatabase& db,
     {
         filteredFiles.reserve(allFiles.size());
         for (const auto& file : allFiles)
-        {
             filteredFiles.push_back(file);
-        }
         return filteredFiles;
     }
 
     // Filter files by pattern
     for (const auto& file : allFiles)
-    {
         if (matchesPattern(file, pattern))
-        {
             filteredFiles.push_back(file);
-        }
-    }
 
     return filteredFiles;
 }

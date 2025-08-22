@@ -22,6 +22,7 @@ ColumnLimit: 120
 
 # Brace style (Allman - braces on separate lines)
 BreakBeforeBraces: Allman
+RemoveBracesLLVM: true
 BraceWrapping:
   AfterCaseLabel: true
   AfterClass: true

@@ -52,16 +52,12 @@ void MakeIndexASTDumpConsumer::HandleTranslationUnit(ASTContext& Context)
     else
     {
         if (!usingDatabase && OS != nullptr)
-        {
             *OS << "Error: No translation unit found\n";
-        }
     }
 
     // Flush the output stream for text output
     if (!usingDatabase && OS != nullptr)
-    {
         OS->flush();
-    }
 }
 
 MakeIndexASTDumpAction::MakeIndexASTDumpAction(llvm::raw_ostream& OS) : OS(&OS)

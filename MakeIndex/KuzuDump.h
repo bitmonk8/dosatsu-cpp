@@ -212,9 +212,7 @@ public:
     ~KuzuDump()
     {
         if (databaseEnabled && connection)
-        {
             flushOperations();
-        }
     }
 
     auto doGetNodeDelegate() -> TextNodeDumper& { return NodeDumper; }

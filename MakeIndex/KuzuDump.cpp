@@ -45,9 +45,7 @@ void KuzuDump::dumpInvalidDeclContext(const DeclContext* DC)
 {
     // Phase 4.3: Skip text dumping in database-only mode
     if (databaseOnlyMode)
-    {
         return;
-    }
 
     NodeDumper.AddChild(
         [=]
@@ -82,9 +80,7 @@ void KuzuDump::dumpLookups(const DeclContext* DC, bool DumpDecls)
 {
     // Phase 4.3: Skip text dumping in database-only mode
     if (databaseOnlyMode)
-    {
         return;
-    }
 
     NodeDumper.AddChild(
         [=]
@@ -224,25 +220,19 @@ void KuzuDump::dumpTemplateDecl(const TemplateDecl* D, bool DumpExplicitInst)
     Visit(D->getTemplatedDecl());
 
     if (GetTraversalKind() == TK_AsIs)
-    {
         for (const auto* Child : D->specializations())
             dumpTemplateDeclSpecialization(Child, DumpExplicitInst, !D->isCanonicalDecl());
-    }
 }
 
 void KuzuDump::dumpTemplateParameters(const clang::TemplateParameterList* templateParams)
 {
     if (templateParams == nullptr)
-    {
         return;
-    }
 
     for (const auto* param : *templateParams)
     {
         if (param == nullptr)
-        {
             continue;
-        }
 
         // Create database node for this template parameter
         int64_t nodeId = createASTNode(param);
@@ -444,9 +434,7 @@ void KuzuDump::VisitStaticAssertDecl(const StaticAssertDecl* D)
     {
         auto it = nodeIdMap.find(parentDecl);
         if (it != nodeIdMap.end())
-        {
             createStaticAssertRelation(it->second, nodeId, "local_scope");
-        }
     }
 
     // The ASTNodeTraverser will handle automatic traversal of the assertion expression
@@ -455,18 +443,14 @@ void KuzuDump::VisitStaticAssertDecl(const StaticAssertDecl* D)
 void KuzuDump::initializeDatabase()
 {
     if (!databaseEnabled || databasePath.empty())
-    {
         return;
-    }
 
     try
     {
         // Create database directory if it doesn't exist
         std::filesystem::path dbPath(databasePath);
         if (dbPath.has_parent_path())
-        {
             std::filesystem::create_directories(dbPath.parent_path());
-        }
 
         // Initialize Kuzu database
         database = std::make_unique<kuzu::main::Database>(databasePath);
@@ -485,30 +469,22 @@ void KuzuDump::executeSchemaQuery(const std::string& query, const std::string& s
 {
     auto result = connection->query(query);
     if (!result->isSuccess())
-    {
         throw std::runtime_error("Failed to create " + schemaName + " table: " + result->getErrorMessage());
-    }
 }
 
 // Performance optimization methods (Phase 4)
 void KuzuDump::beginTransaction()
 {
     if (!connection || transactionActive)
-    {
         return;
-    }
 
     try
     {
         auto result = connection->query("BEGIN TRANSACTION");
         if (result->isSuccess())
-        {
             transactionActive = true;
-        }
         else
-        {
             llvm::errs() << "Failed to begin transaction: " << result->getErrorMessage() << "\n";
-        }
     }
     catch (const std::exception& e)
     {
@@ -519,21 +495,15 @@ void KuzuDump::beginTransaction()
 void KuzuDump::commitTransaction()
 {
     if (!connection || !transactionActive)
-    {
         return;
-    }
 
     try
     {
         auto result = connection->query("COMMIT");
         if (result->isSuccess())
-        {
             transactionActive = false;
-        }
         else
-        {
             llvm::errs() << "Failed to commit transaction: " << result->getErrorMessage() << "\n";
-        }
     }
     catch (const std::exception& e)
     {
@@ -544,21 +514,15 @@ void KuzuDump::commitTransaction()
 void KuzuDump::rollbackTransaction()
 {
     if (!connection || !transactionActive)
-    {
         return;
-    }
 
     try
     {
         auto result = connection->query("ROLLBACK");
         if (result->isSuccess())
-        {
             transactionActive = false;
-        }
         else
-        {
             llvm::errs() << "Failed to rollback transaction: " << result->getErrorMessage() << "\n";
-        }
     }
     catch (const std::exception& e)
     {
@@ -569,32 +533,24 @@ void KuzuDump::rollbackTransaction()
 void KuzuDump::addToBatch(const std::string& query)
 {
     if (!connection || query.empty())
-    {
         return;
-    }
 
     pendingQueries.push_back(query);
     totalOperations++;
 
     // Start transaction on first batched operation
     if (!transactionActive)
-    {
         beginTransaction();
-    }
 
     // Execute batch when it reaches the batch size
     if (pendingQueries.size() >= BATCH_SIZE)
-    {
         executeBatch();
-    }
 }
 
 void KuzuDump::executeBatch()
 {
     if (!connection || pendingQueries.empty())
-    {
         return;
-    }
 
     try
     {
@@ -622,29 +578,21 @@ void KuzuDump::executeBatch()
 void KuzuDump::flushOperations()
 {
     if (!connection)
-    {
         return;
-    }
 
     // Execute any remaining batched operations
     if (!pendingQueries.empty())
-    {
         executeBatch();
-    }
 
     // Commit any active transaction
     if (transactionActive)
-    {
         commitTransaction();
-    }
 }
 
 void KuzuDump::createSchema()
 {
     if (!connection)
-    {
         return;
-    }
 
     try
     {
@@ -944,16 +892,12 @@ void KuzuDump::createSchema()
 auto KuzuDump::createASTNode(const clang::Decl* decl) -> int64_t
 {
     if (!connection || (decl == nullptr))
-    {
         return -1;
-    }
 
     // Check if already processed
     auto it = nodeIdMap.find(decl);
     if (it != nodeIdMap.end())
-    {
         return it->second;
-    }
 
     int64_t nodeId = nextNodeId++;
     nodeIdMap[decl] = nodeId;
@@ -995,28 +939,18 @@ auto KuzuDump::createASTNode(const clang::Decl* decl) -> int64_t
 
             // Create type relationships for typed declarations
             if (const auto* valueDecl = dyn_cast<ValueDecl>(namedDecl))
-            {
                 createTypeNodeAndRelation(nodeId, valueDecl->getType());
-            }
             else if (const auto* functionDecl = dyn_cast<FunctionDecl>(namedDecl))
-            {
                 createTypeNodeAndRelation(nodeId, functionDecl->getType());
-            }
         }
 
         // Create specialized nodes for using declarations
         if (const auto* usingDecl = dyn_cast<UsingDecl>(decl))
-        {
             createUsingDeclarationNode(nodeId, usingDecl);
-        }
         else if (const auto* usingDirectiveDecl = dyn_cast<UsingDirectiveDecl>(decl))
-        {
             createUsingDirectiveNode(nodeId, usingDirectiveDecl);
-        }
         else if (const auto* namespaceAliasDecl = dyn_cast<NamespaceAliasDecl>(decl))
-        {
             createNamespaceAliasNode(nodeId, namespaceAliasDecl);
-        }
 
         return nodeId;
     }
@@ -1030,16 +964,12 @@ auto KuzuDump::createASTNode(const clang::Decl* decl) -> int64_t
 auto KuzuDump::createASTNode(const clang::Stmt* stmt) -> int64_t
 {
     if (!connection || (stmt == nullptr))
-    {
         return -1;
-    }
 
     // Check if already processed
     auto it = nodeIdMap.find(stmt);
     if (it != nodeIdMap.end())
-    {
         return it->second;
-    }
 
     int64_t nodeId = nextNodeId++;
     nodeIdMap[stmt] = nodeId;
@@ -1083,16 +1013,12 @@ auto KuzuDump::createASTNode(const clang::Stmt* stmt) -> int64_t
 auto KuzuDump::createASTNode(const clang::Type* type) -> int64_t
 {
     if (!connection || (type == nullptr))
-    {
         return -1;
-    }
 
     // Check if already processed
     auto it = nodeIdMap.find(type);
     if (it != nodeIdMap.end())
-    {
         return it->second;
-    }
 
     int64_t nodeId = nextNodeId++;
     nodeIdMap[type] = nodeId;
@@ -1137,9 +1063,7 @@ auto KuzuDump::createASTNode(const clang::Type* type) -> int64_t
 void KuzuDump::createParentChildRelation(int64_t parentId, int64_t childId, int index)
 {
     if (!connection || parentId == -1 || childId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -1160,9 +1084,7 @@ void KuzuDump::createParentChildRelation(int64_t parentId, int64_t childId, int 
 void KuzuDump::createTypeRelation(int64_t declId, int64_t typeId)
 {
     if (!connection || declId == -1 || typeId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -1182,9 +1104,7 @@ void KuzuDump::createTypeRelation(int64_t declId, int64_t typeId)
 void KuzuDump::createReferenceRelation(int64_t fromId, int64_t toId, const std::string& kind)
 {
     if (!connection || fromId == -1 || toId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -1204,9 +1124,7 @@ void KuzuDump::createReferenceRelation(int64_t fromId, int64_t toId, const std::
 void KuzuDump::createScopeRelation(int64_t nodeId, int64_t scopeId, const std::string& scopeKind)
 {
     if (!connection || nodeId == -1 || scopeId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -1227,15 +1145,11 @@ void KuzuDump::createScopeRelation(int64_t nodeId, int64_t scopeId, const std::s
 auto KuzuDump::createTypeNodeAndRelation(int64_t declNodeId, clang::QualType qualType) -> int64_t
 {
     if (!connection || qualType.isNull())
-    {
         return -1;
-    }
 
     int64_t typeNodeId = createTypeNode(qualType);
     if (typeNodeId != -1)
-    {
         createTypeRelation(declNodeId, typeNodeId);
-    }
 
     return typeNodeId;
 }
@@ -1243,9 +1157,7 @@ auto KuzuDump::createTypeNodeAndRelation(int64_t declNodeId, clang::QualType qua
 auto KuzuDump::createTypeNode(clang::QualType qualType) -> int64_t
 {
     if (!connection || qualType.isNull())
-    {
         return -1;
-    }
 
     try
     {
@@ -1278,9 +1190,7 @@ auto KuzuDump::createTypeNode(clang::QualType qualType) -> int64_t
 void KuzuDump::createUsingDeclarationNode(int64_t nodeId, const clang::UsingDecl* decl)
 {
     if (!connection || (decl == nullptr))
-    {
         return;
-    }
 
     try
     {
@@ -1324,9 +1234,7 @@ void KuzuDump::createUsingDeclarationNode(int64_t nodeId, const clang::UsingDecl
 void KuzuDump::createUsingDirectiveNode(int64_t nodeId, const clang::UsingDirectiveDecl* decl)
 {
     if (!connection || (decl == nullptr))
-    {
         return;
-    }
 
     try
     {
@@ -1360,9 +1268,7 @@ void KuzuDump::createUsingDirectiveNode(int64_t nodeId, const clang::UsingDirect
 void KuzuDump::createNamespaceAliasNode(int64_t nodeId, const clang::NamespaceAliasDecl* decl)
 {
     if (!connection || (decl == nullptr))
-    {
         return;
-    }
 
     try
     {
@@ -1373,9 +1279,7 @@ void KuzuDump::createNamespaceAliasNode(int64_t nodeId, const clang::NamespaceAl
 
         // Extract namespace alias information
         if (const auto* aliasedNS = decl->getNamespace())
-        {
             targetName = aliasedNS->getQualifiedNameAsString();
-        }
         introducesName = decl->getNameAsString();
 
         // Escape single quotes in strings for database storage
@@ -1398,9 +1302,7 @@ void KuzuDump::createNamespaceAliasNode(int64_t nodeId, const clang::NamespaceAl
 void KuzuDump::createDeclarationNode(int64_t nodeId, const clang::NamedDecl* decl)
 {
     if (!connection || (decl == nullptr))
-    {
         return;
-    }
 
     try
     {
@@ -1432,9 +1334,7 @@ void KuzuDump::createDeclarationNode(int64_t nodeId, const clang::NamedDecl* dec
 auto KuzuDump::extractQualifiedName(const clang::NamedDecl* decl) -> std::string
 {
     if (decl == nullptr)
-    {
         return "";
-    }
 
     std::string qualifiedName = decl->getQualifiedNameAsString();
     // Replace any problematic characters for database storage
@@ -1445,9 +1345,7 @@ auto KuzuDump::extractQualifiedName(const clang::NamedDecl* decl) -> std::string
 auto KuzuDump::extractAccessSpecifier(const clang::Decl* decl) -> std::string
 {
     if (decl == nullptr)
-    {
         return "none";
-    }
 
     switch (decl->getAccess())
     {
@@ -1504,9 +1402,7 @@ auto KuzuDump::extractStorageClass(const clang::Decl* decl) -> std::string
 auto KuzuDump::extractNamespaceContext(const clang::Decl* decl) -> std::string
 {
     if (decl == nullptr)
-    {
         return "";
-    }
 
     const DeclContext* context = decl->getDeclContext();
     std::vector<std::string> namespaces;
@@ -1516,16 +1412,12 @@ auto KuzuDump::extractNamespaceContext(const clang::Decl* decl) -> std::string
         if (const auto* nsDecl = dyn_cast<NamespaceDecl>(context))
         {
             if (!nsDecl->isAnonymousNamespace())
-            {
                 namespaces.push_back(nsDecl->getNameAsString());
-            }
         }
         else if (const auto* recordDecl = dyn_cast<RecordDecl>(context))
         {
             if (recordDecl->getIdentifier() != nullptr)
-            {
                 namespaces.push_back(recordDecl->getNameAsString());
-            }
         }
         context = context->getParent();
     }
@@ -1546,22 +1438,14 @@ auto KuzuDump::extractNamespaceContext(const clang::Decl* decl) -> std::string
 auto KuzuDump::isDefinition(const clang::Decl* decl) -> bool
 {
     if (decl == nullptr)
-    {
         return false;
-    }
 
     if (const auto* funcDecl = dyn_cast<FunctionDecl>(decl))
-    {
         return funcDecl->isThisDeclarationADefinition();
-    }
     if (const auto* varDecl = dyn_cast<VarDecl>(decl))
-    {
         return varDecl->isThisDeclarationADefinition() != 0;
-    }
     if (const auto* recordDecl = dyn_cast<RecordDecl>(decl))
-    {
         return recordDecl->isThisDeclarationADefinition();
-    }
 
     return false;
 }
@@ -1570,18 +1454,14 @@ auto KuzuDump::isDefinition(const clang::Decl* decl) -> bool
 auto KuzuDump::extractSourceLocation(const clang::SourceLocation& loc) -> std::string
 {
     if (loc.isInvalid())
-    {
         return "<invalid>";
-    }
 
     // Get detailed location information
     auto [fileName, line, column] = extractSourceLocationDetailed(loc);
 
     // Return formatted location string
     if (fileName == "<invalid>" || line == -1 || column == -1)
-    {
         return "<unknown_location>";
-    }
 
     return fileName + ":" + std::to_string(line) + ":" + std::to_string(column);
 }
@@ -1590,18 +1470,14 @@ auto KuzuDump::extractSourceLocationDetailed(const clang::SourceLocation& loc)
     -> std::tuple<std::string, int64_t, int64_t>
 {
     if (loc.isInvalid() || (sourceManager == nullptr))
-    {
         return std::make_tuple("<invalid>", -1, -1);
-    }
 
     try
     {
         // Use SourceManager to get precise location information
         auto presumedLoc = sourceManager->getPresumedLoc(loc);
         if (presumedLoc.isInvalid())
-        {
             return std::make_tuple("<invalid>", -1, -1);
-        }
 
         // Extract filename, line, and column from the presumed location
         std::string filename = (presumedLoc.getFilename() != nullptr) ? presumedLoc.getFilename() : "<unknown>";
@@ -1623,36 +1499,28 @@ auto KuzuDump::extractSourceLocationDetailed(const clang::SourceLocation& loc)
 auto KuzuDump::extractNodeType(const clang::Decl* decl) -> std::string
 {
     if (decl == nullptr)
-    {
         return "UnknownDecl";
-    }
     return decl->getDeclKindName();
 }
 
 auto KuzuDump::extractNodeType(const clang::Stmt* stmt) -> std::string
 {
     if (stmt == nullptr)
-    {
         return "UnknownStmt";
-    }
     return stmt->getStmtClassName();
 }
 
 auto KuzuDump::extractNodeType(const clang::Type* type) -> std::string
 {
     if (type == nullptr)
-    {
         return "UnknownType";
-    }
     return type->getTypeClassName();
 }
 
 auto KuzuDump::isImplicitNode(const clang::Decl* decl) -> bool
 {
     if (decl == nullptr)
-    {
         return false;
-    }
     return decl->isImplicit();
 }
 
@@ -1660,9 +1528,7 @@ auto KuzuDump::isImplicitNode(const clang::Decl* decl) -> bool
 auto KuzuDump::extractTypeName(clang::QualType qualType) -> std::string
 {
     if (qualType.isNull())
-    {
         return "<invalid_type>";
-    }
 
     // Get the unqualified type name
     return qualType.getUnqualifiedType().getAsString();
@@ -1671,48 +1537,28 @@ auto KuzuDump::extractTypeName(clang::QualType qualType) -> std::string
 auto KuzuDump::extractTypeCategory(clang::QualType qualType) -> std::string
 {
     if (qualType.isNull())
-    {
         return "invalid";
-    }
 
     const clang::Type* type = qualType.getTypePtr();
     if (type == nullptr)
-    {
         return "invalid";
-    }
 
     if (type->isBuiltinType())
-    {
         return "builtin";
-    }
     if (type->isPointerType())
-    {
         return "pointer";
-    }
     if (type->isReferenceType())
-    {
         return "reference";
-    }
     if (type->isArrayType())
-    {
         return "array";
-    }
     if (type->isFunctionType())
-    {
         return "function";
-    }
     if (type->isRecordType())
-    {
         return "record";
-    }
     if (type->isEnumeralType())
-    {
         return "enum";
-    }
     if (type->isTemplateTypeParmType())
-    {
         return "template_param";
-    }
 
     return "user_defined";
 }
@@ -1720,30 +1566,20 @@ auto KuzuDump::extractTypeCategory(clang::QualType qualType) -> std::string
 auto KuzuDump::extractTypeQualifiers(clang::QualType qualType) -> std::string
 {
     if (qualType.isNull())
-    {
         return "";
-    }
 
     std::string qualifiers;
 
     if (qualType.isConstQualified())
-    {
         qualifiers += "const ";
-    }
     if (qualType.isVolatileQualified())
-    {
         qualifiers += "volatile ";
-    }
     if (qualType.isRestrictQualified())
-    {
         qualifiers += "restrict ";
-    }
 
     // Remove trailing space
     if (!qualifiers.empty() && qualifiers.back() == ' ')
-    {
         qualifiers.pop_back();
-    }
 
     return qualifiers;
 }
@@ -1751,9 +1587,7 @@ auto KuzuDump::extractTypeQualifiers(clang::QualType qualType) -> std::string
 auto KuzuDump::isBuiltInType(clang::QualType qualType) -> bool
 {
     if (qualType.isNull())
-    {
         return false;
-    }
 
     const clang::Type* type = qualType.getTypePtr();
     return (type != nullptr) && type->isBuiltinType();
@@ -1770,9 +1604,7 @@ auto KuzuDump::extractTypeSourceLocation(clang::QualType /*qualType*/) -> std::s
 void KuzuDump::createStatementNode(int64_t nodeId, const clang::Stmt* stmt)
 {
     if (!connection || (stmt == nullptr))
-    {
         return;
-    }
 
     try
     {
@@ -1803,9 +1635,7 @@ void KuzuDump::createStatementNode(int64_t nodeId, const clang::Stmt* stmt)
 void KuzuDump::createExpressionNode(int64_t nodeId, const clang::Expr* expr)
 {
     if (!connection || (expr == nullptr))
-    {
         return;
-    }
 
     try
     {
@@ -1838,18 +1668,14 @@ void KuzuDump::createExpressionNode(int64_t nodeId, const clang::Expr* expr)
 auto KuzuDump::extractStatementKind(const clang::Stmt* stmt) -> std::string
 {
     if (stmt == nullptr)
-    {
         return "unknown";
-    }
     return stmt->getStmtClassName();
 }
 
 auto KuzuDump::extractControlFlowType(const clang::Stmt* stmt) -> std::string
 {
     if (stmt == nullptr)
-    {
         return "none";
-    }
 
     if (isa<IfStmt>(stmt))
         return "if";
@@ -1882,9 +1708,7 @@ auto KuzuDump::extractControlFlowType(const clang::Stmt* stmt) -> std::string
 auto KuzuDump::extractConditionText(const clang::Stmt* stmt) -> std::string
 {
     if (stmt == nullptr)
-    {
         return "";
-    }
 
     if (const auto* ifStmt = dyn_cast<IfStmt>(stmt))
     {
@@ -1898,16 +1722,12 @@ auto KuzuDump::extractConditionText(const clang::Stmt* stmt) -> std::string
     else if (const auto* whileStmt = dyn_cast<WhileStmt>(stmt))
     {
         if ([[maybe_unused]] const Expr* cond = whileStmt->getCond())
-        {
             return "while_condition";
-        }
     }
     else if (const auto* forStmt = dyn_cast<ForStmt>(stmt))
     {
         if ([[maybe_unused]] const Expr* cond = forStmt->getCond())
-        {
             return "for_condition";
-        }
     }
 
     return "";
@@ -1916,9 +1736,7 @@ auto KuzuDump::extractConditionText(const clang::Stmt* stmt) -> std::string
 auto KuzuDump::hasStatementSideEffects(const clang::Stmt* stmt) -> bool
 {
     if (stmt == nullptr)
-    {
         return false;
-    }
 
     // Most statements that can have side effects
     if (isa<CallExpr>(stmt) || isa<CXXOperatorCallExpr>(stmt))
@@ -1949,21 +1767,15 @@ auto KuzuDump::isCompoundStatement(const clang::Stmt* stmt) -> bool
 auto KuzuDump::isStatementConstexpr(const clang::Stmt* stmt) -> bool
 {
     if (stmt == nullptr)
-    {
         return false;
-    }
 
     // Check if this is a constexpr if statement (C++17 feature)
     if (const auto* ifStmt = dyn_cast<IfStmt>(stmt))
-    {
         return ifStmt->isConstexpr();
-    }
 
     // For expressions, check if they're constant expressions
     if (const auto* expr = dyn_cast<Expr>(stmt))
-    {
         return isExpressionConstexpr(expr);
-    }
 
     return false;
 }
@@ -1971,18 +1783,14 @@ auto KuzuDump::isStatementConstexpr(const clang::Stmt* stmt) -> bool
 auto KuzuDump::extractExpressionKind(const clang::Expr* expr) -> std::string
 {
     if (expr == nullptr)
-    {
         return "unknown";
-    }
     return expr->getStmtClassName();
 }
 
 auto KuzuDump::extractValueCategory(const clang::Expr* expr) -> std::string
 {
     if (expr == nullptr)
-    {
         return "unknown";
-    }
 
     switch (expr->getValueKind())
     {
@@ -2000,34 +1808,20 @@ auto KuzuDump::extractValueCategory(const clang::Expr* expr) -> std::string
 auto KuzuDump::extractLiteralValue(const clang::Expr* expr) -> std::string
 {
     if (expr == nullptr)
-    {
         return "";
-    }
 
     if (const auto* intLit = dyn_cast<IntegerLiteral>(expr))
-    {
         return std::to_string(intLit->getValue().getSExtValue());
-    }
     if (const auto* floatLit = dyn_cast<FloatingLiteral>(expr))
-    {
         return std::to_string(floatLit->getValueAsApproximateDouble());
-    }
     if (const auto* stringLit = dyn_cast<StringLiteral>(expr))
-    {
         return stringLit->getString().str();
-    }
     if (const auto* charLit = dyn_cast<CharacterLiteral>(expr))
-    {
         return std::to_string(charLit->getValue());
-    }
     if (const auto* boolLit = dyn_cast<CXXBoolLiteralExpr>(expr))
-    {
         return boolLit->getValue() ? "true" : "false";
-    }
     if (isa<CXXNullPtrLiteralExpr>(expr))
-    {
         return "nullptr";
-    }
 
     return "";
 }
@@ -2035,22 +1829,14 @@ auto KuzuDump::extractLiteralValue(const clang::Expr* expr) -> std::string
 auto KuzuDump::extractOperatorKind(const clang::Expr* expr) -> std::string
 {
     if (expr == nullptr)
-    {
         return "";
-    }
 
     if (const auto* binOp = dyn_cast<BinaryOperator>(expr))
-    {
         return binOp->getOpcodeStr().str();
-    }
     if (const auto* unaryOp = dyn_cast<UnaryOperator>(expr))
-    {
         return UnaryOperator::getOpcodeStr(unaryOp->getOpcode()).str();
-    }
     if (const auto* cxxOp = dyn_cast<CXXOperatorCallExpr>(expr))
-    {
         return getOperatorSpelling(cxxOp->getOperator());
-    }
 
     return "";
 }
@@ -2058,9 +1844,7 @@ auto KuzuDump::extractOperatorKind(const clang::Expr* expr) -> std::string
 auto KuzuDump::isExpressionConstexpr(const clang::Expr* expr) -> bool
 {
     if (expr == nullptr)
-    {
         return false;
-    }
 
     // Check if the expression is a constant expression
     // Simplified approach - check if it's a literal or has constant value
@@ -2071,9 +1855,7 @@ auto KuzuDump::isExpressionConstexpr(const clang::Expr* expr) -> bool
 auto KuzuDump::extractEvaluationResult(const clang::Expr* expr) -> std::string
 {
     if (expr == nullptr)
-    {
         return "";
-    }
 
     // For constant expressions, try to get their evaluated value
     // Simplified approach - just check if it's a literal
@@ -2089,14 +1871,10 @@ auto KuzuDump::extractEvaluationResult(const clang::Expr* expr) -> std::string
 auto KuzuDump::extractImplicitCastKind(const clang::Expr* expr) -> std::string
 {
     if (expr == nullptr)
-    {
         return "";
-    }
 
     if (const auto* castExpr = dyn_cast<ImplicitCastExpr>(expr))
-    {
         return castExpr->getCastKindName();
-    }
 
     return "";
 }
@@ -2120,23 +1898,17 @@ void KuzuDump::popParent()
 void KuzuDump::createHierarchyRelationship(int64_t childNodeId)
 {
     if (parentStack.empty() || childNodeId == -1)
-    {
         return;
-    }
 
     int64_t parentNodeId = getCurrentParent();
     if (parentNodeId != -1)
-    {
         createParentChildRelation(parentNodeId, childNodeId, childIndex++);
-    }
 }
 
 auto KuzuDump::getCurrentParent() -> int64_t
 {
     if (parentStack.empty())
-    {
         return -1;
-    }
     return parentStack.back();
 }
 
@@ -2144,25 +1916,19 @@ auto KuzuDump::getCurrentParent() -> int64_t
 void KuzuDump::pushScope(int64_t scopeNodeId)
 {
     if (scopeNodeId != -1)
-    {
         scopeStack.push_back(scopeNodeId);
-    }
 }
 
 void KuzuDump::popScope()
 {
     if (!scopeStack.empty())
-    {
         scopeStack.pop_back();
-    }
 }
 
 void KuzuDump::createScopeRelationships(int64_t nodeId)
 {
     if (nodeId == -1 || scopeStack.empty())
-    {
         return;
-    }
 
     // Create IN_SCOPE relationships for all current scopes
     for (int64_t scopeId : scopeStack)
@@ -2176,18 +1942,14 @@ void KuzuDump::createScopeRelationships(int64_t nodeId)
 auto KuzuDump::getCurrentScope() -> int64_t
 {
     if (scopeStack.empty())
-    {
         return -1;
-    }
     return scopeStack.back();
 }
 
 void KuzuDump::createTemplateRelation(int64_t specializationId, int64_t templateId, const std::string& kind)
 {
     if (!connection || specializationId == -1 || templateId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -2212,9 +1974,7 @@ void KuzuDump::createSpecializesRelation(int64_t specializationId,
                                          const std::string& instantiationContext)
 {
     if (!connection || specializationId == -1 || templateId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -2254,9 +2014,7 @@ void KuzuDump::createSpecializesRelation(int64_t specializationId,
 void KuzuDump::createTemplateParameterNode(int64_t nodeId, const clang::NamedDecl* param)
 {
     if (!connection || nodeId == -1 || param == nullptr)
-    {
         return;
-    }
 
     try
     {
@@ -2275,9 +2033,7 @@ void KuzuDump::createTemplateParameterNode(int64_t nodeId, const clang::NamedDec
             {
                 clang::TemplateArgumentLoc defaultArg = typeParam->getDefaultArgument();
                 if (defaultArg.getArgument().getKind() == clang::TemplateArgument::Type)
-                {
                     defaultArgumentText = defaultArg.getArgument().getAsType().getAsString();
-                }
             }
             isParameterPack = typeParam->isParameterPack();
         }
@@ -2352,9 +2108,7 @@ auto KuzuDump::extractTemplateArguments(const clang::TemplateArgumentList& args)
     for (unsigned i = 0; i < args.size(); ++i)
     {
         if (i > 0)
-        {
             result += ", ";
-        }
 
         const clang::TemplateArgument& arg = args[i];
 
@@ -2368,13 +2122,9 @@ auto KuzuDump::extractTemplateArguments(const clang::TemplateArgumentList& args)
             break;
         case clang::TemplateArgument::Declaration:
             if (const auto* namedDecl = dyn_cast<clang::NamedDecl>(arg.getAsDecl()))
-            {
                 result += namedDecl->getNameAsString();
-            }
             else
-            {
                 result += "declaration";
-            }
             break;
         case clang::TemplateArgument::NullPtr:
             result += "nullptr";
@@ -2404,9 +2154,7 @@ void KuzuDump::createCommentNode(int64_t nodeId,
                                  const std::string& detailedText)
 {
     if (!connection || nodeId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -2438,9 +2186,7 @@ void KuzuDump::createCommentNode(int64_t nodeId,
 void KuzuDump::createCommentRelation(int64_t declId, int64_t commentId)
 {
     if (!connection || declId == -1 || commentId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -2459,9 +2205,7 @@ void KuzuDump::createCommentRelation(int64_t declId, int64_t commentId)
 void KuzuDump::processComments(const clang::Decl* decl, int64_t declId)
 {
     if ((decl == nullptr) || (sourceManager == nullptr))
-    {
         return;
-    }
 
     // Get the AST context from the declaration
     const ASTContext& context = decl->getASTContext();
@@ -2502,9 +2246,7 @@ void KuzuDump::processComments(const clang::Decl* decl, int64_t declId)
 auto KuzuDump::extractCommentKind(const clang::comments::Comment* comment) -> std::string
 {
     if (comment == nullptr)
-    {
         return "unknown";
-    }
 
     switch (comment->getCommentKind())
     {
@@ -2540,9 +2282,7 @@ auto KuzuDump::extractCommentKind(const clang::comments::Comment* comment) -> st
 auto KuzuDump::extractCommentText(const clang::comments::Comment* comment) -> std::string
 {
     if (comment == nullptr)
-    {
         return "";
-    }
 
     // For now, return a simple text extraction
     // In a more sophisticated implementation, we could walk the comment AST
@@ -2562,9 +2302,7 @@ void KuzuDump::createConstantExpressionNode(int64_t nodeId,
                                             const std::string& evaluationContext)
 {
     if (!connection || nodeId == -1 || expr == nullptr)
-    {
         return;
-    }
 
     try
     {
@@ -2602,9 +2340,7 @@ void KuzuDump::createTemplateMetaprogrammingNode(int64_t nodeId,
                                                  int64_t instantiationDepth)
 {
     if (!connection || nodeId == -1 || templateDecl == nullptr)
-    {
         return;
-    }
 
     try
     {
@@ -2630,9 +2366,7 @@ void KuzuDump::createTemplateMetaprogrammingNode(int64_t nodeId,
             {
                 auto it = nodeIdMap.find(classTemplateSpecDecl->getSpecializedTemplate());
                 if (it != nodeIdMap.end())
-                {
                     specializedTemplateId = it->second;
-                }
             }
         }
 
@@ -2660,9 +2394,7 @@ void KuzuDump::createTemplateMetaprogrammingNode(int64_t nodeId,
 void KuzuDump::createStaticAssertionNode(int64_t nodeId, const clang::StaticAssertDecl* assertDecl)
 {
     if (!connection || nodeId == -1 || assertDecl == nullptr)
-    {
         return;
-    }
 
     try
     {
@@ -2671,9 +2403,7 @@ void KuzuDump::createStaticAssertionNode(int64_t nodeId, const clang::StaticAsse
         std::string evaluationContext = "static_assert";
 
         if (!assertionResult && (assertDecl->getMessage() != nullptr))
-        {
             failureReason = assertionMessage;
-        }
 
         // Escape single quotes in text fields
         std::ranges::replace(assertionExpression, '\'', '_');
@@ -2698,9 +2428,7 @@ void KuzuDump::createStaticAssertionNode(int64_t nodeId, const clang::StaticAsse
 void KuzuDump::createConstantValueRelation(int64_t exprId, int64_t constantId, const std::string& stage)
 {
     if (!connection || exprId == -1 || constantId == -1)
-    {
         return;
-    }
 
     std::string escapedStage = stage;
     std::ranges::replace(escapedStage, '\'', '_');
@@ -2715,9 +2443,7 @@ void KuzuDump::createConstantValueRelation(int64_t exprId, int64_t constantId, c
 void KuzuDump::createTemplateEvaluationRelation(int64_t templateId, int64_t metaprogramId, const std::string& context)
 {
     if (!connection || templateId == -1 || metaprogramId == -1)
-    {
         return;
-    }
 
     std::string escapedContext = context;
     std::ranges::replace(escapedContext, '\'', '_');
@@ -2732,9 +2458,7 @@ void KuzuDump::createTemplateEvaluationRelation(int64_t templateId, int64_t meta
 void KuzuDump::createStaticAssertRelation(int64_t declId, int64_t assertId, const std::string& scope)
 {
     if (!connection || declId == -1 || assertId == -1)
-    {
         return;
-    }
 
     std::string escapedScope = scope;
     std::ranges::replace(escapedScope, '\'', '_');
@@ -2750,9 +2474,7 @@ void KuzuDump::createStaticAssertRelation(int64_t declId, int64_t assertId, cons
 auto KuzuDump::evaluateConstantExpression(const clang::Expr* expr) -> std::string
 {
     if (expr == nullptr)
-    {
         return "";
-    }
 
     // Try to evaluate the expression at compile time
     if (expr->isEvaluatable(*astContext))
@@ -2762,25 +2484,15 @@ auto KuzuDump::evaluateConstantExpression(const clang::Expr* expr) -> std::strin
         {
             const auto& value = result.Val;
             if (value.isInt())
-            {
                 return std::to_string(value.getInt().getSExtValue());
-            }
             if (value.isFloat())
-            {
                 return std::to_string(value.getFloat().convertToDouble());
-            }
             if (value.isLValue())
-            {
                 return "lvalue";
-            }
             if (value.isComplexInt())
-            {
                 return "complex_int";
-            }
             if (value.isComplexFloat())
-            {
                 return "complex_float";
-            }
         }
     }
 
@@ -2790,41 +2502,25 @@ auto KuzuDump::evaluateConstantExpression(const clang::Expr* expr) -> std::strin
 auto KuzuDump::extractConstantValue(const clang::Expr* expr) -> std::pair<std::string, std::string>
 {
     if (expr == nullptr)
-    {
         return {"", ""};
-    }
 
     std::string value;
     std::string type = expr->getType().getAsString();
 
     if (const auto* intLiteral = dyn_cast<IntegerLiteral>(expr))
-    {
         value = std::to_string(intLiteral->getValue().getSExtValue());
-    }
     else if (const auto* floatLiteral = dyn_cast<FloatingLiteral>(expr))
-    {
         value = std::to_string(floatLiteral->getValue().convertToDouble());
-    }
     else if (const auto* stringLiteral = dyn_cast<StringLiteral>(expr))
-    {
         value = stringLiteral->getString().str();
-    }
     else if (const auto* charLiteral = dyn_cast<CharacterLiteral>(expr))
-    {
         value = std::to_string(charLiteral->getValue());
-    }
     else if (const auto* boolLiteral = dyn_cast<CXXBoolLiteralExpr>(expr))
-    {
         value = boolLiteral->getValue() ? "true" : "false";
-    }
     else if (isa<CXXNullPtrLiteralExpr>(expr))
-    {
         value = "nullptr";
-    }
     else
-    {
         value = evaluateConstantExpression(expr);
-    }
 
     return {value, type};
 }
@@ -2832,26 +2528,16 @@ auto KuzuDump::extractConstantValue(const clang::Expr* expr) -> std::pair<std::s
 auto KuzuDump::extractEvaluationStatus(const clang::Expr* expr) -> std::string
 {
     if (expr == nullptr)
-    {
         return "null_expression";
-    }
 
     if (expr->isEvaluatable(*astContext))
-    {
         return "evaluatable";
-    }
     if (expr->isValueDependent())
-    {
         return "value_dependent";
-    }
     if (expr->isTypeDependent())
-    {
         return "type_dependent";
-    }
     if (expr->containsUnexpandedParameterPack())
-    {
         return "contains_parameter_pack";
-    }
 
     return "not_evaluatable";
 }
@@ -2859,9 +2545,7 @@ auto KuzuDump::extractEvaluationStatus(const clang::Expr* expr) -> std::string
 auto KuzuDump::detectConstexprFunction(const clang::FunctionDecl* func) -> bool
 {
     if (func == nullptr)
-    {
         return false;
-    }
 
     return func->isConstexpr() || func->isConstexprSpecified();
 }
@@ -2869,9 +2553,7 @@ auto KuzuDump::detectConstexprFunction(const clang::FunctionDecl* func) -> bool
 auto KuzuDump::extractTemplateInstantiationDepth(const clang::Decl* decl) -> int64_t
 {
     if (decl == nullptr)
-    {
         return 0;
-    }
 
     int64_t depth = 0;
     const DeclContext* context = decl->getDeclContext();
@@ -2885,9 +2567,7 @@ auto KuzuDump::extractTemplateInstantiationDepth(const clang::Decl* decl) -> int
         else if (const auto* functionDecl = dyn_cast<FunctionDecl>(context))
         {
             if (functionDecl->getTemplateSpecializationInfo() != nullptr)
-            {
                 depth++;
-            }
         }
         context = context->getParent();
     }
@@ -2898,9 +2578,7 @@ auto KuzuDump::extractTemplateInstantiationDepth(const clang::Decl* decl) -> int
 auto KuzuDump::extractTemplateArguments(const clang::TemplateDecl* templateDecl) -> std::string
 {
     if (templateDecl == nullptr)
-    {
         return "";
-    }
 
     if (const auto* templateParams = templateDecl->getTemplateParameters())
     {
@@ -2910,9 +2588,7 @@ auto KuzuDump::extractTemplateArguments(const clang::TemplateDecl* templateDecl)
             if (i > 0)
                 arguments += ", ";
             if (const auto* namedDecl = dyn_cast<NamedDecl>(templateParams->getParam(i)))
-            {
                 arguments += namedDecl->getNameAsString();
-            }
         }
         return arguments;
     }
@@ -2924,9 +2600,7 @@ auto KuzuDump::extractStaticAssertInfo(const clang::StaticAssertDecl* assertDecl
     -> std::tuple<std::string, std::string, bool>
 {
     if (assertDecl == nullptr)
-    {
         return {"", "", false};
-    }
 
     std::string expression;
     std::string message;
@@ -2954,9 +2628,7 @@ auto KuzuDump::extractStaticAssertInfo(const clang::StaticAssertDecl* assertDecl
             if (condExpr->EvaluateAsRValue(evalResult, *astContext))
             {
                 if (evalResult.Val.isInt())
-                {
                     result = evalResult.Val.getInt().getBoolValue();
-                }
             }
         }
     }
@@ -2964,9 +2636,7 @@ auto KuzuDump::extractStaticAssertInfo(const clang::StaticAssertDecl* assertDecl
     if (const auto* messageExpr = assertDecl->getMessage())
     {
         if (const auto* stringLiteral = dyn_cast<StringLiteral>(messageExpr))
-        {
             message = stringLiteral->getString().str();
-        }
     }
 
     return {expression, message, result};
@@ -2982,9 +2652,7 @@ void KuzuDump::createMacroDefinitionNode(int64_t nodeId,
                                          bool isConditional)
 {
     if (!connection || nodeId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -3030,9 +2698,7 @@ void KuzuDump::createIncludeDirectiveNode(int64_t nodeId,
                                           int64_t includeDepth)
 {
     if (!connection || nodeId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -3064,9 +2730,7 @@ void KuzuDump::createConditionalDirectiveNode(int64_t nodeId,
                                               int64_t nestingLevel)
 {
     if (!connection || nodeId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -3096,9 +2760,7 @@ void KuzuDump::createPragmaDirectiveNode(int64_t nodeId,
                                          const std::string& pragmaKind)
 {
     if (!connection || nodeId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -3129,9 +2791,7 @@ void KuzuDump::createMacroExpansionRelation(int64_t fromId,
                                             const std::string& expansionArguments)
 {
     if (!connection || fromId == -1 || macroId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -3158,9 +2818,7 @@ void KuzuDump::createMacroExpansionRelation(int64_t fromId,
 void KuzuDump::createIncludesRelation(int64_t fromId, int64_t includeId, int64_t includeOrder)
 {
     if (!connection || fromId == -1 || includeId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -3180,9 +2838,7 @@ void KuzuDump::createIncludesRelation(int64_t fromId, int64_t includeId, int64_t
 void KuzuDump::createDefinesRelation(int64_t fromId, int64_t macroId, const std::string& definitionContext)
 {
     if (!connection || fromId == -1 || macroId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -3209,9 +2865,7 @@ void KuzuDump::createInheritanceRelation(int64_t derivedId,
                                          const std::string& accessPath)
 {
     if (!connection || derivedId == -1 || baseId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -3236,9 +2890,7 @@ void KuzuDump::createOverrideRelation(int64_t overridingId,
                                       bool isCovariantReturn)
 {
     if (!connection || overridingId == -1 || overriddenId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -3260,9 +2912,7 @@ void KuzuDump::createOverrideRelation(int64_t overridingId,
 void KuzuDump::VisitDecl(const Decl* D)
 {
     if (D == nullptr)
-    {
         return;
-    }
 
     // Create database node for this declaration
     int64_t nodeId = createASTNode(D);
@@ -3342,9 +2992,7 @@ void KuzuDump::VisitFunctionDecl(const FunctionDecl* D)
 
     // Analyze Control Flow Graph if the function has a body
     if (D->hasBody())
-    {
         analyzeCFGForFunction(D, nodeId);
-    }
 
     // Push this function as a new scope for its body and parameters
     pushScope(nodeId);
@@ -3424,18 +3072,12 @@ void KuzuDump::VisitUsingDecl(const UsingDecl* D)
             auto it = nodeIdMap.find(usedDecl);
             int64_t usedNodeId;
             if (it != nodeIdMap.end())
-            {
                 usedNodeId = it->second;
-            }
             else
-            {
                 usedNodeId = createASTNode(usedDecl);
-            }
 
             if (usedNodeId != -1)
-            {
                 createReferenceRelation(nodeId, usedNodeId, "using");
-            }
         }
     }
 
@@ -3463,18 +3105,12 @@ void KuzuDump::VisitUsingDirectiveDecl(const UsingDirectiveDecl* D)
         auto it = nodeIdMap.find(nominatedNS);
         int64_t nsNodeId;
         if (it != nodeIdMap.end())
-        {
             nsNodeId = it->second;
-        }
         else
-        {
             nsNodeId = createASTNode(nominatedNS);
-        }
 
         if (nsNodeId != -1)
-        {
             createReferenceRelation(nodeId, nsNodeId, "using_directive");
-        }
     }
 
     // The ASTNodeTraverser will handle automatic traversal
@@ -3501,18 +3137,12 @@ void KuzuDump::VisitNamespaceAliasDecl(const NamespaceAliasDecl* D)
         auto it = nodeIdMap.find(aliasedNS);
         int64_t aliasedNodeId;
         if (it != nodeIdMap.end())
-        {
             aliasedNodeId = it->second;
-        }
         else
-        {
             aliasedNodeId = createASTNode(aliasedNS);
-        }
 
         if (aliasedNodeId != -1)
-        {
             createReferenceRelation(nodeId, aliasedNodeId, "namespace_alias");
-        }
     }
 
     // The ASTNodeTraverser will handle automatic traversal
@@ -3541,13 +3171,9 @@ void KuzuDump::VisitCXXRecordDecl(const CXXRecordDecl* D)
                 int64_t baseNodeId = -1;
                 auto it = nodeIdMap.find(baseDecl);
                 if (it != nodeIdMap.end())
-                {
                     baseNodeId = it->second;
-                }
                 else
-                {
                     baseNodeId = createASTNode(baseDecl);
-                }
 
                 if (baseNodeId != -1)
                 {
@@ -3600,42 +3226,28 @@ void KuzuDump::VisitCXXRecordDecl(const CXXRecordDecl* D)
                         int64_t overriddenNodeId = -1;
                         auto nodeIt = nodeIdMap.find(overriddenMethod);
                         if (nodeIt != nodeIdMap.end())
-                        {
                             overriddenNodeId = nodeIt->second;
-                        }
                         else
-                        {
                             overriddenNodeId = createASTNode(overriddenMethod);
-                        }
 
                         // Create or find the overriding method node
                         int64_t overridingNodeId = -1;
                         auto overridingIt = nodeIdMap.find(method);
                         if (overridingIt != nodeIdMap.end())
-                        {
                             overridingNodeId = overridingIt->second;
-                        }
                         else
-                        {
                             overridingNodeId = createASTNode(method);
-                        }
 
                         if (overridingNodeId != -1 && overriddenNodeId != -1)
                         {
                             // Determine override type
                             std::string overrideType = "virtual";
                             if (method->hasAttr<FinalAttr>())
-                            {
                                 overrideType = "final";
-                            }
                             else if (method->isPureVirtual())
-                            {
                                 overrideType = "pure_virtual";
-                            }
                             else if (method->hasAttr<OverrideAttr>())
-                            {
                                 overrideType = "override";
-                            }
 
                             // Check for covariant return type (simplified check)
                             bool isCovariantReturn = false;
@@ -3918,9 +3530,7 @@ void KuzuDump::VisitDeclRefExpr(const DeclRefExpr* E)
             // Create the referenced declaration node if it doesn't exist yet
             int64_t referencedNodeId = createASTNode(referencedDecl);
             if (referencedNodeId != -1)
-            {
                 createReferenceRelation(nodeId, referencedNodeId, "uses");
-            }
         }
     }
 
@@ -4012,9 +3622,7 @@ void KuzuDump::VisitCallExpr(const CallExpr* E)
             // Create the called function node if it doesn't exist yet
             int64_t calledFuncNodeId = createASTNode(calledFunc);
             if (calledFuncNodeId != -1)
-            {
                 createReferenceRelation(nodeId, calledFuncNodeId, "calls");
-            }
         }
     }
 
@@ -4040,9 +3648,7 @@ void KuzuDump::VisitCallExpr(const CallExpr* E)
                 {
                     int64_t memberNodeId = createASTNode(memberDecl);
                     if (memberNodeId != -1)
-                    {
                         createReferenceRelation(nodeId, memberNodeId, "calls");
-                    }
                 }
             }
         }
@@ -4077,9 +3683,7 @@ void KuzuDump::VisitImplicitCastExpr(const ImplicitCastExpr* E)
 void KuzuDump::analyzeCFGForFunction(const clang::FunctionDecl* func, int64_t functionNodeId)
 {
     if (!connection || func == nullptr || !func->hasBody())
-    {
         return;
-    }
 
     try
     {
@@ -4159,9 +3763,7 @@ void KuzuDump::createCFGBlockNode(int64_t blockNodeId,
                                   bool isExit)
 {
     if (!connection || blockNodeId == -1 || block == nullptr)
-    {
         return;
-    }
 
     try
     {
@@ -4176,9 +3778,7 @@ void KuzuDump::createCFGBlockNode(int64_t blockNodeId,
             hasTerminator = true;
             const clang::Stmt* terminator = block->getTerminator().getStmt();
             if (terminator != nullptr)
-            {
                 terminatorKind = terminator->getStmtClassName();
-            }
         }
 
         // Escape single quotes in strings for database storage
@@ -4208,9 +3808,7 @@ void KuzuDump::createCFGEdgeRelation(int64_t fromBlockId,
                                      const std::string& condition)
 {
     if (!connection || fromBlockId == -1 || toBlockId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -4236,9 +3834,7 @@ void KuzuDump::createCFGEdgeRelation(int64_t fromBlockId,
 void KuzuDump::createCFGContainsRelation(int64_t functionId, int64_t cfgBlockId)
 {
     if (!connection || functionId == -1 || cfgBlockId == -1)
-    {
         return;
-    }
 
     try
     {
@@ -4257,9 +3853,7 @@ void KuzuDump::createCFGContainsRelation(int64_t functionId, int64_t cfgBlockId)
 auto KuzuDump::extractCFGBlockContent(const clang::CFGBlock* block) -> std::string
 {
     if ((block == nullptr) || (sourceManager == nullptr))
-    {
         return "";
-    }
 
     std::string content;
     bool first = true;
@@ -4285,13 +3879,9 @@ auto KuzuDump::extractCFGBlockContent(const clang::CFGBlock* block) -> std::stri
                                                .str();
 
                     if (!stmtText.empty())
-                    {
                         content += stmtText;
-                    }
                     else
-                    {
                         content += s->getStmtClassName();
-                    }
                 }
                 else
                 {
@@ -4303,9 +3893,7 @@ auto KuzuDump::extractCFGBlockContent(const clang::CFGBlock* block) -> std::stri
     }
 
     if (content.empty())
-    {
         content = "empty_block";
-    }
 
     return content;
 }
@@ -4350,9 +3938,7 @@ auto KuzuDump::extractCFGEdgeType(const clang::CFGBlock& from) -> std::string
 auto KuzuDump::extractCFGCondition(const clang::CFGBlock* block) -> std::string
 {
     if ((block == nullptr) || (sourceManager == nullptr))
-    {
         return "";
-    }
 
     if (const clang::Stmt* termCond = block->getTerminatorCondition())
     {
