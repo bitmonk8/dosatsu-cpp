@@ -24,6 +24,7 @@
 #include "clang/AST/RawCommentList.h"
 #include "clang/AST/Comment.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Analysis/CFG.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "kuzu.hpp"
@@ -473,8 +474,6 @@ void KuzuDump::initializeDatabase()
 
         // Create schema
         createSchema();
-
-        llvm::outs() << "Database initialized at: " << databasePath << "\n";
     }
     catch (const std::exception& e)
     {
@@ -505,7 +504,6 @@ void KuzuDump::beginTransaction()
         if (result->isSuccess())
         {
             transactionActive = true;
-            llvm::outs() << "Transaction started for batch operations\n";
         }
         else
         {
@@ -531,7 +529,6 @@ void KuzuDump::commitTransaction()
         if (result->isSuccess())
         {
             transactionActive = false;
-            llvm::outs() << "Transaction committed. Total operations: " << totalOperations << "\n";
         }
         else
         {
@@ -557,7 +554,6 @@ void KuzuDump::rollbackTransaction()
         if (result->isSuccess())
         {
             transactionActive = false;
-            llvm::outs() << "Transaction rolled back\n";
         }
         else
         {
@@ -614,7 +610,6 @@ void KuzuDump::executeBatch()
             }
         }
 
-        llvm::outs() << "Executed batch of " << pendingQueries.size() << " operations\n";
         pendingQueries.clear();
     }
     catch (const std::exception& e)
@@ -642,8 +637,6 @@ void KuzuDump::flushOperations()
     {
         commitTransaction();
     }
-
-    llvm::outs() << "All operations flushed. Total operations processed: " << totalOperations << "\n";
 }
 
 void KuzuDump::createSchema()
@@ -872,6 +865,20 @@ void KuzuDump::createSchema()
                            "evaluation_context STRING)",
                            "StaticAssertion");
 
+        // Create CFGBlock table for control flow graph blocks
+        executeSchemaQuery("CREATE NODE TABLE CFGBlock("
+                           "node_id INT64 PRIMARY KEY, "
+                           "function_id INT64, "
+                           "block_index INT64, "
+                           "is_entry_block BOOLEAN, "
+                           "is_exit_block BOOLEAN, "
+                           "terminator_kind STRING, "
+                           "block_content STRING, "
+                           "condition_expression STRING, "
+                           "has_terminator BOOLEAN, "
+                           "reachable BOOLEAN)",
+                           "CFGBlock");
+
         // Preprocessor relationships
         executeSchemaQuery("CREATE REL TABLE MACRO_EXPANSION("
                            "FROM ASTNode TO MacroDefinition, "
@@ -910,7 +917,22 @@ void KuzuDump::createSchema()
                            "assertion_scope STRING)",
                            "CONTAINS_STATIC_ASSERT");
 
-        llvm::outs() << "Database schema created successfully\n";
+        // Control Flow Graph relationships
+        executeSchemaQuery("CREATE REL TABLE CFG_EDGE("
+                           "FROM CFGBlock TO CFGBlock, "
+                           "edge_type STRING, "
+                           "condition STRING)",
+                           "CFG_EDGE");
+
+        executeSchemaQuery("CREATE REL TABLE CONTAINS_CFG("
+                           "FROM Declaration TO CFGBlock, "
+                           "cfg_role STRING)",
+                           "CONTAINS_CFG");
+
+        executeSchemaQuery("CREATE REL TABLE CFG_CONTAINS_STMT("
+                           "FROM CFGBlock TO Statement, "
+                           "statement_index INT64)",
+                           "CFG_CONTAINS_STMT");
     }
     catch (const std::exception& e)
     {
@@ -3318,6 +3340,12 @@ void KuzuDump::VisitFunctionDecl(const FunctionDecl* D)
         }
     }
 
+    // Analyze Control Flow Graph if the function has a body
+    if (D->hasBody())
+    {
+        analyzeCFGForFunction(D, nodeId);
+    }
+
     // Push this function as a new scope for its body and parameters
     pushScope(nodeId);
 
@@ -4044,4 +4072,301 @@ void KuzuDump::VisitImplicitCastExpr(const ImplicitCastExpr* E)
 
     // Pop this node as parent after traversal
     popParent();
+}
+// Control Flow Graph (CFG) analysis implementation
+void KuzuDump::analyzeCFGForFunction(const clang::FunctionDecl* func, int64_t functionNodeId)
+{
+    if (!connection || func == nullptr || !func->hasBody())
+    {
+        return;
+    }
+
+    try
+    {
+        // Build CFG for the function body
+        clang::Stmt* body = func->getBody();
+        clang::ASTContext& context = func->getASTContext();
+        clang::CFG::BuildOptions options;
+
+        // Enable additional options for comprehensive CFG
+        options.AddImplicitDtors = true;
+        options.AddInitializers = true;
+        options.AddTemporaryDtors = true;
+
+        std::unique_ptr<clang::CFG> cfg = clang::CFG::buildCFG(func, body, &context, options);
+
+        if (!cfg)
+        {
+            llvm::errs() << "Failed to build CFG for function: " << func->getNameAsString() << "\n";
+            return;
+        }
+
+        // Map to store CFG block node IDs
+        std::unordered_map<const clang::CFGBlock*, int64_t> blockNodeMap;
+
+        // First pass: Create CFG block nodes
+        for (auto it = cfg->begin(); it != cfg->end(); ++it)
+        {
+            const clang::CFGBlock* block = *it;
+            if (block == nullptr)
+                continue;
+
+            int64_t blockNodeId = nextNodeId++;
+            blockNodeMap[block] = blockNodeId;
+
+            bool isEntry = (block == &cfg->getEntry());
+            bool isExit = (block == &cfg->getExit());
+            int blockIndex = block->getBlockID();
+
+            createCFGBlockNode(blockNodeId, functionNodeId, block, blockIndex, isEntry, isExit);
+            createCFGContainsRelation(functionNodeId, blockNodeId);
+        }
+
+        // Second pass: Create CFG edges
+        for (auto block : *cfg)
+        {
+            if (block == nullptr)
+                continue;
+
+            int64_t fromBlockId = blockNodeMap[block];
+
+            // Create edges to successor blocks
+            for (auto successor = block->succ_begin(); successor != block->succ_end(); ++successor)
+            {
+                const clang::CFGBlock* succBlock = successor->getReachableBlock();
+                if ((succBlock != nullptr) && blockNodeMap.find(succBlock) != blockNodeMap.end())
+                {
+                    int64_t toBlockId = blockNodeMap[succBlock];
+                    std::string edgeType = extractCFGEdgeType(*block);
+                    std::string condition = extractCFGCondition(block);
+
+                    createCFGEdgeRelation(fromBlockId, toBlockId, edgeType, condition);
+                }
+            }
+        }
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception analyzing CFG for function " << func->getNameAsString() << ": " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::createCFGBlockNode(int64_t blockNodeId,
+                                  int64_t functionNodeId,
+                                  const clang::CFGBlock* block,
+                                  int blockIndex,
+                                  bool isEntry,
+                                  bool isExit)
+{
+    if (!connection || blockNodeId == -1 || block == nullptr)
+    {
+        return;
+    }
+
+    try
+    {
+        std::string blockContent = extractCFGBlockContent(block);
+        std::string terminatorKind = "none";
+        bool hasTerminator = false;
+        std::string conditionExpression = extractCFGCondition(block);
+
+        // Analyze terminator
+        if (block->getTerminator().isValid())
+        {
+            hasTerminator = true;
+            const clang::Stmt* terminator = block->getTerminator().getStmt();
+            if (terminator != nullptr)
+            {
+                terminatorKind = terminator->getStmtClassName();
+            }
+        }
+
+        // Escape single quotes in strings for database storage
+        std::ranges::replace(blockContent, '\'', '_');
+        std::ranges::replace(terminatorKind, '\'', '_');
+        std::ranges::replace(conditionExpression, '\'', '_');
+
+        std::string query =
+            "CREATE (b:CFGBlock {" + std::string("node_id: ") + std::to_string(blockNodeId) + ", " +
+            "function_id: " + std::to_string(functionNodeId) + ", " + "block_index: " + std::to_string(blockIndex) +
+            ", " + "is_entry_block: " + (isEntry ? "true" : "false") + ", " +
+            "is_exit_block: " + (isExit ? "true" : "false") + ", " + "terminator_kind: '" + terminatorKind + "', " +
+            "block_content: '" + blockContent + "', " + "condition_expression: '" + conditionExpression + "', " +
+            "has_terminator: " + (hasTerminator ? "true" : "false") + ", " + "reachable: true})";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating CFGBlock node: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::createCFGEdgeRelation(int64_t fromBlockId,
+                                     int64_t toBlockId,
+                                     const std::string& edgeType,
+                                     const std::string& condition)
+{
+    if (!connection || fromBlockId == -1 || toBlockId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        std::string escapedEdgeType = edgeType;
+        std::string escapedCondition = condition;
+
+        std::ranges::replace(escapedEdgeType, '\'', '_');
+        std::ranges::replace(escapedCondition, '\'', '_');
+
+        std::string query = "MATCH (from:CFGBlock {node_id: " + std::to_string(fromBlockId) + "}), " +
+                            "(to:CFGBlock {node_id: " + std::to_string(toBlockId) + "}) " +
+                            "CREATE (from)-[:CFG_EDGE {" + "edge_type: '" + escapedEdgeType + "', " + "condition: '" +
+                            escapedCondition + "'}]->(to)";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating CFG edge relation: " << e.what() << "\n";
+    }
+}
+
+void KuzuDump::createCFGContainsRelation(int64_t functionId, int64_t cfgBlockId)
+{
+    if (!connection || functionId == -1 || cfgBlockId == -1)
+    {
+        return;
+    }
+
+    try
+    {
+        std::string query = "MATCH (func:Declaration {node_id: " + std::to_string(functionId) + "}), " +
+                            "(block:CFGBlock {node_id: " + std::to_string(cfgBlockId) + "}) " +
+                            "CREATE (func)-[:CONTAINS_CFG {cfg_role: 'block'}]->(block)";
+
+        addToBatch(query);
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception creating CFG contains relation: " << e.what() << "\n";
+    }
+}
+
+auto KuzuDump::extractCFGBlockContent(const clang::CFGBlock* block) -> std::string
+{
+    if ((block == nullptr) || (sourceManager == nullptr))
+    {
+        return "";
+    }
+
+    std::string content;
+    bool first = true;
+
+    // Collect statements in the block
+    for (auto it : *block)
+    {
+        if (const auto stmt = it.getAs<clang::CFGStmt>())
+        {
+            const clang::Stmt* s = stmt->getStmt();
+            if (s != nullptr)
+            {
+                if (!first)
+                    content += "; ";
+
+                // Try to get source text
+                auto range = s->getSourceRange();
+                if (range.isValid())
+                {
+                    std::string stmtText = clang::Lexer::getSourceText(clang::CharSourceRange::getTokenRange(range),
+                                                                       *sourceManager,
+                                                                       astContext->getLangOpts())
+                                               .str();
+
+                    if (!stmtText.empty())
+                    {
+                        content += stmtText;
+                    }
+                    else
+                    {
+                        content += s->getStmtClassName();
+                    }
+                }
+                else
+                {
+                    content += s->getStmtClassName();
+                }
+                first = false;
+            }
+        }
+    }
+
+    if (content.empty())
+    {
+        content = "empty_block";
+    }
+
+    return content;
+}
+
+auto KuzuDump::extractCFGEdgeType(const clang::CFGBlock& from) -> std::string
+{
+    // Analyze the terminator of the 'from' block to determine edge type
+    if (from.getTerminator().isValid())
+    {
+        const clang::Stmt* terminator = from.getTerminator().getStmt();
+        if (terminator != nullptr)
+        {
+            switch (terminator->getStmtClass())
+            {
+            case clang::Stmt::IfStmtClass:
+                // For if statements, determine if this is the true or false branch
+                // This is a simplified heuristic
+                return "conditional";
+            case clang::Stmt::WhileStmtClass:
+            case clang::Stmt::ForStmtClass:
+            case clang::Stmt::DoStmtClass:
+                return "loop";
+            case clang::Stmt::SwitchStmtClass:
+                return "switch";
+            case clang::Stmt::ReturnStmtClass:
+                return "return";
+            case clang::Stmt::BreakStmtClass:
+                return "break";
+            case clang::Stmt::ContinueStmtClass:
+                return "continue";
+            case clang::Stmt::GotoStmtClass:
+                return "goto";
+            default:
+                return "sequential";
+            }
+        }
+    }
+
+    return "unconditional";
+}
+
+auto KuzuDump::extractCFGCondition(const clang::CFGBlock* block) -> std::string
+{
+    if ((block == nullptr) || (sourceManager == nullptr))
+    {
+        return "";
+    }
+
+    if (const clang::Stmt* termCond = block->getTerminatorCondition())
+    {
+        if (const auto* condition = clang::dyn_cast<clang::Expr>(termCond))
+        {
+            auto range = condition->getSourceRange();
+            if (range.isValid())
+            {
+                return clang::Lexer::getSourceText(
+                           clang::CharSourceRange::getTokenRange(range), *sourceManager, astContext->getLangOpts())
+                    .str();
+            }
+        }
+    }
+
+    return "";
 }

@@ -15,6 +15,7 @@
 #include "clang/AST/TextNodeDumper.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
+#include "clang/Analysis/CFG.h"
 
 #include "kuzu.hpp"
 
@@ -267,6 +268,23 @@ public:
     auto extractTemplateArguments(const clang::TemplateDecl* templateDecl) -> std::string;
     auto extractStaticAssertInfo(const clang::StaticAssertDecl* assertDecl)
         -> std::tuple<std::string, std::string, bool>;
+
+    // Control Flow Graph (CFG) analysis methods
+    void analyzeCFGForFunction(const clang::FunctionDecl* func, int64_t functionNodeId);
+    void createCFGBlockNode(int64_t blockNodeId,
+                            int64_t functionNodeId,
+                            const clang::CFGBlock* block,
+                            int blockIndex,
+                            bool isEntry,
+                            bool isExit);
+    void createCFGEdgeRelation(int64_t fromBlockId,
+                               int64_t toBlockId,
+                               const std::string& edgeType,
+                               const std::string& condition = "");
+    void createCFGContainsRelation(int64_t functionId, int64_t cfgBlockId);
+    auto extractCFGBlockContent(const clang::CFGBlock* block) -> std::string;
+    auto extractCFGEdgeType(const clang::CFGBlock& from) -> std::string;
+    auto extractCFGCondition(const clang::CFGBlock* block) -> std::string;
 
     // Preprocessor and Macro processing methods
     void createMacroDefinitionNode(int64_t nodeId,

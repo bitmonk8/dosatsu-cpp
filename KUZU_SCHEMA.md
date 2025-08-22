@@ -212,6 +212,32 @@ ConstantExpression {
 }
 ```
 
+### CFGBlock
+Control Flow Graph block representing a basic block in function control flow.
+
+```cypher
+CFGBlock {
+  node_id: INT64 PRIMARY KEY,        // Unique block identifier
+  function_id: INT64,                // Function containing this block
+  block_index: INT64,                // Index within the CFG
+  is_entry_block: BOOLEAN,           // True if this is the function entry
+  is_exit_block: BOOLEAN,            // True if this is the function exit
+  terminator_kind: STRING,           // Type of terminator statement
+  block_content: STRING,             // Statements in this block
+  condition_expression: STRING,      // Condition for conditional blocks
+  has_terminator: BOOLEAN,           // True if block has terminator
+  reachable: BOOLEAN                 // True if block is reachable
+}
+```
+
+**C++ Mapping**:
+- Function entry/exit points
+- Basic blocks containing sequential statements
+- Conditional branches (if/else)
+- Loop headers and bodies
+- Switch cases
+- Exception handling blocks
+
 ## Relationship Types
 
 ### Core Relationships
@@ -316,6 +342,36 @@ INCLUDES {
   include_order: INT64               // Order of inclusion
 }
 ```
+
+### Control Flow Graph Relationships
+
+#### CFG_EDGE
+```cypher
+CFG_EDGE {
+  FROM CFGBlock TO CFGBlock,
+  edge_type: STRING,                 // "conditional", "loop", "unconditional", "return", etc.
+  condition: STRING                  // Condition expression for conditional edges
+}
+```
+**Usage**: Represents control flow between CFG blocks
+
+#### CONTAINS_CFG
+```cypher
+CONTAINS_CFG {
+  FROM Declaration TO CFGBlock,
+  cfg_role: STRING                   // "block" - indicates function contains CFG block
+}
+```
+**Usage**: Links functions to their CFG blocks
+
+#### CFG_CONTAINS_STMT
+```cypher
+CFG_CONTAINS_STMT {
+  FROM CFGBlock TO Statement,
+  statement_index: INT64             // Order of statement within block
+}
+```
+**Usage**: Links CFG blocks to the statements they contain
 
 ## Example C++ Code Mappings
 
@@ -469,4 +525,107 @@ WHERE spec.specialization_kind = "implicit"
 RETURN template.qualified_name AS template_name,
        instantiation.qualified_name AS instance_name,
        spec.template_arguments AS arguments
+```
+
+## Control Flow Graph Examples
+
+### Function with Control Flow
+```cpp
+int example(int x) {
+    if (x > 0) {
+        return x;
+    } else {
+        return -x;
+    }
+}
+```
+
+**Database Representation**:
+- Entry block → CFGBlock (is_entry_block=true)
+- Condition block → CFGBlock (block_content="if (x > 0)")
+- True branch → CFGBlock (block_content="return x")
+- False branch → CFGBlock (block_content="return -x")  
+- Exit block → CFGBlock (is_exit_block=true)
+
+### Loop Control Flow
+```cpp
+int sum(int n) {
+    int total = 0;
+    for (int i = 0; i < n; i++) {
+        total += i;
+    }
+    return total;
+}
+```
+
+**Database Representation**:
+- Initialization → CFGBlock (block_content="int total = 0; int i = 0")
+- Loop condition → CFGBlock (condition_expression="i < n", terminator_kind="ForStmt")
+- Loop body → CFGBlock (block_content="total += i")
+- Increment → CFGBlock (block_content="i++")
+- Return → CFGBlock (block_content="return total")
+
+### CFG Query Examples
+
+#### Find All Functions with Loops
+```cypher
+MATCH (func:Declaration {node_type: "FunctionDecl"})
+      -[:CONTAINS_CFG]->
+      (block:CFGBlock)
+WHERE block.terminator_kind IN ["ForStmt", "WhileStmt", "DoStmt"]
+RETURN func.qualified_name AS function_name,
+       block.condition_expression AS loop_condition
+```
+
+#### Find Functions with Complex Control Flow
+```cypher
+MATCH (func:Declaration {node_type: "FunctionDecl"})
+      -[:CONTAINS_CFG]->
+      (block:CFGBlock)
+WITH func, count(block) AS block_count
+WHERE block_count > 5  // Functions with many blocks
+RETURN func.qualified_name AS complex_function,
+       block_count AS num_blocks
+ORDER BY block_count DESC
+```
+
+#### Trace Control Flow Paths
+```cypher
+MATCH path = (entry:CFGBlock {is_entry_block: true})
+             -[:CFG_EDGE*]->
+             (exit:CFGBlock {is_exit_block: true})
+WHERE entry.function_id = exit.function_id
+RETURN [block IN nodes(path) | block.block_content] AS control_flow_path,
+       length(path) AS path_length
+```
+
+#### Find Unreachable Code
+```cypher
+MATCH (func:Declaration {node_type: "FunctionDecl"})
+      -[:CONTAINS_CFG]->
+      (block:CFGBlock {reachable: false})
+RETURN func.qualified_name AS function_name,
+       block.block_content AS unreachable_code,
+       block.block_index AS block_position
+```
+
+#### Analyze Conditional Branches
+```cypher
+MATCH (block:CFGBlock)
+      -[edge:CFG_EDGE {edge_type: "conditional"}]->
+      (successor:CFGBlock)
+RETURN block.condition_expression AS condition,
+       edge.condition AS branch_condition,
+       successor.block_content AS branch_code
+```
+
+#### Find Functions with No Return Paths
+```cypher
+MATCH (func:Declaration {node_type: "FunctionDecl"})
+      -[:CONTAINS_CFG]->
+      (entry:CFGBlock {is_entry_block: true})
+WHERE NOT EXISTS {
+  MATCH (entry)-[:CFG_EDGE*]->(exit:CFGBlock {is_exit_block: true})
+}
+RETURN func.qualified_name AS function_with_no_return
 ```
