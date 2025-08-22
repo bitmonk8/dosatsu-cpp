@@ -693,15 +693,22 @@ exit 0
         lint_log_dir = self.artifacts_dir / "lint"
         self.ensure_directory(lint_log_dir)
         
-        # Prepare base clang-tidy command
+        # Create unique profiling directory for this lint run
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        profile_dir = self.artifacts_dir / "lint" / f"profile_{timestamp}"
+        self.ensure_directory(profile_dir)
+        
+        # Prepare base clang-tidy command with profiling enabled
         build_dir = compile_commands.parent
-        base_cmd = [str(clang_tidy_tool), f"-p={build_dir}"]
+        base_cmd = [str(clang_tidy_tool), f"-p={build_dir}", 
+                    "--enable-check-profile", f"--store-check-profile={profile_dir}"]
         
         # Choose processing method: per-file is default, batch only when explicitly requested
         if use_batch_processing:
-            return self._lint_batch(args, base_cmd, files_to_lint, lint_log_dir)
+            return self._lint_batch(args, base_cmd, files_to_lint, lint_log_dir, profile_dir)
         else:
-            return self._lint_per_file(args, base_cmd, files_to_lint, lint_log_dir)
+            return self._lint_per_file(args, base_cmd, files_to_lint, lint_log_dir, profile_dir)
             
     def _filter_clang_tidy_output(self, output: str) -> str:
         """Filter clang-tidy output to remove noise and organize results."""
@@ -928,7 +935,7 @@ exit 0
                     rel_path = Path(file_path).name  # Just filename for brevity
                     self.logger.info(f"  - {rel_path}: {count} issues")
     
-    def _lint_batch(self, args, base_cmd, files_to_lint, lint_log_dir):
+    def _lint_batch(self, args, base_cmd, files_to_lint, lint_log_dir, profile_dir):
         """Execute lint in traditional batch mode with performance optimizations."""
         file_args = [str(f) for f in files_to_lint]
         
@@ -1027,9 +1034,9 @@ exit 0
                 phase2_output_to_analyze = phase2_result.stdout if phase2_result.stdout else ""
                 phase2_stats = self._analyze_clang_tidy_output(phase2_output_to_analyze)
         
-        return self._finalize_lint_results(args, phase1_stats, phase2_stats, phase1_output_file, raw_output_file, lint_log_dir, skip_phase2)
+        return self._finalize_lint_results(args, phase1_stats, phase2_stats, phase1_output_file, raw_output_file, lint_log_dir, skip_phase2, profile_dir)
     
-    def _lint_per_file(self, args, base_cmd, files_to_lint, lint_log_dir):
+    def _lint_per_file(self, args, base_cmd, files_to_lint, lint_log_dir, profile_dir):
         """Execute lint with per-file processing and progress reporting."""
         total_files = len(files_to_lint)
         self.logger.info(f"Processing {total_files} files individually...")
@@ -1115,7 +1122,7 @@ exit 0
         # Determine if Phase 2 was skipped for all files
         skip_phase2 = args.fast or aggregate_phase1_stats['total_issues'] == 0
         
-        return self._finalize_lint_results(args, aggregate_phase1_stats, aggregate_phase2_stats, phase1_output_file, raw_output_file, lint_log_dir, skip_phase2)
+        return self._finalize_lint_results(args, aggregate_phase1_stats, aggregate_phase2_stats, phase1_output_file, raw_output_file, lint_log_dir, skip_phase2, profile_dir)
     
     def _get_files_with_issues(self, stats, files_to_lint):
         """Get list of files that had issues based on analysis statistics."""
@@ -1163,7 +1170,7 @@ exit 0
         # Extend issues list
         aggregate_stats['issues'].extend(file_stats['issues'])
     
-    def _finalize_lint_results(self, args, phase1_stats, phase2_stats, phase1_output_file, raw_output_file, lint_log_dir, skip_phase2):
+    def _finalize_lint_results(self, args, phase1_stats, phase2_stats, phase1_output_file, raw_output_file, lint_log_dir, skip_phase2, profile_dir):
         """Finalize lint results and generate reports."""
         # Generate comprehensive report based on Phase 2 results (or Phase 1 if Phase 2 was skipped)
         report_stats = phase2_stats if not skip_phase2 else phase1_stats
@@ -1225,6 +1232,9 @@ exit 0
                         self.logger.info("\nRemaining issues that require manual attention:")
                         print(filtered_output)
         
+        # Analyze clang-tidy profiling data
+        self._analyze_clang_tidy_profiling(profile_dir, lint_log_dir)
+        
         # Log file locations
         self.logger.info(f"\nPhase 1 output saved to: {phase1_output_file}")
         self.logger.info(f"Phase 2 output saved to: {raw_output_file}")
@@ -1242,6 +1252,93 @@ exit 0
         else:
             self.logger.error("Critical issues found that require manual attention")
             return 1
+    
+    def _analyze_clang_tidy_profiling(self, profile_dir, lint_log_dir):
+        """Analyze clang-tidy profiling data and generate a summary of the most expensive checks."""
+        import json
+        import glob
+        
+        try:
+            # Find all profile JSON files in the profile directory
+            profile_files = glob.glob(str(profile_dir / "*.json"))
+            
+            if not profile_files:
+                self.logger.info("No profiling data found.")
+                return
+            
+            # Aggregate timing data from all profile files
+            check_timings = {}
+            total_time = 0.0
+            
+            for profile_file in profile_files:
+                try:
+                    with open(profile_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        # Fix Windows path escaping in JSON - double backslashes in paths
+                        import re
+                        # Replace single backslashes in file paths with double backslashes
+                        content = re.sub(r'"file": "([^"]*)"', lambda m: f'"file": "{m.group(1).replace(chr(92), chr(92)+chr(92))}"', content)
+                        profile_data = json.loads(content)
+                    
+                    # Extract timing data from the profile structure
+                    if 'profile' in profile_data:
+                        for key, value in profile_data['profile'].items():
+                            # Parse timing keys like "time.clang-tidy.bugprone-sizeof-expression.wall"
+                            if key.startswith('time.clang-tidy.') and key.endswith('.wall'):
+                                # Extract check name from the key
+                                check_name = key[len('time.clang-tidy.'):-len('.wall')]
+                                check_time = float(value)
+                                check_timings[check_name] = check_timings.get(check_name, 0.0) + check_time
+                                total_time += check_time
+                                
+                except (json.JSONDecodeError, KeyError, ValueError) as e:
+                    self.logger.warning(f"Failed to parse profile file {profile_file}: {e}")
+                    continue
+            
+            if not check_timings:
+                self.logger.info("No timing data found in profile files.")
+                return
+            
+            # Sort checks by total time (descending)
+            sorted_checks = sorted(check_timings.items(), key=lambda x: x[1], reverse=True)
+            top_10_checks = sorted_checks[:10]
+            
+            # Generate summary
+            summary_file = lint_log_dir / "clang-tidy-profile-summary.txt"
+            with open(summary_file, 'w', encoding='utf-8') as f:
+                f.write("Clang-Tidy Performance Profile Summary\n")
+                f.write("=" * 50 + "\n\n")
+                f.write(f"Total profile files analyzed: {len(profile_files)}\n")
+                f.write(f"Total time spent in checks: {total_time:.3f} seconds\n\n")
+                f.write("Top 10 Most Expensive Checks:\n")
+                f.write("-" * 50 + "\n")
+                
+                for i, (check_name, check_time) in enumerate(top_10_checks, 1):
+                    percentage = (check_time / total_time * 100) if total_time > 0 else 0
+                    f.write(f"{i:2d}. {check_name:<40} {check_time:8.3f}s ({percentage:5.1f}%)\n")
+                
+                f.write(f"\nRemaining {len(sorted_checks) - 10} checks: {sum(time for _, time in sorted_checks[10:]):.3f}s\n")
+                
+                # Add all checks for reference
+                f.write(f"\nAll {len(sorted_checks)} checks (sorted by time):\n")
+                f.write("-" * 70 + "\n")
+                for i, (check_name, check_time) in enumerate(sorted_checks, 1):
+                    percentage = (check_time / total_time * 100) if total_time > 0 else 0
+                    f.write(f"{i:3d}. {check_name:<45} {check_time:8.3f}s ({percentage:5.1f}%)\n")
+            
+            # Log summary to console
+            self.logger.info(f"\n=== Clang-Tidy Performance Profile ===")
+            self.logger.info(f"Total time in checks: {total_time:.3f}s")
+            self.logger.info(f"Top 10 most expensive checks:")
+            
+            for i, (check_name, check_time) in enumerate(top_10_checks, 1):
+                percentage = (check_time / total_time * 100) if total_time > 0 else 0
+                self.logger.info(f"  {i:2d}. {check_name:<35} {check_time:6.3f}s ({percentage:4.1f}%)")
+            
+            self.logger.info(f"Profile summary saved to: {summary_file}")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to analyze profiling data: {e}")
     
     def cmd_compile_db(self, args):
         """Generate or manage compilation database."""
