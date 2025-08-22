@@ -9,6 +9,24 @@ add_executable(MakeIndex
     CompilationDatabaseLoader.h
     ASTDumpAction.cpp
     ASTDumpAction.h
+    KuzuDatabase.cpp
+    KuzuDatabase.h
+    ASTNodeProcessor.cpp
+    ASTNodeProcessor.h
+    ScopeManager.cpp
+    ScopeManager.h
+    TypeAnalyzer.cpp
+    TypeAnalyzer.h
+    DeclarationAnalyzer.cpp
+    DeclarationAnalyzer.h
+    StatementAnalyzer.cpp
+    StatementAnalyzer.h
+    TemplateAnalyzer.cpp
+    TemplateAnalyzer.h
+    CommentProcessor.cpp
+    CommentProcessor.h
+    AdvancedAnalyzer.cpp
+    AdvancedAnalyzer.h
     NoWarningScope_Enter.h
     NoWarningScope_Leave.h
 )

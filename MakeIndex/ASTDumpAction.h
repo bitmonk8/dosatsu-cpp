@@ -41,8 +41,6 @@ public:
 
 private:
     std::unique_ptr<KuzuDump> Dumper;
-    llvm::raw_ostream* OS;  // Pointer to allow null for database-only mode
-    bool usingDatabase = false;
 };
 
 /// Frontend action that creates MakeIndexASTDumpConsumer instances

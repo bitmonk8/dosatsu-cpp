@@ -1,324 +1,79 @@
-//===--- KuzuDump.h - Dumping implementation for ASTs --------------------===//
+//===--- KuzuDump.h - AST dumping implementation -------------------------===//
 //
-// Based on LLVM Project's ASTDumper, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Part of the MakeIndex project
+// This demonstrates the refactored architecture using specialized analyzers
 //
 //===----------------------------------------------------------------------===//
 
 #pragma once
 
+// Include the new modular components
+#include "ASTNodeProcessor.h"
+#include "AdvancedAnalyzer.h"
+#include "CommentProcessor.h"
+#include "DeclarationAnalyzer.h"
+#include "KuzuDatabase.h"
+#include "ScopeManager.h"
+#include "StatementAnalyzer.h"
+#include "TemplateAnalyzer.h"
+#include "TypeAnalyzer.h"
+
 // clang-format off
 #include "NoWarningScope_Enter.h"
-
 #include "clang/AST/ASTNodeTraverser.h"
 #include "clang/AST/TextNodeDumper.h"
 #include "clang/Basic/SourceManager.h"
-#include "clang/Lex/Lexer.h"
-#include "clang/Analysis/CFG.h"
-
-#include "kuzu.hpp"
-
 #include "NoWarningScope_Leave.h"
 // clang-format on
 
 #include <memory>
 #include <string>
-#include <unordered_map>
 
 namespace clang
 {
 
+/// KuzuDump class that delegates to specialized analyzers
+/// This demonstrates the improved architecture with separation of concerns
 class KuzuDump : public ASTNodeTraverser<KuzuDump, TextNodeDumper>
 {
 private:
-    // Text dumping components (temporary during Phase 1-3) - Phase 4.3: Legacy support
-    std::unique_ptr<llvm::raw_null_ostream> nullStream;  // For database-only mode
+    // Text output support (legacy compatibility)
+    std::unique_ptr<llvm::raw_null_ostream> nullStream;
     TextNodeDumper NodeDumper;
-    raw_ostream& OS;  // Keep as reference for compatibility with existing code
-    const bool ShowColors;
-
-    // Database-only mode flag (Phase 4.3)
+    raw_ostream& OS;
     bool databaseOnlyMode = false;
 
-    // Source location tracking (for precise location information)
-    const SourceManager* sourceManager = nullptr;
-    const ASTContext* astContext = nullptr;
-
-    // Node tracking (always available)
-    std::unordered_map<const void*, int64_t> nodeIdMap;  // Pointer -> node_id mapping
-    int64_t nextNodeId = 1;
-
-    // Hierarchy tracking (Phase 2)
-    std::vector<int64_t> parentStack;  // Stack of parent node IDs during traversal
-    int childIndex = 0;                // Index of current child within parent
-
-    // Scope tracking (Phase 3)
-    std::vector<int64_t> scopeStack;  // Stack of scope node IDs (namespaces, functions, etc.)
-
-    // Database components
-    std::unique_ptr<kuzu::main::Database> database;
-    std::unique_ptr<kuzu::main::Connection> connection;
-
-    // Database configuration
-    std::string databasePath;
-    bool databaseEnabled = false;
-
-    // Performance optimization - batching (Phase 4)
-    static constexpr size_t BATCH_SIZE = 100;
-    std::vector<std::string> pendingQueries;
-    bool transactionActive = false;
-    size_t totalOperations = 0;
-
-    // Private methods for database operations
-    void initializeDatabase();
-    void createSchema();
-    void executeSchemaQuery(const std::string& query, const std::string& schemaName);
-
-    // Performance optimization methods (Phase 4)
-    void beginTransaction();
-    void commitTransaction();
-    void rollbackTransaction();
-    void addToBatch(const std::string& query);
-    void executeBatch();
-    void flushOperations();
-
-    // Node creation methods
-    auto createASTNode(const clang::Decl* decl) -> int64_t;
-    auto createASTNode(const clang::Stmt* stmt) -> int64_t;
-    auto createASTNode(const clang::Type* type) -> int64_t;
-
-    // Relationship creation methods
-    void createParentChildRelation(int64_t parentId, int64_t childId, int index);
-    void createTypeRelation(int64_t declId, int64_t typeId);
-    void createReferenceRelation(int64_t fromId, int64_t toId, const std::string& kind);
-    void createScopeRelation(int64_t nodeId, int64_t scopeId, const std::string& scopeKind);
-    void createTemplateRelation(int64_t specializationId, int64_t templateId, const std::string& kind);
-    void createSpecializesRelation(int64_t specializationId,
-                                   int64_t templateId,
-                                   const std::string& specializationKind,
-                                   const std::string& templateArguments,
-                                   const std::string& instantiationContext);
-    void createInheritanceRelation(int64_t derivedId,
-                                   int64_t baseId,
-                                   const std::string& inheritanceType,
-                                   bool isVirtual,
-                                   const std::string& accessPath);
-    void createOverrideRelation(int64_t overridingId,
-                                int64_t overriddenId,
-                                const std::string& overrideType,
-                                bool isCovariantReturn);
-
-    // Enhanced declaration processing methods (Phase 2)
-    void createDeclarationNode(int64_t nodeId, const clang::NamedDecl* decl);
-    void createUsingDeclarationNode(int64_t nodeId, const clang::UsingDecl* decl);
-    void createUsingDirectiveNode(int64_t nodeId, const clang::UsingDirectiveDecl* decl);
-    void createNamespaceAliasNode(int64_t nodeId, const clang::NamespaceAliasDecl* decl);
-    auto extractQualifiedName(const clang::NamedDecl* decl) -> std::string;
-    auto extractAccessSpecifier(const clang::Decl* decl) -> std::string;
-    auto extractStorageClass(const clang::Decl* decl) -> std::string;
-    auto extractNamespaceContext(const clang::Decl* decl) -> std::string;
-    auto isDefinition(const clang::Decl* decl) -> bool;
-
-    // Enhanced statement and expression processing methods
-    void createStatementNode(int64_t nodeId, const clang::Stmt* stmt);
-    void createExpressionNode(int64_t nodeId, const clang::Expr* expr);
-
-    auto extractStatementKind(const clang::Stmt* stmt) -> std::string;
-    auto extractControlFlowType(const clang::Stmt* stmt) -> std::string;
-    auto extractConditionText(const clang::Stmt* stmt) -> std::string;
-    auto hasStatementSideEffects(const clang::Stmt* stmt) -> bool;
-    auto isCompoundStatement(const clang::Stmt* stmt) -> bool;
-    auto isStatementConstexpr(const clang::Stmt* stmt) -> bool;
-    auto extractExpressionKind(const clang::Expr* expr) -> std::string;
-    auto extractValueCategory(const clang::Expr* expr) -> std::string;
-    auto extractLiteralValue(const clang::Expr* expr) -> std::string;
-    auto extractOperatorKind(const clang::Expr* expr) -> std::string;
-    auto isExpressionConstexpr(const clang::Expr* expr) -> bool;
-    auto extractEvaluationResult(const clang::Expr* expr) -> std::string;
-    auto extractImplicitCastKind(const clang::Expr* expr) -> std::string;
-
-    // Type processing methods (Phase 2)
-    auto createTypeNodeAndRelation(int64_t declNodeId, clang::QualType qualType) -> int64_t;
-    auto createTypeNode(clang::QualType qualType) -> int64_t;
-    auto extractTypeName(clang::QualType qualType) -> std::string;
-    auto extractTypeCategory(clang::QualType qualType) -> std::string;
-    auto extractTypeQualifiers(clang::QualType qualType) -> std::string;
-
-    // Hierarchy processing methods (Phase 2)
-    void pushParent(int64_t parentNodeId);
-    void popParent();
-    void createHierarchyRelationship(int64_t childNodeId);
-    auto getCurrentParent() -> int64_t;
-
-    // Scope processing methods (Phase 3)
-    void pushScope(int64_t scopeNodeId);
-    void popScope();
-    void createScopeRelationships(int64_t nodeId);
-    auto getCurrentScope() -> int64_t;
-    auto isBuiltInType(clang::QualType qualType) -> bool;
-    auto extractTypeSourceLocation(clang::QualType qualType) -> std::string;
-
-    // Data extraction utilities (shared between text and database output)
-    auto extractSourceLocation(const clang::SourceLocation& loc) -> std::string;
-    auto extractSourceLocationDetailed(const clang::SourceLocation& loc) -> std::tuple<std::string, int64_t, int64_t>;
-    auto extractNodeType(const clang::Decl* decl) -> std::string;
-    auto extractNodeType(const clang::Stmt* stmt) -> std::string;
-    auto extractNodeType(const clang::Type* type) -> std::string;
-    auto isImplicitNode(const clang::Decl* decl) -> bool;
+    // Modular components - each handles a specific responsibility
+    std::unique_ptr<KuzuDatabase> database;
+    std::unique_ptr<ASTNodeProcessor> nodeProcessor;
+    std::unique_ptr<ScopeManager> scopeManager;
+    std::unique_ptr<TypeAnalyzer> typeAnalyzer;
+    std::unique_ptr<DeclarationAnalyzer> declarationAnalyzer;
+    std::unique_ptr<StatementAnalyzer> statementAnalyzer;
+    std::unique_ptr<TemplateAnalyzer> templateAnalyzer;
+    std::unique_ptr<CommentProcessor> commentProcessor;
+    std::unique_ptr<AdvancedAnalyzer> advancedAnalyzer;
 
 public:
     // Legacy constructors (text output only)
-    KuzuDump(raw_ostream& OS, const ASTContext& Context, bool ShowColors)
-        : nullStream(nullptr), NodeDumper(OS, Context, ShowColors), OS(OS), ShowColors(ShowColors),
-          sourceManager(&Context.getSourceManager()), astContext(&Context)
-    {
-    }
+    KuzuDump(raw_ostream& OS, const ASTContext& Context, bool ShowColors);
 
-    KuzuDump(raw_ostream& OS, bool ShowColors)
-        : nullStream(nullptr), NodeDumper(OS, ShowColors), OS(OS), ShowColors(ShowColors)
-    {
-    }
+    // Database constructors
+    KuzuDump(std::string databasePath, const ASTContext& Context, bool ShowColors = false);
 
-    // New database constructors (Phase 1)
-    KuzuDump(std::string databasePath, const ASTContext& Context, bool ShowColors = false)
-        : nullStream(std::make_unique<llvm::raw_null_ostream>()), NodeDumper(*nullStream, Context, ShowColors),
-          OS(*nullStream), ShowColors(ShowColors), sourceManager(&Context.getSourceManager()), astContext(&Context),
-          databasePath(std::move(databasePath)), databaseEnabled(true)
-    {
-        initializeDatabase();
-    }
+    // Database-only constructor (no text output dependencies)
+    KuzuDump(std::string databasePath, const ASTContext& Context, bool ShowColors, bool pureDatabaseMode);
 
-    // Database-only constructor (Phase 4.3) - No TextNodeDumper dependencies
-    KuzuDump(std::string databasePath, const ASTContext& Context, bool ShowColors, bool pureDatabaseMode)
-        : nullStream(std::make_unique<llvm::raw_null_ostream>()), NodeDumper(*nullStream, Context, ShowColors),
-          OS(*nullStream), ShowColors(ShowColors), databaseOnlyMode(pureDatabaseMode),
-          sourceManager(&Context.getSourceManager()), astContext(&Context), databasePath(std::move(databasePath)),
-          databaseEnabled(true)
-    {
-        initializeDatabase();
-    }
+    // Destructor
+    ~KuzuDump();
 
-    // Hybrid constructor (temporary for development/testing)
-    KuzuDump(std::string databasePath, raw_ostream& OS, const ASTContext& Context, bool ShowColors = false)
-        : nullStream(nullptr), NodeDumper(OS, Context, ShowColors), OS(OS), ShowColors(ShowColors),
-          sourceManager(&Context.getSourceManager()), astContext(&Context), databasePath(std::move(databasePath)),
-          databaseEnabled(true)
-    {
-        initializeDatabase();
-    }
-
-    // Destructor to ensure proper cleanup (Phase 4)
-    ~KuzuDump()
-    {
-        if (databaseEnabled && connection)
-            flushOperations();
-    }
-
+    // Required by ASTNodeTraverser
     auto doGetNodeDelegate() -> TextNodeDumper& { return NodeDumper; }
 
-    void dumpInvalidDeclContext(const DeclContext* DC);
-    void dumpLookups(const DeclContext* DC, bool DumpDecls);
-
-    template <typename SpecializationDecl>
-    void dumpTemplateDeclSpecialization(const SpecializationDecl* D, bool DumpExplicitInst, bool DumpRefOnly);
-    template <typename TemplateDecl>
-    void dumpTemplateDecl(const TemplateDecl* D, bool DumpExplicitInst);
-
-    // Enhanced template parameter processing
-    void dumpTemplateParameters(const clang::TemplateParameterList* templateParams);
-    void createTemplateParameterNode(int64_t nodeId, const clang::NamedDecl* param);
-    auto extractTemplateArguments(const clang::TemplateArgumentList& args) -> std::string;
-
-    // Comment processing methods
-    void createCommentNode(int64_t nodeId,
-                           const std::string& commentText,
-                           const std::string& commentKind,
-                           bool isDocumentationComment,
-                           const std::string& briefText = "",
-                           const std::string& detailedText = "");
-    void createCommentRelation(int64_t declId, int64_t commentId);
-    void processComments(const clang::Decl* decl, int64_t declId);
-    auto extractCommentKind(const clang::comments::Comment* comment) -> std::string;
-    auto extractCommentText(const clang::comments::Comment* comment) -> std::string;
-    auto isDocumentationComment(const clang::comments::Comment* comment) -> bool;
-
-    // Constant expression and compile-time evaluation methods
-    void createConstantExpressionNode(int64_t nodeId,
-                                      const clang::Expr* expr,
-                                      bool isConstexprFunction,
-                                      const std::string& evaluationContext);
-    void createTemplateMetaprogrammingNode(int64_t nodeId,
-                                           const clang::Decl* templateDecl,
-                                           const std::string& templateKind,
-                                           int64_t instantiationDepth);
-    void createStaticAssertionNode(int64_t nodeId, const clang::StaticAssertDecl* assertDecl);
-    void createConstantValueRelation(int64_t exprId, int64_t constantId, const std::string& stage);
-    void createTemplateEvaluationRelation(int64_t templateId, int64_t metaprogramId, const std::string& context);
-    void createStaticAssertRelation(int64_t declId, int64_t assertId, const std::string& scope);
-
-    // Enhanced constant expression evaluation methods
-    auto evaluateConstantExpression(const clang::Expr* expr) -> std::string;
-    auto extractConstantValue(const clang::Expr* expr) -> std::pair<std::string, std::string>;
-    auto extractEvaluationStatus(const clang::Expr* expr) -> std::string;
-    auto detectConstexprFunction(const clang::FunctionDecl* func) -> bool;
-    auto extractTemplateInstantiationDepth(const clang::Decl* decl) -> int64_t;
-    auto extractTemplateArguments(const clang::TemplateDecl* templateDecl) -> std::string;
-    auto extractStaticAssertInfo(const clang::StaticAssertDecl* assertDecl)
-        -> std::tuple<std::string, std::string, bool>;
-
-    // Control Flow Graph (CFG) analysis methods
-    void analyzeCFGForFunction(const clang::FunctionDecl* func, int64_t functionNodeId);
-    void createCFGBlockNode(int64_t blockNodeId,
-                            int64_t functionNodeId,
-                            const clang::CFGBlock* block,
-                            int blockIndex,
-                            bool isEntry,
-                            bool isExit);
-    void createCFGEdgeRelation(int64_t fromBlockId,
-                               int64_t toBlockId,
-                               const std::string& edgeType,
-                               const std::string& condition = "");
-    void createCFGContainsRelation(int64_t functionId, int64_t cfgBlockId);
-    auto extractCFGBlockContent(const clang::CFGBlock* block) -> std::string;
-    auto extractCFGEdgeType(const clang::CFGBlock& from) -> std::string;
-    auto extractCFGCondition(const clang::CFGBlock* block) -> std::string;
-
-    // Preprocessor and Macro processing methods
-    void createMacroDefinitionNode(int64_t nodeId,
-                                   const std::string& macroName,
-                                   bool isFunctionLike,
-                                   const std::vector<std::string>& parameters,
-                                   const std::string& replacementText,
-                                   bool isBuiltin = false,
-                                   bool isConditional = false);
-    void createIncludeDirectiveNode(int64_t nodeId,
-                                    const std::string& includePath,
-                                    bool isSystemInclude,
-                                    bool isAngled,
-                                    const std::string& resolvedPath,
-                                    int64_t includeDepth);
-    void createConditionalDirectiveNode(int64_t nodeId,
-                                        const std::string& directiveType,
-                                        const std::string& conditionText,
-                                        bool isTrueBranch,
-                                        int64_t nestingLevel);
-    void createPragmaDirectiveNode(int64_t nodeId,
-                                   const std::string& pragmaName,
-                                   const std::string& pragmaText,
-                                   const std::string& pragmaKind);
-    void createMacroExpansionRelation(int64_t fromId,
-                                      int64_t macroId,
-                                      const std::string& expansionContext,
-                                      const std::string& expansionArguments);
-    void createIncludesRelation(int64_t fromId, int64_t includeId, int64_t includeOrder);
-    void createDefinesRelation(int64_t fromId, int64_t macroId, const std::string& definitionContext);
-
-    // Core Visit methods for basic AST nodes
+    // Core Visit methods - simplified implementation using analyzers
     void VisitDecl(const Decl* D);
     void VisitFunctionDecl(const FunctionDecl* D);
     void VisitVarDecl(const VarDecl* D);
-    void VisitParmVarDecl(const ParmVarDecl* D);
     void VisitNamespaceDecl(const NamespaceDecl* D);
     void VisitUsingDecl(const UsingDecl* D);
     void VisitUsingDirectiveDecl(const UsingDirectiveDecl* D);
@@ -326,28 +81,28 @@ public:
     void VisitCXXRecordDecl(const CXXRecordDecl* D);
     void VisitClassTemplateDecl(const ClassTemplateDecl* D);
     void VisitFunctionTemplateDecl(const FunctionTemplateDecl* D);
-    void VisitVarTemplateDecl(const VarTemplateDecl* D);
     void VisitClassTemplateSpecializationDecl(const ClassTemplateSpecializationDecl* D);
-    void VisitClassTemplatePartialSpecializationDecl(const ClassTemplateSpecializationDecl* D);
     void VisitStaticAssertDecl(const StaticAssertDecl* D);
 
     void VisitStmt(const Stmt* S);
-    void VisitCompoundStmt(const CompoundStmt* S);
-    void VisitDeclStmt(const DeclStmt* S);
-    void VisitReturnStmt(const ReturnStmt* S);
-    void VisitIfStmt(const IfStmt* S);
-    void VisitWhileStmt(const WhileStmt* S);
-    void VisitForStmt(const ForStmt* S);
-
     void VisitExpr(const Expr* E);
-    void VisitDeclRefExpr(const DeclRefExpr* E);
-    void VisitIntegerLiteral(const IntegerLiteral* E);
-    void VisitBinaryOperator(const BinaryOperator* E);
-    void VisitUnaryOperator(const UnaryOperator* E);
-    void VisitCallExpr(const CallExpr* E);
-    void VisitImplicitCastExpr(const ImplicitCastExpr* E);
 
-    // Template-specific visit methods (already declared above)
+    // Legacy compatibility methods (delegating to analyzers)
+    void dumpInvalidDeclContext(const DeclContext* DC);
+    void dumpLookups(const DeclContext* DC, bool DumpDecls);
+
+private:
+    /// Initialize all analyzer components
+    void initializeAnalyzers(const ASTContext& Context);
+
+    /// Process a declaration using the appropriate analyzers
+    void processDeclaration(const Decl* D);
+
+    /// Process a statement using the appropriate analyzers
+    void processStatement(const Stmt* S);
+
+    /// Get database instance (for legacy compatibility)
+    [[nodiscard]] auto getDatabase() const -> KuzuDatabase* { return database.get(); }
 };
 
 }  // namespace clang
