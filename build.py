@@ -15,6 +15,32 @@ import shutil
 from pathlib import Path
 from typing import List, Optional, Dict
 import logging
+import time
+
+
+class CleanLogger:
+    """Custom logger that provides clean output without timestamps/levels for console."""
+    
+    def __init__(self, file_logger):
+        self.file_logger = file_logger
+        
+    def info(self, message):
+        # Clean output to console
+        print(message)
+        # Full logging to file
+        self.file_logger.info(message)
+        
+    def warning(self, message):
+        print(f"WARNING: {message}")
+        self.file_logger.warning(message)
+        
+    def error(self, message):
+        print(f"ERROR: {message}")
+        self.file_logger.error(message)
+        
+    def debug(self, message):
+        # Debug only goes to file
+        self.file_logger.debug(message)
 
 
 class BuildOrchestrator:
@@ -24,6 +50,7 @@ class BuildOrchestrator:
         self.project_root = Path(__file__).parent.absolute()
         self.artifacts_dir = self.project_root / "artifacts"
         self.platform_info = self._detect_platform()
+        self.start_time = None
         self.setup_logging()
         
     def setup_logging(self):
@@ -32,16 +59,65 @@ class BuildOrchestrator:
         log_dir = self.artifacts_dir / "debug" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         
-        # Configure logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.StreamHandler(sys.stdout),
-                logging.FileHandler(log_dir / "build.log")
-            ]
-        )
-        self.logger = logging.getLogger(__name__)
+        # Configure file logging only (no console handler)
+        file_logger = logging.getLogger(f"{__name__}_file")
+        file_logger.setLevel(logging.INFO)
+        
+        # Remove any existing handlers
+        if file_logger.handlers:
+            file_logger.handlers.clear()
+            
+        # Add file handler with timestamp format
+        file_handler = logging.FileHandler(log_dir / "build.log")
+        file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(file_formatter)
+        file_logger.addHandler(file_handler)
+        
+        # Use custom clean logger
+        self.logger = CleanLogger(file_logger)
+        
+    def start_timing(self):
+        """Start timing the current operation."""
+        self.start_time = time.time()
+        
+    def print_execution_time(self, operation_name: str = "Operation"):
+        """Print the total execution time."""
+        if self.start_time is not None:
+            elapsed_time = time.time() - self.start_time
+            minutes = int(elapsed_time // 60)
+            seconds = elapsed_time % 60
+            if minutes > 0:
+                print(f"{operation_name} completed successfully in {minutes}m {seconds:.2f}s")
+            else:
+                print(f"{operation_name} completed successfully in {seconds:.2f}s")
+                
+    def make_relative_path(self, path):
+        """Convert absolute path to relative path from project root."""
+        try:
+            path_obj = Path(path)
+            if path_obj.is_absolute() and path_obj.is_relative_to(self.project_root):
+                return str(path_obj.relative_to(self.project_root))
+            return str(path_obj)
+        except (ValueError, OSError):
+            return str(path)
+    
+    def _read_slow_checks_file(self):
+        """Read the list of slow clang-tidy checks from .slow-clang-tidy-checks file."""
+        slow_checks_file = self.project_root / ".slow-clang-tidy-checks"
+        slow_checks = []
+        
+        if slow_checks_file.exists():
+            try:
+                with open(slow_checks_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        # Skip empty lines and comments
+                        if line and not line.startswith('#'):
+                            slow_checks.append(line)
+            except Exception as e:
+                self.logger.warning(f"Failed to read {slow_checks_file}: {e}")
+                
+        return slow_checks
         
     def _detect_platform(self) -> Dict[str, str]:
         """Detect platform and set platform-specific configurations."""
@@ -134,7 +210,8 @@ class BuildOrchestrator:
         return True
         
     def run_command(self, cmd: List[str], cwd: Optional[Path] = None, capture_output: bool = False, 
-                   shell: bool = False, env: Optional[Dict[str, str]] = None) -> subprocess.CompletedProcess:
+                   shell: bool = False, env: Optional[Dict[str, str]] = None, 
+                   silent: bool = False, concise: bool = False) -> subprocess.CompletedProcess:
         """Run a command with proper logging and error handling."""
         if cwd is None:
             cwd = self.project_root
@@ -142,8 +219,25 @@ class BuildOrchestrator:
         # Convert Path objects to strings for subprocess
         cmd_str = [str(c) for c in cmd]
         
-        self.logger.info(f"Running: {' '.join(cmd_str)}")
-        self.logger.info(f"Working directory: {cwd}")
+        if not silent:
+            if concise:
+                # Show condensed command - just executable name and files
+                exe_path = Path(cmd_str[0])
+                exe_name = exe_path.stem  # Gets filename without extension
+                
+                # Extract just the source files (not flags/options)
+                source_files = []
+                for part in cmd_str[1:]:
+                    if not part.startswith('-') and (part.endswith('.cpp') or part.endswith('.h') or part.endswith('.hpp')):
+                        source_files.append(self.make_relative_path(part))
+                
+                if source_files:
+                    print(f"{exe_name} {' '.join(source_files)}")
+                else:
+                    print(exe_name)
+            else:
+                self.logger.info(f"Running: {' '.join(cmd_str)}")
+                self.logger.info(f"Working directory: {cwd}")
         
         # Set up environment
         run_env = os.environ.copy()
@@ -171,7 +265,7 @@ class BuildOrchestrator:
                 self.logger.error(f"Command failed with return code {result.returncode}")
                 if capture_output and result.stderr:
                     self.logger.error(f"Error output: {result.stderr}")
-            else:
+            elif not concise:
                 self.logger.info("Command completed successfully")
                 
             return result
@@ -204,7 +298,6 @@ class BuildOrchestrator:
             
     def cmd_setup(self, args):
         """Initial environment setup."""
-        self.logger.info("=== Initial Environment Setup ===")
         
         if not self.validate_environment():
             return 1
@@ -228,7 +321,7 @@ class BuildOrchestrator:
         
     def cmd_info(self, args):
         """Display build environment information."""
-        self.logger.info("=== Build Environment Information ===")
+
         
         # System information
         self.logger.info(f"Platform: {platform.system()} {platform.release()}")
@@ -292,7 +385,6 @@ class BuildOrchestrator:
         
     def cmd_configure(self, args):
         """Configure the build system."""
-        self.logger.info("=== Build Configuration ===")
         
         if not self.validate_environment():
             return 1
@@ -304,8 +396,6 @@ class BuildOrchestrator:
         elif args.debug:
             build_type = "Debug"
             
-        self.logger.info(f"Configuring for {build_type} build")
-        
         # Get build directory
         build_dir = self.get_build_directory(build_type.lower())
         self.ensure_directory(build_dir)
@@ -334,8 +424,7 @@ class BuildOrchestrator:
                 "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL" if build_type == "Debug" else "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded"
             ])
             
-        self.logger.info("Running CMake configuration...")
-        result = self.run_command(cmake_cmd)
+        result = self.run_command(cmake_cmd, concise=True)
         
         if result.returncode == 0:
             self.logger.info("CMake configuration completed successfully!")
@@ -346,7 +435,7 @@ class BuildOrchestrator:
         
     def cmd_build(self, args):
         """Build the project."""
-        self.logger.info("=== Project Build ===")
+
         
         # Determine build type
         build_type = "Debug"  # Default
@@ -355,8 +444,6 @@ class BuildOrchestrator:
         elif args.debug:
             build_type = "Debug"
             
-        self.logger.info(f"Building {build_type} configuration")
-        
         # Get build directory
         build_dir = self.get_build_directory(build_type.lower())
         
@@ -381,15 +468,23 @@ class BuildOrchestrator:
             jobs = max(1, multiprocessing.cpu_count() - 1)
             cmake_cmd.extend(["--parallel", str(jobs)])
             
-        self.logger.info("Running CMake build...")
-        result = self.run_command(cmake_cmd)
+        result = self.run_command(cmake_cmd, concise=True, capture_output=True)
+        
+        # Filter out unwanted output lines
+        if result.stdout:
+            filtered_lines = []
+            for line in result.stdout.split('\n'):
+                line = line.strip()
+                if line and not line.startswith('ninja: no work to do'):
+                    filtered_lines.append(line)
+            if filtered_lines:
+                print('\n'.join(filtered_lines))
         
         if result.returncode == 0:
-            self.logger.info("Build completed successfully!")
-            
-            # Show output location
+            # Show output location with relative path
             output_dir = self.get_output_directory(build_type.lower(), "bin")
-            self.logger.info(f"Executables available in: {output_dir}")
+            rel_output_dir = self.make_relative_path(output_dir)
+            print(f"Executables available in: {rel_output_dir}")
             return 0
         else:
             self.logger.error("Build failed!")
@@ -403,7 +498,7 @@ class BuildOrchestrator:
             
     def cmd_install_git_hooks(self, args):
         """Install git pre-commit hooks for automatic formatting checks."""
-        self.logger.info("=== Installing Git Pre-commit Hooks ===")
+
         
         # Check if we're in a git repository
         git_dir = self.project_root / ".git"
@@ -494,7 +589,7 @@ exit 0
         
     def cmd_clean(self, args):
         """Clean build artifacts."""
-        self.logger.info("=== Clean Build Artifacts ===")
+
         
         import shutil
         
@@ -525,13 +620,11 @@ exit 0
         
     def cmd_test(self, args):
         """Run tests."""
-        self.logger.info("=== Run Tests ===")
-        self.logger.info("Note: Test execution will be implemented in Phase 4")
-        return 0
+        return self._cmd_test_impl(args)
         
     def cmd_format(self, args):
         """Format source code."""
-        self.logger.info("=== Code Formatting ===")
+
         
         # Find clang-format tool
         clang_format_tool = self.find_tool("clang-format")
@@ -540,8 +633,6 @@ exit 0
             self.logger.info("Please install clang-format to use code formatting")
             return 1
             
-        self.logger.info(f"Using clang-format: {clang_format_tool}")
-        
         # Determine files to format
         if args.files:
             # Use specified files
@@ -567,8 +658,6 @@ exit 0
             self.logger.warning("No source files found to format")
             return 0
             
-        self.logger.info(f"Found {len(files_to_format)} files to format")
-        
         # Check if .clang-format exists
         clang_format_config = self.project_root / ".clang-format"
         if not clang_format_config.exists():
@@ -577,18 +666,16 @@ exit 0
             
         # Format files
         if args.check_only:
-            self.logger.info("Checking formatting (no changes will be made)...")
             # Use --dry-run and --Werror to check formatting
             cmd = [str(clang_format_tool), "--dry-run", "--Werror"]
         else:
-            self.logger.info("Formatting files...")
             cmd = [str(clang_format_tool), "-i"]
             
         # Add files to command
         cmd.extend([str(f) for f in files_to_format])
         
         # Run clang-format
-        result = self.run_command(cmd, capture_output=args.check_only)
+        result = self.run_command(cmd, capture_output=args.check_only, concise=True)
         
         # Save formatting log
         format_log_dir = self.artifacts_dir / "format"
@@ -610,8 +697,7 @@ exit 0
         if result.returncode == 0:
             if args.check_only:
                 self.logger.info("[OK] All files are properly formatted")
-            else:
-                self.logger.info(f"[OK] Successfully formatted {len(files_to_format)} files")
+
             return 0
         else:
             if args.check_only:
@@ -626,12 +712,25 @@ exit 0
             return 1
         
     def cmd_lint(self, args):
-        """Lint source code with performance optimizations: conditional Phase 2, per-file processing."""
+        """Fast lint with slow checks disabled."""
+        return self._lint_with_config(args, fast_mode=True)
+        
+    def cmd_full_lint(self, args):
+        """Full lint with all checks enabled."""
+        return self._lint_with_config(args, fast_mode=False)
+        
+    def _lint_with_config(self, args, fast_mode=True):
+        """Lint source code with configurable check filtering."""
         mode_desc = "Fast Mode (Auto-fix only)" if args.fast else "Two-Phase Mode"
         # Default to per-file unless explicitly requested batch mode
         use_batch_processing = args.batch
         processing_desc = "Batch processing" if use_batch_processing else "Per-file processing"
-        self.logger.info(f"=== Code Linting ({mode_desc}, {processing_desc}) ===")
+
+        
+        # Profiling will be used for timing in fast mode, no separate timing needed
+        # Add total execution timing to understand overhead vs check time
+        import time
+        total_start_time = time.time()
         
         # Find clang-tidy tool
         clang_tidy_tool = self.find_tool("clang-tidy")
@@ -640,8 +739,6 @@ exit 0
             self.logger.info("Please install clang-tidy to use code linting")
             return 1
             
-        self.logger.info(f"Using clang-tidy: {clang_tidy_tool}")
-        
         # Determine files to lint
         if args.files:
             # Use specified files
@@ -674,7 +771,7 @@ exit 0
             self.logger.warning("No source files found to lint")
             return 0
             
-        self.logger.info(f"Found {len(files_to_lint)} files to lint")
+
         
         # Check for compile_commands.json
         compile_commands = self.artifacts_dir / "debug" / "build" / "compile_commands.json"
@@ -693,22 +790,42 @@ exit 0
         lint_log_dir = self.artifacts_dir / "lint"
         self.ensure_directory(lint_log_dir)
         
-        # Create unique profiling directory for this lint run
-        import datetime
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        profile_dir = self.artifacts_dir / "lint" / f"profile_{timestamp}"
-        self.ensure_directory(profile_dir)
-        
-        # Prepare base clang-tidy command with profiling enabled
+        # Prepare base clang-tidy command
         build_dir = compile_commands.parent
-        base_cmd = [str(clang_tidy_tool), f"-p={build_dir}", 
-                    "--enable-check-profile", f"--store-check-profile={profile_dir}"]
+        base_cmd = [str(clang_tidy_tool), f"-p={build_dir}", f"--config-file={clang_tidy_config}"]
+        
+        # Add profiling for lint mode (fast_mode=True)
+        profile_dir = None
+        if fast_mode:
+            import datetime
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            profile_dir = self.artifacts_dir / "lint" / f"profile_{timestamp}"
+            self.ensure_directory(profile_dir)
+            base_cmd.extend(["--enable-check-profile", f"--store-check-profile={profile_dir}"])
+        
+        # Add check filtering for fast mode
+        if fast_mode:
+            slow_checks = self._read_slow_checks_file()
+            if slow_checks:
+                # Build the -checks argument to disable slow checks
+                disabled_checks = ','.join(f'-{check}' for check in slow_checks)
+                base_cmd.extend([f"-checks={disabled_checks}"])
         
         # Choose processing method: per-file is default, batch only when explicitly requested
         if use_batch_processing:
-            return self._lint_batch(args, base_cmd, files_to_lint, lint_log_dir, profile_dir)
+            result = self._lint_batch(args, base_cmd, files_to_lint, lint_log_dir, profile_dir)
         else:
-            return self._lint_per_file(args, base_cmd, files_to_lint, lint_log_dir, profile_dir)
+            result = self._lint_per_file(args, base_cmd, files_to_lint, lint_log_dir, profile_dir)
+        
+        # Show timing breakdown for analysis
+        total_end_time = time.time()
+        total_execution_time = total_end_time - total_start_time
+        
+        # Store timing for analysis in profiling function
+        if fast_mode and profile_dir:
+            print(f"Total execution time: {total_execution_time:.3f}s")
+        
+        return result
             
     def _filter_clang_tidy_output(self, output: str) -> str:
         """Filter clang-tidy output to remove noise and organize results."""
@@ -940,25 +1057,8 @@ exit 0
         file_args = [str(f) for f in files_to_lint]
         
         # ===== PHASE 1: Auto-fix phase =====
-        self.logger.info("\n--- Phase 1: Automatic fixes ---")
-        self.logger.info("Running clang-tidy with automatic fixes...")
-        
         phase1_cmd = base_cmd + ["--fix", "--fix-errors"] + file_args
-        phase1_result = self.run_command(phase1_cmd, capture_output=True)
-        
-        # Save Phase 1 output
-        phase1_output_file = lint_log_dir / "clang-tidy-phase1-autofix.txt"
-        with open(phase1_output_file, 'w', encoding='utf-8') as f:
-            f.write(f"Clang-tidy Phase 1 (Auto-fix) results:\n")
-            f.write(f"Command: {' '.join(phase1_cmd)}\n")
-            f.write(f"Files analyzed: {len(files_to_lint)}\n")
-            f.write(f"Return code: {phase1_result.returncode}\n\n")
-            if phase1_result.stdout:
-                f.write("stdout:\n")
-                f.write(phase1_result.stdout)
-            if phase1_result.stderr:
-                f.write("\nstderr:\n")
-                f.write(phase1_result.stderr)
+        phase1_result = self.run_command(phase1_cmd, capture_output=True, concise=True)
         
         # Analyze Phase 1 output for summary
         phase1_output_to_analyze = phase1_result.stdout if phase1_result.stdout else ""
@@ -982,11 +1082,7 @@ exit 0
             else:
                 self.logger.info("\n--- Phase 2: Skipped (No issues found in Phase 1) ---")
             
-            # Create empty Phase 2 output file for consistency
-            with open(raw_output_file, 'w', encoding='utf-8') as f:
-                f.write("Clang-tidy Phase 2 (Report) results: SKIPPED\n")
-                f.write(f"Reason: {'Fast mode enabled' if args.fast else 'No issues found in Phase 1'}\n")
-                f.write(f"Files that would be analyzed: {len(files_to_lint)}\n\n")
+            # No raw output file needed when Phase 2 is skipped
         else:
             # ===== PHASE 2: Report phase (only files with issues) =====
             files_with_issues = self._get_files_with_issues(phase1_stats, files_to_lint)
@@ -995,10 +1091,7 @@ exit 0
                 # This shouldn't happen since we already check phase1_stats['total_issues'] == 0 above
                 # But just in case, skip Phase 2
                 self.logger.info("\n--- Phase 2: Skipped (No files with issues identified) ---")
-                with open(raw_output_file, 'w', encoding='utf-8') as f:
-                    f.write("Clang-tidy Phase 2 (Report) results: SKIPPED\n")
-                    f.write("Reason: No files with issues identified from Phase 1\n")
-                    f.write(f"Files that would be analyzed: {len(files_to_lint)}\n\n")
+                # No raw output file needed when no files have issues
                 phase2_stats = {'total_issues': 0, 'error_count': 0, 'warning_count': 0, 'note_count': 0}
             else:
                 self.logger.info("\n--- Phase 2: Analysis and reporting ---")
@@ -1013,33 +1106,38 @@ exit 0
                 # Only process files that had issues in Phase 1
                 phase2_file_args = [str(f) for f in files_with_issues]
                 phase2_cmd = base_cmd + phase2_file_args
-                phase2_result = self.run_command(phase2_cmd, capture_output=True)
-                
-                # Save Phase 2 output (this becomes the main raw output)
-                with open(raw_output_file, 'w', encoding='utf-8') as f:
-                    f.write(f"Clang-tidy Phase 2 (Report) results:\n")
-                    f.write(f"Command: {' '.join(phase2_cmd)}\n")
-                    f.write(f"Files analyzed: {files_with_issues_count} (of {len(files_to_lint)} total)\n")
-                    f.write(f"Files with issues from Phase 1: {[str(f) for f in files_with_issues]}\n")
-                    f.write(f"Files skipped (clean): {files_skipped_count}\n")
-                    f.write(f"Return code: {phase2_result.returncode}\n\n")
-                    if phase2_result.stdout:
-                        f.write("stdout:\n")
-                        f.write(phase2_result.stdout)
-                    if phase2_result.stderr:
-                        f.write("\nstderr:\n")
-                        f.write(phase2_result.stderr)
+                phase2_result = self.run_command(phase2_cmd, capture_output=True, concise=True)
                 
                 # Analyze Phase 2 output and generate statistics
                 phase2_output_to_analyze = phase2_result.stdout if phase2_result.stdout else ""
                 phase2_stats = self._analyze_clang_tidy_output(phase2_output_to_analyze)
+                
+                # Only save Phase 2 output if there are issues requiring manual fixes
+                if phase2_stats['total_issues'] > 0:
+                    with open(raw_output_file, 'w', encoding='utf-8') as f:
+                        f.write(f"Clang-tidy Phase 2 (Report) results:\n")
+                        f.write(f"Command: {' '.join(phase2_cmd)}\n")
+                        f.write(f"Files analyzed: {files_with_issues_count} (of {len(files_to_lint)} total)\n")
+                        f.write(f"Files with issues from Phase 1: {[str(f) for f in files_with_issues]}\n")
+                        f.write(f"Files skipped (clean): {files_skipped_count}\n")
+                        f.write(f"Return code: {phase2_result.returncode}\n\n")
+                        if phase2_result.stdout:
+                            f.write("stdout:\n")
+                            f.write(phase2_result.stdout)
+                        if phase2_result.stderr:
+                            f.write("\nstderr:\n")
+                            f.write(phase2_result.stderr)
         
-        return self._finalize_lint_results(args, phase1_stats, phase2_stats, phase1_output_file, raw_output_file, lint_log_dir, skip_phase2, profile_dir)
+        return self._finalize_lint_results(args, phase1_stats, phase2_stats, None, raw_output_file, lint_log_dir, skip_phase2, profile_dir, None)
     
     def _lint_per_file(self, args, base_cmd, files_to_lint, lint_log_dir, profile_dir):
         """Execute lint with per-file processing and progress reporting."""
         total_files = len(files_to_lint)
-        self.logger.info(f"Processing {total_files} files individually...")
+
+        
+        # Track timing for this method
+        import time
+        method_start_time = time.time()
         
         # Aggregate statistics
         aggregate_phase1_stats = {'total_issues': 0, 'error_count': 0, 'warning_count': 0, 'note_count': 0, 'by_severity': {}, 'by_check': {}, 'by_file': {}, 'issues': []}
@@ -1055,23 +1153,19 @@ exit 0
         
         for i, file_path in enumerate(files_to_lint, 1):
             rel_path = file_path.relative_to(self.project_root) if file_path.is_relative_to(self.project_root) else file_path
-            self.logger.info(f"[{i}/{total_files}] Processing {rel_path}")
             
             file_arg = [str(file_path)]
             
             # ===== PHASE 1 for this file =====
             phase1_cmd = base_cmd + ["--fix", "--fix-errors"] + file_arg
-            phase1_result = self.run_command(phase1_cmd, capture_output=True)
+            phase1_result = self.run_command(phase1_cmd, capture_output=True, concise=True)
             
             # Analyze Phase 1 output
             phase1_output = phase1_result.stdout if phase1_result.stdout else ""
             phase1_stats = self._analyze_clang_tidy_output(phase1_output)
             
             if phase1_stats['total_issues'] > 0:
-                self.logger.info(f"    +- Phase 1: Fixed {phase1_stats['total_issues']} issues")
                 files_with_issues.append(str(rel_path))
-            else:
-                self.logger.info(f"    +- Phase 1: No fixable issues")
             
             # Aggregate Phase 1 statistics
             self._merge_stats(aggregate_phase1_stats, phase1_stats)
@@ -1082,47 +1176,38 @@ exit 0
             
             if skip_phase2_for_file:
                 reason = "Fast mode" if args.fast else "No issues in Phase 1"
-                self.logger.info(f"    +- Phase 2: Skipped ({reason})")
                 all_phase2_output.append(f"=== {file_path} ===\nSKIPPED: {reason}\n")
             else:
                 phase2_cmd = base_cmd + file_arg
-                phase2_result = self.run_command(phase2_cmd, capture_output=True)
+                phase2_result = self.run_command(phase2_cmd, capture_output=True, concise=True)
                 
                 # Analyze Phase 2 output
                 phase2_output = phase2_result.stdout if phase2_result.stdout else ""
                 phase2_stats = self._analyze_clang_tidy_output(phase2_output)
                 
-                if phase2_stats['total_issues'] > 0:
-                    self.logger.info(f"    +- Phase 2: {phase2_stats['total_issues']} issues need manual attention")
-                else:
-                    self.logger.info(f"    +- Phase 2: No remaining issues")
+                # Phase 2 processing completed silently
                 
                 # Aggregate Phase 2 statistics
                 self._merge_stats(aggregate_phase2_stats, phase2_stats)
                 all_phase2_output.append(f"=== {file_path} ===\n{phase2_output}\n")
         
-        # Write aggregated output files
-        with open(phase1_output_file, 'w', encoding='utf-8') as f:
-            f.write(f"Clang-tidy Phase 1 (Auto-fix) results - Per-file processing:\n")
-            f.write(f"Total files processed: {total_files}\n")
-            f.write(f"Files with fixable issues: {len(files_with_issues)}\n")
-            if files_with_issues:
-                f.write(f"Files that had fixes applied: {', '.join(files_with_issues)}\n")
-            f.write(f"Total issues fixed: {aggregate_phase1_stats['total_issues']}\n\n")
-            f.write("=== PER-FILE RESULTS ===\n")
-            f.write('\n'.join(all_phase1_output))
-        
-        with open(raw_output_file, 'w', encoding='utf-8') as f:
-            f.write(f"Clang-tidy Phase 2 (Report) results - Per-file processing:\n")
-            f.write(f"Total files processed: {total_files}\n")
-            f.write(f"Total remaining issues: {aggregate_phase2_stats['total_issues']}\n\n")
-            f.write("=== PER-FILE RESULTS ===\n")
-            f.write('\n'.join(all_phase2_output))
+        # Only write raw output file if there are manual issues to fix
+        if aggregate_phase2_stats['total_issues'] > 0:
+            with open(raw_output_file, 'w', encoding='utf-8') as f:
+                f.write(f"Clang-tidy Phase 2 (Report) results - Per-file processing:\n")
+                f.write(f"Total files processed: {total_files}\n")
+                f.write(f"Total remaining issues: {aggregate_phase2_stats['total_issues']}\n\n")
+                f.write("=== PER-FILE RESULTS ===\n")
+                f.write('\n'.join(all_phase2_output))
         
         # Determine if Phase 2 was skipped for all files
         skip_phase2 = args.fast or aggregate_phase1_stats['total_issues'] == 0
         
-        return self._finalize_lint_results(args, aggregate_phase1_stats, aggregate_phase2_stats, phase1_output_file, raw_output_file, lint_log_dir, skip_phase2, profile_dir)
+        # Calculate total execution time for this method
+        method_end_time = time.time()
+        method_execution_time = method_end_time - method_start_time
+        
+        return self._finalize_lint_results(args, aggregate_phase1_stats, aggregate_phase2_stats, None, raw_output_file, lint_log_dir, skip_phase2, profile_dir, method_execution_time)
     
     def _get_files_with_issues(self, stats, files_to_lint):
         """Get list of files that had issues based on analysis statistics."""
@@ -1170,7 +1255,7 @@ exit 0
         # Extend issues list
         aggregate_stats['issues'].extend(file_stats['issues'])
     
-    def _finalize_lint_results(self, args, phase1_stats, phase2_stats, phase1_output_file, raw_output_file, lint_log_dir, skip_phase2, profile_dir):
+    def _finalize_lint_results(self, args, phase1_stats, phase2_stats, phase1_output_file, raw_output_file, lint_log_dir, skip_phase2, profile_dir, total_execution_time=None):
         """Finalize lint results and generate reports."""
         # Generate comprehensive report based on Phase 2 results (or Phase 1 if Phase 2 was skipped)
         report_stats = phase2_stats if not skip_phase2 else phase1_stats
@@ -1181,23 +1266,18 @@ exit 0
             report_file = lint_log_dir / "analysis-report.txt"
         self._generate_lint_report(report_stats, report_file, args.report_format)
         
-        # Print summary to console
-        self.logger.info("\n=== Final Results ===")
-        if phase1_stats['total_issues'] > 0:
-            self.logger.info(f"Phase 1: {phase1_stats['total_issues']} issues automatically fixed")
-        else:
-            self.logger.info("Phase 1: No issues found that could be automatically fixed")
+        # Print concise summary
+        total_fixed = phase1_stats['total_issues']
+        total_manual = phase2_stats['total_issues'] if not skip_phase2 else 0
         
-        if skip_phase2:
-            if args.fast:
-                self.logger.info("Phase 2: Skipped (Fast mode)")
-            else:
-                self.logger.info("Phase 2: Skipped (No issues found)")
-        elif phase2_stats['total_issues'] > 0:
-            self.logger.info(f"Phase 2: {phase2_stats['total_issues']} issues require manual attention")
-            self._print_lint_summary(phase2_stats)
+        if total_fixed == 0 and total_manual == 0:
+            print("No issues found")
+        elif total_fixed > 0 and total_manual == 0:
+            print(f"{total_fixed} issues automatically fixed")
+        elif total_fixed == 0 and total_manual > 0:
+            print(f"{total_manual} issues need manual fixing")
         else:
-            self.logger.info("Phase 2: No remaining issues found!")
+            print(f"{total_fixed} issues automatically fixed, {total_manual} issues need manual fixing")
         
         # Show filtered output if there are remaining issues (unless summary-only mode)
         if not skip_phase2 and phase2_stats['total_issues'] > 0 and not args.summary_only:
@@ -1232,28 +1312,30 @@ exit 0
                         self.logger.info("\nRemaining issues that require manual attention:")
                         print(filtered_output)
         
-        # Analyze clang-tidy profiling data
-        self._analyze_clang_tidy_profiling(profile_dir, lint_log_dir)
+        # Analyze clang-tidy profiling data (only for lint mode, show performance suggestions)
+        if profile_dir:
+            self._analyze_clang_tidy_profiling(profile_dir, lint_log_dir, show_performance_suggestions=True, total_execution_time=total_execution_time)
         
-        # Log file locations
-        self.logger.info(f"\nPhase 1 output saved to: {phase1_output_file}")
-        self.logger.info(f"Phase 2 output saved to: {raw_output_file}")
-        self.logger.info(f"Analysis report saved to: {report_file}")
+        # Log file locations with relative paths
+        rel_report_file = self.make_relative_path(report_file)
+        print(f"Analysis report saved to: {rel_report_file}")
+        
+        # Only log Phase 2 output if there were manual issues
+        if not skip_phase2 and phase2_stats['total_issues'] > 0:
+            rel_raw_file = self.make_relative_path(raw_output_file)
+            print(f"Issues requiring manual fixes saved to: {rel_raw_file}")
         
         # Determine return status based on results
         final_stats = phase2_stats if not skip_phase2 else phase1_stats
         
         if final_stats['error_count'] == 0:
-            if phase1_stats['total_issues'] > 0:
-                self.logger.info("[OK] Linting completed successfully with automatic fixes applied!")
-            else:
-                self.logger.info("[OK] Linting completed successfully!")
+
             return 0
         else:
             self.logger.error("Critical issues found that require manual attention")
             return 1
     
-    def _analyze_clang_tidy_profiling(self, profile_dir, lint_log_dir):
+    def _analyze_clang_tidy_profiling(self, profile_dir, lint_log_dir, show_performance_suggestions=True, total_execution_time=None):
         """Analyze clang-tidy profiling data and generate a summary of the most expensive checks."""
         import json
         import glob
@@ -1326,23 +1408,50 @@ exit 0
                     percentage = (check_time / total_time * 100) if total_time > 0 else 0
                     f.write(f"{i:3d}. {check_name:<45} {check_time:8.3f}s ({percentage:5.1f}%)\n")
             
-            # Log summary to console
-            self.logger.info(f"\n=== Clang-Tidy Performance Profile ===")
-            self.logger.info(f"Total time in checks: {total_time:.3f}s")
-            self.logger.info(f"Top 10 most expensive checks:")
+            # Show performance analysis if requested
+            if show_performance_suggestions:
+                print(f"Total time in checks: {total_time:.3f}s")
+                
+                # Show overhead analysis if total execution time is available
+                if total_execution_time and total_execution_time > total_time:
+                    overhead = total_execution_time - total_time
+                    overhead_percentage = (overhead / total_execution_time * 100) if total_execution_time > 0 else 0
+                    print(f"Overhead (startup, parsing, etc.): {overhead:.3f}s ({overhead_percentage:.1f}%)")
+                                    
+                # Only show check-specific suggestions if check time > 5s
+                if total_time > 5.0:
+                    # Calculate which checks to remove to get under 5 seconds
+                    target_time = 5.0
+                    cumulative_time = total_time
+                    checks_to_remove = []
+                    
+                    for check_name, check_time in sorted_checks:
+                        if cumulative_time <= target_time:
+                            break
+                        checks_to_remove.append((check_name, check_time))
+                        cumulative_time -= check_time
+                    
+                    if checks_to_remove:
+                        total_removed_time = sum(time for _, time in checks_to_remove)
+                        remaining_time = total_time - total_removed_time
+                        
+                        print(f"To reduce lint time to <={target_time}s, consider disabling these checks:")
+                        for i, (check_name, check_time) in enumerate(checks_to_remove, 1):
+                            percentage = (check_time / total_time * 100) if total_time > 0 else 0
+                            print(f"  {i:2d}. {check_name:<35} {check_time:6.3f}s ({percentage:4.1f}%)")
+                        
+                        print(f"Removing these {len(checks_to_remove)} checks would save {total_removed_time:.1f}s")
+                        print(f"Estimated remaining time: {remaining_time:.1f}s")
             
-            for i, (check_name, check_time) in enumerate(top_10_checks, 1):
-                percentage = (check_time / total_time * 100) if total_time > 0 else 0
-                self.logger.info(f"  {i:2d}. {check_name:<35} {check_time:6.3f}s ({percentage:4.1f}%)")
-            
-            self.logger.info(f"Profile summary saved to: {summary_file}")
+            rel_summary_file = self.make_relative_path(summary_file)
+            print(f"Profile summary saved to: {rel_summary_file}")
             
         except Exception as e:
             self.logger.error(f"Failed to analyze profiling data: {e}")
     
     def cmd_compile_db(self, args):
         """Generate or manage compilation database."""
-        self.logger.info("=== Compilation Database Management ===")
+
         
         # Determine build type
         if args.debug:
@@ -1434,7 +1543,7 @@ exit 0
 
     def cmd_install_git_hooks(self, args):
         """Install git pre-commit hooks."""
-        self.logger.info("=== Installing Git Hooks ===")
+
         
         git_hooks_dir = self.project_root / ".git" / "hooks"
         if not git_hooks_dir.exists():
@@ -1491,9 +1600,9 @@ exit 0
             self.logger.error(f"Failed to install pre-commit hook: {e}")
             return 1
 
-    def cmd_test(self, args):
+    def _cmd_test_impl(self, args):
         """Run tests using CTest."""
-        self.logger.info("Running tests...")
+
         
         # Determine build directory based on build type
         build_type = "debug" if args.debug else "release" if args.release else "debug"
@@ -1545,11 +1654,8 @@ exit 0
         if hasattr(args, 'labels') and args.labels:
             cmd.extend(["--label-regex", args.labels])
         
-        self.logger.info(f"Running command: {' '.join(cmd)}")
-        self.logger.info(f"Working directory: {build_dir}")
-        
-        # Execute CTest
-        result = self.run_command(cmd, cwd=build_dir, capture_output=True)
+        # Execute CTest with concise output
+        result = self.run_command(cmd, cwd=build_dir, capture_output=True, concise=True)
         
         # Save detailed test output
         test_output_file = test_log_dir / "test-output.log"
@@ -2007,7 +2113,7 @@ exit 0
 
     def cmd_rebuild(self, args):
         """Clean, build, and optionally test in sequence."""
-        self.logger.info("=== Rebuild Sequence: Clean + Configure + Build + Test ===")
+
         
         # Step 1: Clean
         self.logger.info("Step 1: Cleaning artifacts...")
@@ -2067,7 +2173,7 @@ exit 0
 
     def cmd_reconfigure(self, args):
         """Clean configure from scratch."""
-        self.logger.info("=== Reconfigure: Clean + Configure ===")
+
         
         # Step 1: Clean
         self.logger.info("Step 1: Cleaning all artifacts...")
@@ -2175,7 +2281,7 @@ exit 0
     
     def cmd_git_status(self, args):
         """Display comprehensive git status."""
-        self.logger.info("=== Git Repository Status ===")
+
         
         if not self._validate_git_repository():
             return 1
@@ -2231,7 +2337,7 @@ exit 0
     
     def cmd_git_pull(self, args):
         """Pull latest changes from remote repository."""
-        self.logger.info("=== Git Pull ===")
+
         
         if not self._validate_git_repository():
             return 1
@@ -2265,7 +2371,7 @@ exit 0
     
     def cmd_git_push(self, args):
         """Push local commits to remote repository."""
-        self.logger.info("=== Git Push ===")
+
         
         if not self._validate_git_repository():
             return 1
@@ -2302,7 +2408,7 @@ exit 0
     
     def cmd_git_commit(self, args):
         """Commit staged changes with automatic pre-commit checks."""
-        self.logger.info("=== Git Commit ===")
+
         
         if not self._validate_git_repository():
             return 1
@@ -2356,7 +2462,7 @@ exit 0
     
     def cmd_git_clean(self, args):
         """Clean git repository and build artifacts."""
-        self.logger.info("=== Git Clean ===")
+
         
         if not self._validate_git_repository():
             return 1
@@ -2403,7 +2509,7 @@ exit 0
     
     def cmd_build_stats(self, args):
         """Display build statistics and performance analysis."""
-        self.logger.info("=== Build Performance Analysis ===")
+
         
         # Analyze build directories
         debug_build = self.get_build_directory("debug")
@@ -2515,7 +2621,7 @@ exit 0
     
     def _suggest_performance_improvements(self, build_stats: dict):
         """Suggest performance improvements based on build statistics."""
-        self.logger.info("\n=== Performance Recommendations ===")
+
         
         total_deps_size = sum(stats.get('deps_size', 0) for stats in build_stats.values())
         total_build_size = sum(stats.get('build_size', 0) for stats in build_stats.values())
@@ -2541,7 +2647,7 @@ exit 0
     
     def cmd_cache_management(self, args):
         """Manage build caches and temporary files."""
-        self.logger.info("=== Build Cache Management ===")
+
         
         cache_dirs = []
         
@@ -2672,7 +2778,7 @@ Examples:
     format_parser.add_argument('--files', nargs='*', help='Specific files to format')
     
     # Lint command
-    lint_parser = subparsers.add_parser('lint', help='Lint source code (two-phase: auto-fix then report)')
+    lint_parser = subparsers.add_parser('lint', help='Fast lint with slow checks disabled')
     lint_parser.add_argument('--files', nargs='*', help='Specific files to lint')
     lint_parser.add_argument('--target', help='Lint specific file')
     lint_parser.add_argument('--summary-only', action='store_true', help='Show only summary, skip detailed output')
@@ -2680,6 +2786,16 @@ Examples:
     lint_parser.add_argument('--fast', action='store_true', help='Fast mode: skip Phase 2 analysis (auto-fix only)')
     lint_parser.add_argument('--per-file', action='store_true', help='Process files individually with progress reporting (default)')
     lint_parser.add_argument('--batch', action='store_true', help='Process all files in batch mode (faster but less responsive)')
+    
+    # Full-lint command (all checks enabled)
+    full_lint_parser = subparsers.add_parser('full-lint', help='Full lint with all checks enabled and profiling')
+    full_lint_parser.add_argument('--files', nargs='*', help='Specific files to lint')
+    full_lint_parser.add_argument('--target', help='Lint specific file')
+    full_lint_parser.add_argument('--summary-only', action='store_true', help='Show only summary, skip detailed output')
+    full_lint_parser.add_argument('--report-format', choices=['text', 'markdown'], default='markdown', help='Report format for generated files')
+    full_lint_parser.add_argument('--fast', action='store_true', help='Fast mode: skip Phase 2 analysis (auto-fix only)')
+    full_lint_parser.add_argument('--per-file', action='store_true', help='Process files individually with progress reporting (default)')
+    full_lint_parser.add_argument('--batch', action='store_true', help='Process all files in batch mode (faster but less responsive)')
     
     # Compilation Database command
     compile_db_parser = subparsers.add_parser('compile-db', help='Generate and manage compilation database')
@@ -2765,6 +2881,7 @@ def main():
         'test': orchestrator.cmd_test,
         'format': orchestrator.cmd_format,
         'lint': orchestrator.cmd_lint,
+        'full-lint': orchestrator.cmd_full_lint,
         'compile-db': orchestrator.cmd_compile_db,
         'install-git-hooks': orchestrator.cmd_install_git_hooks,
         'rebuild': orchestrator.cmd_rebuild,
@@ -2780,7 +2897,10 @@ def main():
     
     try:
         command_func = command_map[args.command]
-        return command_func(args)
+        orchestrator.start_timing()
+        result = command_func(args)
+        orchestrator.print_execution_time(f"Command '{args.command}'")
+        return result
     except KeyError:
         orchestrator.logger.error(f"Unknown command: {args.command}")
         return 1
