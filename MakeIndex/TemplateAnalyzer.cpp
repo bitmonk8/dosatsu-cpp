@@ -283,10 +283,13 @@ auto TemplateAnalyzer::extractTemplateArguments(const clang::TemplateArgumentLis
         switch (arg.getKind())
         {
         case TemplateArgument::Type:
-            if (arg.getAsType().getTypePtrOrNull() != nullptr)
-                result += arg.getAsType().getAsString();
-            else
-                result += "?";
+            {
+                QualType type = arg.getAsType();
+                if (type.getTypePtrOrNull() != nullptr && !type.isNull())
+                    result += type.getAsString();
+                else
+                    result += "?";
+            }
             break;
         case TemplateArgument::Integral:
             result += std::to_string(arg.getAsIntegral().getLimitedValue());
@@ -337,7 +340,8 @@ auto TemplateAnalyzer::extractTemplateArguments(const clang::TemplateDecl* templ
             if (const auto* typeParam = dyn_cast<TemplateTypeParmDecl>(param))
                 result += "typename " + typeParam->getNameAsString();
             else if (const auto* nonTypeParam = dyn_cast<NonTypeTemplateParmDecl>(param))
-                result += nonTypeParam->getType().getAsString() + " " + nonTypeParam->getNameAsString();
+                result += (nonTypeParam->getType().isNull() ? "unknown" : nonTypeParam->getType().getAsString()) + " " +
+                          nonTypeParam->getNameAsString();
             else if (const auto* templateParam = dyn_cast<TemplateTemplateParmDecl>(param))
                 result += "template " + templateParam->getNameAsString();
             else

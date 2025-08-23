@@ -104,7 +104,7 @@ void AdvancedAnalyzer::createConstantExpressionNode(int64_t nodeId,
     try
     {
         std::string evaluationResult = evaluateConstantExpression(expr);
-        std::string resultType = expr->getType().getAsString();
+        std::string resultType = expr->getType().isNull() ? "unknown" : expr->getType().getAsString();
         bool isCompileTimeConstant = expr->isEvaluatable(*astContext);
         auto [constantValue, constantType] = extractConstantValue(expr);
         std::string evaluationStatus = extractEvaluationStatus(expr);
@@ -258,7 +258,7 @@ auto AdvancedAnalyzer::extractConstantValue(const clang::Expr* expr) -> std::pai
     Expr::EvalResult result;
     if (expr->EvaluateAsConstantExpr(result, *astContext))
     {
-        std::string type = expr->getType().getAsString();
+        std::string type = expr->getType().isNull() ? "unknown" : expr->getType().getAsString();
 
         if (result.Val.isInt())
             return {std::to_string(result.Val.getInt().getLimitedValue()), type};
@@ -271,7 +271,7 @@ auto AdvancedAnalyzer::extractConstantValue(const clang::Expr* expr) -> std::pai
         return {"constant", type};
     }
 
-    return {"not_constant", expr->getType().getAsString()};
+    return {"not_constant", expr->getType().isNull() ? "unknown" : expr->getType().getAsString()};
 }
 
 auto AdvancedAnalyzer::extractEvaluationStatus(const clang::Expr* expr) -> std::string

@@ -47,7 +47,10 @@ auto TypeAnalyzer::createTypeNode(clang::QualType qualType) -> int64_t
     try
     {
         // Create node using node processor first
-        int64_t typeNodeId = nodeProcessor.createASTNode(qualType.getTypePtr());
+        const Type* typePtr = qualType.getTypePtr();
+        if (typePtr == nullptr)
+            return -1;
+        int64_t typeNodeId = nodeProcessor.createASTNode(typePtr);
         if (typeNodeId == -1)
             return -1;
 
@@ -150,12 +153,14 @@ auto TypeAnalyzer::extractTypeQualifiers(clang::QualType qualType) -> std::strin
         return "";
 
     std::string qualifiers;
-    if (qualType.isConstQualified())
-        qualifiers += "const ";
-    if (qualType.isVolatileQualified())
-        qualifiers += "volatile ";
-    if (qualType.isRestrictQualified())
-        qualifiers += "restrict ";
+    if (!qualType.isNull()) {
+        if (qualType.isConstQualified())
+            qualifiers += "const ";
+        if (qualType.isVolatileQualified())
+            qualifiers += "volatile ";
+        if (qualType.isRestrictQualified())
+            qualifiers += "restrict ";
+    }
 
     // Remove trailing space
     if (!qualifiers.empty() && qualifiers.back() == ' ')
