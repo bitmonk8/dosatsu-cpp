@@ -117,10 +117,22 @@ class TestFramework:
         """Execute a query and return the count of results"""
         try:
             results = self.query_to_list(cypher_query)
+            
             # If this is a count query that returns a single value, extract it
             if len(results) == 1 and len(results[0]) == 1:
                 count_value = list(results[0].values())[0]
-                return int(count_value) if count_value is not None else 0
+                # Handle different types of return values
+                if isinstance(count_value, (int, float)):
+                    return int(count_value)
+                elif isinstance(count_value, str) and count_value.isdigit():
+                    return int(count_value)
+                elif count_value is None:
+                    return 0
+                else:
+                    # If it's not a simple count value (e.g., a dict/object), treat as one result
+                    return 1
+            
+            # For non-count queries, return the number of result rows
             return len(results)
         except Exception as e:
             print(f"Query error: {e}")

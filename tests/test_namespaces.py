@@ -13,7 +13,7 @@ class TestNamespacesTest(BaseTest):
         
         # Test namespace declarations exist
         self.framework.assert_query_has_results(
-            "MATCH (n:Declaration) WHERE n.node_type = 'NamespaceDecl' RETURN n LIMIT 1",
+            "MATCH (a:ASTNode), (d:Declaration) WHERE a.node_type = 'NamespaceDecl' AND a.node_id = d.node_id RETURN d LIMIT 1",
             "Should have namespace declarations"
         )
         
@@ -26,13 +26,13 @@ class TestNamespacesTest(BaseTest):
         found_namespaces = []
         for namespace in expected_namespaces:
             count = self.framework.query_count(f"""
-                MATCH (n:Declaration) 
-                WHERE n.node_type = 'NamespaceDecl' AND n.name = '{namespace}'
-                RETURN count(n) as count
+                MATCH (a:ASTNode), (d:Declaration) 
+                WHERE a.node_type = 'NamespaceDecl' AND a.node_id = d.node_id AND d.name = '{namespace}'
+                RETURN count(d) as count
             """)
             if count > 0:
                 found_namespaces.append(namespace)
-                print(f"✓ Found namespace {namespace}")
+                print(f"[OK] Found namespace {namespace}")
             else:
                 print(f"Warning: Namespace {namespace} not found")
         
@@ -40,19 +40,23 @@ class TestNamespacesTest(BaseTest):
         
         # Test nested namespaces
         nested_namespace_count = self.framework.query_count("""
-            MATCH (parent:Declaration)-[:PARENT_OF]->(child:Declaration)
-            WHERE parent.node_type = 'NamespaceDecl' AND child.node_type = 'NamespaceDecl'
+            MATCH (ap:ASTNode), (pd:Declaration), (ac:ASTNode), (cd:Declaration), 
+                  (pd)-[:PARENT_OF]->(cd)
+            WHERE ap.node_type = 'NamespaceDecl' AND ap.node_id = pd.node_id 
+              AND ac.node_type = 'NamespaceDecl' AND ac.node_id = cd.node_id
             RETURN count(*) as count
         """)
         
         if nested_namespace_count > 0:
-            print(f"✓ Found {nested_namespace_count} nested namespace relationships")
+            print(f"[OK] Found {nested_namespace_count} nested namespace relationships")
             
             # Get examples of nested namespaces
             nested_examples = self.framework.query_to_list("""
-                MATCH (parent:Declaration)-[:PARENT_OF]->(child:Declaration)
-                WHERE parent.node_type = 'NamespaceDecl' AND child.node_type = 'NamespaceDecl'
-                RETURN parent.name as parent_ns, child.name as child_ns
+                MATCH (ap:ASTNode), (pd:Declaration), (ac:ASTNode), (cd:Declaration),
+                      (pd)-[:PARENT_OF]->(cd)
+                WHERE ap.node_type = 'NamespaceDecl' AND ap.node_id = pd.node_id 
+                  AND ac.node_type = 'NamespaceDecl' AND ac.node_id = cd.node_id
+                RETURN pd.name as parent_ns, cd.name as child_ns
                 LIMIT 5
             """)
             
@@ -67,7 +71,7 @@ class TestNamespacesTest(BaseTest):
         )
         
         if using_decl_count > 0:
-            print(f"✓ Found {using_decl_count} using declarations")
+            print(f"[OK] Found {using_decl_count} using declarations")
             
             # Test different kinds of using declarations
             using_kinds = self.framework.query_to_list("""
@@ -89,7 +93,7 @@ class TestNamespacesTest(BaseTest):
         """)
         
         if namespace_context_count > 0:
-            print(f"✓ Found {namespace_context_count} declarations with namespace context")
+            print(f"[OK] Found {namespace_context_count} declarations with namespace context")
             
             # Show some examples
             context_examples = self.framework.query_to_list("""
@@ -111,7 +115,7 @@ class TestNamespacesTest(BaseTest):
         """)
         
         if qualified_name_count > 0:
-            print(f"✓ Found {qualified_name_count} declarations with qualified names")
+            print(f"[OK] Found {qualified_name_count} declarations with qualified names")
             
             # Show examples of qualified names
             qualified_examples = self.framework.query_to_list("""
@@ -127,25 +131,25 @@ class TestNamespacesTest(BaseTest):
         
         # Test anonymous namespaces
         anonymous_ns_count = self.framework.query_count("""
-            MATCH (n:Declaration)
-            WHERE n.node_type = 'NamespaceDecl' AND (n.name = '' OR n.name IS NULL)
-            RETURN count(n) as count
+            MATCH (a:ASTNode), (d:Declaration)
+            WHERE a.node_type = 'NamespaceDecl' AND a.node_id = d.node_id AND (d.name = '' OR d.name IS NULL)
+            RETURN count(d) as count
         """)
         
         if anonymous_ns_count > 0:
-            print(f"✓ Found {anonymous_ns_count} anonymous namespaces")
+            print(f"[OK] Found {anonymous_ns_count} anonymous namespaces")
         else:
             print("No anonymous namespaces detected")
         
         # Test inline namespaces
         inline_ns_count = self.framework.query_count("""
-            MATCH (n:Declaration)
-            WHERE n.node_type = 'NamespaceDecl' AND n.raw_text CONTAINS 'inline'
-            RETURN count(n) as count
+            MATCH (a:ASTNode), (d:Declaration)
+            WHERE a.node_type = 'NamespaceDecl' AND a.node_id = d.node_id AND a.raw_text CONTAINS 'inline'
+            RETURN count(d) as count
         """)
         
         if inline_ns_count > 0:
-            print(f"✓ Found {inline_ns_count} inline namespaces")
+            print(f"[OK] Found {inline_ns_count} inline namespaces")
         else:
             print("No inline namespaces detected")
         
@@ -155,7 +159,7 @@ class TestNamespacesTest(BaseTest):
         )
         
         if scope_count > 0:
-            print(f"✓ Found {scope_count} scope relationships")
+            print(f"[OK] Found {scope_count} scope relationships")
             
             # Test different scope kinds
             scope_kinds = self.framework.query_to_list("""
@@ -178,7 +182,7 @@ class TestNamespacesTest(BaseTest):
         """)
         
         if namespace_alias_count > 0:
-            print(f"✓ Found {namespace_alias_count} namespace aliases")
+            print(f"[OK] Found {namespace_alias_count} namespace aliases")
         
         # Test using directives vs using declarations
         using_directive_count = self.framework.query_count("""
@@ -198,34 +202,36 @@ class TestNamespacesTest(BaseTest):
         
         # Test functions in namespaces
         namespace_functions = self.framework.query_count("""
-            MATCH (f:Declaration)
-            WHERE f.node_type = 'FunctionDecl' AND f.namespace_context IS NOT NULL AND f.namespace_context <> ''
+            MATCH (a:ASTNode), (f:Declaration)
+            WHERE a.node_type = 'FunctionDecl' AND a.node_id = f.node_id AND f.namespace_context IS NOT NULL AND f.namespace_context <> ''
             RETURN count(f) as count
         """)
         
         if namespace_functions > 0:
-            print(f"✓ Found {namespace_functions} functions in namespaces")
+            print(f"[OK] Found {namespace_functions} functions in namespaces")
         
         # Test classes in namespaces
         namespace_classes = self.framework.query_count("""
-            MATCH (c:Declaration)
-            WHERE c.node_type = 'CXXRecordDecl' AND c.namespace_context IS NOT NULL AND c.namespace_context <> ''
+            MATCH (a:ASTNode), (c:Declaration)
+            WHERE a.node_type = 'CXXRecordDecl' AND a.node_id = c.node_id AND c.namespace_context IS NOT NULL AND c.namespace_context <> ''
             RETURN count(c) as count
         """)
         
         if namespace_classes > 0:
-            print(f"✓ Found {namespace_classes} classes in namespaces")
+            print(f"[OK] Found {namespace_classes} classes in namespaces")
         
         # Test ADL (Argument Dependent Lookup) candidates
         # Look for functions that might be found via ADL
         adl_candidates = self.framework.query_count("""
-            MATCH (func:Declaration)-[:PARENT_OF*]-(class:Declaration)
-            WHERE func.node_type = 'FunctionDecl' AND class.node_type = 'CXXRecordDecl'
-               AND func.namespace_context = class.namespace_context
+            MATCH (af:ASTNode), (func:Declaration), (ac:ASTNode), (class:Declaration),
+                  (func)-[:PARENT_OF*]-(class)
+            WHERE af.node_type = 'FunctionDecl' AND af.node_id = func.node_id
+              AND ac.node_type = 'CXXRecordDecl' AND ac.node_id = class.node_id
+              AND func.namespace_context = class.namespace_context
             RETURN count(DISTINCT func) as count
         """)
         
         if adl_candidates > 0:
-            print(f"✓ Found {adl_candidates} potential ADL function candidates")
+            print(f"[OK] Found {adl_candidates} potential ADL function candidates")
         
         print("Namespace analysis completed!")

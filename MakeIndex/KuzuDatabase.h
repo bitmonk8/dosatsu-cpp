@@ -80,7 +80,7 @@ private:
     std::vector<std::string> pendingQueries;
     bool transactionActive = false;
     size_t totalOperations = 0;
-    
+
     // Global node ID counter for uniqueness across all files
     int64_t nextNodeId = 1;
 };

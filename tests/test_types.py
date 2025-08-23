@@ -25,7 +25,7 @@ class TestTypesTest(BaseTest):
         """)
         
         if builtin_count > 0:
-            print(f"✓ Found {builtin_count} builtin types")
+            print(f"[OK] Found {builtin_count} builtin types")
             
             # Show some builtin types
             builtins = self.framework.query_to_list("""
@@ -47,7 +47,7 @@ class TestTypesTest(BaseTest):
         """)
         
         if user_defined_count > 0:
-            print(f"✓ Found {user_defined_count} user-defined types")
+            print(f"[OK] Found {user_defined_count} user-defined types")
         
         # Test const and volatile qualifiers
         const_count = self.framework.query_count("""
@@ -63,9 +63,9 @@ class TestTypesTest(BaseTest):
         """)
         
         if const_count > 0:
-            print(f"✓ Found {const_count} const-qualified types")
+            print(f"[OK] Found {const_count} const-qualified types")
         if volatile_count > 0:
-            print(f"✓ Found {volatile_count} volatile-qualified types")
+            print(f"[OK] Found {volatile_count} volatile-qualified types")
         
         # Test type sizes
         sized_types = self.framework.query_count("""
@@ -75,7 +75,7 @@ class TestTypesTest(BaseTest):
         """)
         
         if sized_types > 0:
-            print(f"✓ Found {sized_types} types with size information")
+            print(f"[OK] Found {sized_types} types with size information")
             
             # Show size distribution
             size_stats = self.framework.query_to_list("""
@@ -99,7 +99,7 @@ class TestTypesTest(BaseTest):
         """)
         
         if canonical_count > 0:
-            print(f"✓ Found {canonical_count} types with different canonical forms")
+            print(f"[OK] Found {canonical_count} types with different canonical forms")
             
             # Show some examples
             canonical_examples = self.framework.query_to_list("""
@@ -118,7 +118,7 @@ class TestTypesTest(BaseTest):
         )
         
         if type_relations > 0:
-            print(f"✓ Found {type_relations} declaration-to-type relationships")
+            print(f"[OK] Found {type_relations} declaration-to-type relationships")
             
             # Test different type roles
             type_roles = self.framework.query_to_list("""
@@ -142,7 +142,7 @@ class TestTypesTest(BaseTest):
         """)
         
         if pointer_types > 0:
-            print(f"✓ Found {pointer_types} pointer types")
+            print(f"[OK] Found {pointer_types} pointer types")
         
         # Test reference types
         reference_types = self.framework.query_count("""
@@ -152,7 +152,7 @@ class TestTypesTest(BaseTest):
         """)
         
         if reference_types > 0:
-            print(f"✓ Found {reference_types} reference types")
+            print(f"[OK] Found {reference_types} reference types")
         
         # Test template instantiated types
         template_types = self.framework.query_count("""
@@ -162,7 +162,7 @@ class TestTypesTest(BaseTest):
         """)
         
         if template_types > 0:
-            print(f"✓ Found {template_types} template instantiated types")
+            print(f"[OK] Found {template_types} template instantiated types")
             
             # Show some examples
             template_examples = self.framework.query_to_list("""
@@ -184,7 +184,7 @@ class TestTypesTest(BaseTest):
         """)
         
         if array_types > 0:
-            print(f"✓ Found {array_types} array types")
+            print(f"[OK] Found {array_types} array types")
         
         # Test function types
         function_types = self.framework.query_count("""
@@ -194,7 +194,7 @@ class TestTypesTest(BaseTest):
         """)
         
         if function_types > 0:
-            print(f"✓ Found {function_types} function types")
+            print(f"[OK] Found {function_types} function types")
         
         # Test class/struct types from our test files
         expected_types = [
@@ -209,7 +209,7 @@ class TestTypesTest(BaseTest):
                 RETURN count(t) as count
             """)
             if count > 0:
-                print(f"✓ Found type {type_name}")
+                print(f"[OK] Found type {type_name}")
         
         # Test namespace-qualified types
         namespaced_types = self.framework.query_count("""
@@ -219,7 +219,7 @@ class TestTypesTest(BaseTest):
         """)
         
         if namespaced_types > 0:
-            print(f"✓ Found {namespaced_types} namespace-qualified types")
+            print(f"[OK] Found {namespaced_types} namespace-qualified types")
         
         # Test standard library types
         std_types = ["std::string", "std::vector", "std::unique_ptr", "std::function"]
@@ -235,7 +235,7 @@ class TestTypesTest(BaseTest):
                 std_found += 1
         
         if std_found > 0:
-            print(f"✓ Found {std_found} standard library types")
+            print(f"[OK] Found {std_found} standard library types")
         
         # Test auto and decltype types
         auto_count = self.framework.query_count("""
@@ -251,9 +251,9 @@ class TestTypesTest(BaseTest):
         """)
         
         if auto_count > 0:
-            print(f"✓ Found {auto_count} auto types")
+            print(f"[OK] Found {auto_count} auto types")
         if decltype_count > 0:
-            print(f"✓ Found {decltype_count} decltype types")
+            print(f"[OK] Found {decltype_count} decltype types")
         
         # Test most complex types
         complex_types = self.framework.query_to_list("""
@@ -265,7 +265,7 @@ class TestTypesTest(BaseTest):
         """)
         
         if complex_types:
-            print("✓ Most complex types:")
+            print("[OK] Most complex types:")
             for ctype in complex_types:
                 print(f"    {ctype['name']} (length: {ctype['complexity']})")
         
@@ -280,7 +280,7 @@ class TestTypesTest(BaseTest):
         """)
         
         if most_used_types:
-            print("✓ Most frequently used types:")
+            print("[OK] Most frequently used types:")
             for used_type in most_used_types:
                 print(f"    {used_type['type_name']}: {used_type['usage_count']} uses")
         

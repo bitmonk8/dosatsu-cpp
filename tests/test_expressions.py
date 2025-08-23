@@ -33,7 +33,7 @@ class TestExpressionsTest(BaseTest):
             """)
             if count > 0:
                 found_expression_kinds.append(expr_kind)
-                print(f"✓ Found {count} {expr_kind} expressions")
+                print(f"[OK] Found {count} {expr_kind} expressions")
             else:
                 print(f"Warning: No {expr_kind} expressions found")
         
@@ -48,7 +48,7 @@ class TestExpressionsTest(BaseTest):
         """)
         
         if value_categories:
-            print("✓ Value categories found:")
+            print("[OK] Value categories found:")
             for category in value_categories:
                 print(f"  {category['category']}: {category['count']} expressions")
         
@@ -60,7 +60,7 @@ class TestExpressionsTest(BaseTest):
         """)
         
         if literal_count > 0:
-            print(f"✓ Found {literal_count} expressions with literal values")
+            print(f"[OK] Found {literal_count} expressions with literal values")
             
             # Show some examples of literals
             literals = self.framework.query_to_list("""
@@ -83,7 +83,7 @@ class TestExpressionsTest(BaseTest):
         """)
         
         if operator_kinds:
-            print("✓ Operator kinds found:")
+            print("[OK] Operator kinds found:")
             for op in operator_kinds[:10]:  # Show top 10
                 print(f"  {op['operator']}: {op['count']} uses")
         
@@ -100,7 +100,7 @@ class TestExpressionsTest(BaseTest):
             arithmetic_count += count
         
         if arithmetic_count > 0:
-            print(f"✓ Found {arithmetic_count} arithmetic operator expressions")
+            print(f"[OK] Found {arithmetic_count} arithmetic operator expressions")
         
         # Test comparison operators
         comparison_ops = ['==', '!=', '<', '>', '<=', '>=']
@@ -115,7 +115,7 @@ class TestExpressionsTest(BaseTest):
             comparison_count += count
         
         if comparison_count > 0:
-            print(f"✓ Found {comparison_count} comparison operator expressions")
+            print(f"[OK] Found {comparison_count} comparison operator expressions")
         
         # Test logical operators
         logical_ops = ['&&', '||', '!']
@@ -130,7 +130,7 @@ class TestExpressionsTest(BaseTest):
             logical_count += count
         
         if logical_count > 0:
-            print(f"✓ Found {logical_count} logical operator expressions")
+            print(f"[OK] Found {logical_count} logical operator expressions")
         
         # Test assignment operators
         assignment_ops = ['=', '+=', '-=', '*=', '/=', '%=']
@@ -145,7 +145,7 @@ class TestExpressionsTest(BaseTest):
             assignment_count += count
         
         if assignment_count > 0:
-            print(f"✓ Found {assignment_count} assignment operator expressions")
+            print(f"[OK] Found {assignment_count} assignment operator expressions")
         
         # Test member access expressions
         member_access_count = self.framework.query_count("""
@@ -155,7 +155,7 @@ class TestExpressionsTest(BaseTest):
         """)
         
         if member_access_count > 0:
-            print(f"✓ Found {member_access_count} member access expressions")
+            print(f"[OK] Found {member_access_count} member access expressions")
         
         # Test function call expressions
         call_expr_count = self.framework.query_count("""
@@ -165,7 +165,7 @@ class TestExpressionsTest(BaseTest):
         """)
         
         if call_expr_count > 0:
-            print(f"✓ Found {call_expr_count} function call expressions")
+            print(f"[OK] Found {call_expr_count} function call expressions")
         
         # Test cast expressions
         cast_count = self.framework.query_count("""
@@ -175,7 +175,7 @@ class TestExpressionsTest(BaseTest):
         """)
         
         if cast_count > 0:
-            print(f"✓ Found {cast_count} cast expressions")
+            print(f"[OK] Found {cast_count} cast expressions")
             
             # Test implicit cast kinds
             implicit_casts = self.framework.query_to_list("""
@@ -199,7 +199,7 @@ class TestExpressionsTest(BaseTest):
         """)
         
         if constexpr_count > 0:
-            print(f"✓ Found {constexpr_count} constexpr expressions")
+            print(f"[OK] Found {constexpr_count} constexpr expressions")
         
         # Test evaluated expressions
         evaluated_count = self.framework.query_count("""
@@ -209,7 +209,7 @@ class TestExpressionsTest(BaseTest):
         """)
         
         if evaluated_count > 0:
-            print(f"✓ Found {evaluated_count} expressions with evaluation results")
+            print(f"[OK] Found {evaluated_count} expressions with evaluation results")
             
             # Show some examples
             evaluations = self.framework.query_to_list("""
@@ -231,7 +231,7 @@ class TestExpressionsTest(BaseTest):
         )
         
         if constant_expr_count > 0:
-            print(f"✓ Found {constant_expr_count} constant expression nodes")
+            print(f"[OK] Found {constant_expr_count} constant expression nodes")
             
             # Test constant values
             constant_values = self.framework.query_to_list("""
@@ -254,7 +254,7 @@ class TestExpressionsTest(BaseTest):
         """)
         
         if compile_time_count > 0:
-            print(f"✓ Found {compile_time_count} compile-time constant expressions")
+            print(f"[OK] Found {compile_time_count} compile-time constant expressions")
         
         # Test HAS_CONSTANT_VALUE relationships
         const_value_relations = self.framework.query_count(
@@ -262,7 +262,7 @@ class TestExpressionsTest(BaseTest):
         )
         
         if const_value_relations > 0:
-            print(f"✓ Found {const_value_relations} expression-to-constant relationships")
+            print(f"[OK] Found {const_value_relations} expression-to-constant relationships")
         
         # Test different literal types
         literal_types = [
@@ -280,7 +280,7 @@ class TestExpressionsTest(BaseTest):
                 RETURN count(e) as count
             """)
             if count > 0:
-                print(f"✓ Found {count} {description} literals")
+                print(f"[OK] Found {count} {description} literals")
         
         # Test lambda expressions
         lambda_count = self.framework.query_count("""
@@ -290,7 +290,7 @@ class TestExpressionsTest(BaseTest):
         """)
         
         if lambda_count > 0:
-            print(f"✓ Found {lambda_count} lambda expressions")
+            print(f"[OK] Found {lambda_count} lambda expressions")
         
         # Test conditional expressions (ternary operator)
         conditional_count = self.framework.query_count("""
@@ -300,7 +300,7 @@ class TestExpressionsTest(BaseTest):
         """)
         
         if conditional_count > 0:
-            print(f"✓ Found {conditional_count} conditional (ternary) expressions")
+            print(f"[OK] Found {conditional_count} conditional (ternary) expressions")
         
         # Test array subscript expressions
         subscript_count = self.framework.query_count("""
@@ -310,7 +310,7 @@ class TestExpressionsTest(BaseTest):
         """)
         
         if subscript_count > 0:
-            print(f"✓ Found {subscript_count} array subscript expressions")
+            print(f"[OK] Found {subscript_count} array subscript expressions")
         
         # Test reference expressions
         ref_count = self.framework.query_count("""
@@ -320,7 +320,7 @@ class TestExpressionsTest(BaseTest):
         """)
         
         if ref_count > 0:
-            print(f"✓ Found {ref_count} declaration reference expressions")
+            print(f"[OK] Found {ref_count} declaration reference expressions")
         
         # Test size and type information
         size_info_count = self.framework.query_count("""
@@ -330,6 +330,6 @@ class TestExpressionsTest(BaseTest):
         """)
         
         if size_info_count > 0:
-            print(f"✓ Found {size_info_count} expressions with type size information")
+            print(f"[OK] Found {size_info_count} expressions with type size information")
         
         print("Expression analysis completed!")

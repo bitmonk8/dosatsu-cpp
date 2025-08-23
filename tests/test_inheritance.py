@@ -30,7 +30,7 @@ class TestInheritanceTest(BaseTest):
             if results == 0:
                 print(f"Warning: Class {class_name} not found")
             else:
-                print(f"✓ Found class {class_name}")
+                print(f"[OK] Found class {class_name}")
         
         # Test INHERITS_FROM relationships exist
         self.framework.assert_query_has_results(
@@ -52,7 +52,7 @@ class TestInheritanceTest(BaseTest):
                 RETURN count(*) as count
             """)
             if count > 0:
-                print(f"✓ Found inheritance: {derived} -> {base}")
+                print(f"[OK] Found inheritance: {derived} -> {base}")
             else:
                 print(f"Warning: Inheritance {derived} -> {base} not found")
         
@@ -64,13 +64,13 @@ class TestInheritanceTest(BaseTest):
         """)
         
         if bat_inheritance >= 2:
-            print(f"✓ Bat has multiple inheritance ({bat_inheritance} base classes)")
+            print(f"[OK] Bat has multiple inheritance ({bat_inheritance} base classes)")
         else:
             print(f"Warning: Bat multiple inheritance not fully detected ({bat_inheritance} bases)")
         
         # Test virtual functions
         self.framework.assert_query_has_results(
-            "MATCH (n:Declaration) WHERE n.node_type = 'CXXMethodDecl' RETURN n LIMIT 1",
+            "MATCH (a:ASTNode), (d:Declaration) WHERE a.node_type = 'CXXMethodDecl' AND a.node_id = d.node_id RETURN d LIMIT 1",
             "Should have method declarations"
         )
         
@@ -80,7 +80,7 @@ class TestInheritanceTest(BaseTest):
         )
         
         if override_count > 0:
-            print(f"✓ Found {override_count} virtual function overrides")
+            print(f"[OK] Found {override_count} virtual function overrides")
             
             # Get some examples
             overrides = self.framework.query_to_list("""
@@ -102,7 +102,7 @@ class TestInheritanceTest(BaseTest):
                 RETURN count(*) as count
             """)
             if count > 0:
-                print(f"✓ Found {count} {access} inheritance relationships")
+                print(f"[OK] Found {count} {access} inheritance relationships")
         
         # Test virtual inheritance
         virtual_inheritance = self.framework.query_count("""
@@ -112,7 +112,7 @@ class TestInheritanceTest(BaseTest):
         """)
         
         if virtual_inheritance > 0:
-            print(f"✓ Found {virtual_inheritance} virtual inheritance relationships")
+            print(f"[OK] Found {virtual_inheritance} virtual inheritance relationships")
         else:
             print("No virtual inheritance detected (expected for test_inheritance.cpp)")
         
@@ -126,7 +126,7 @@ class TestInheritanceTest(BaseTest):
         """)
         
         if hierarchy_depth:
-            print("✓ Inheritance hierarchies found:")
+            print("[OK] Inheritance hierarchies found:")
             for hier in hierarchy_depth[:5]:
                 print(f"  {hier['derived']} -> {hier['ancestor']} (depth: {hier['depth']})")
         
@@ -147,6 +147,6 @@ class TestInheritanceTest(BaseTest):
         """)
         
         if destructor_count > 0:
-            print(f"✓ Found {destructor_count} destructors")
+            print(f"[OK] Found {destructor_count} destructors")
         
         print("Inheritance analysis completed!")

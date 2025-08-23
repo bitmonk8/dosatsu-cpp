@@ -27,13 +27,13 @@ class TestDeclarationsTest(BaseTest):
         found_decl_types = []
         for decl_type in expected_decl_types:
             count = self.framework.query_count(f"""
-                MATCH (d:Declaration) 
-                WHERE d.node_type = '{decl_type}'
+                MATCH (a:ASTNode), (d:Declaration) 
+                WHERE a.node_type = '{decl_type}' AND a.node_id = d.node_id
                 RETURN count(d) as count
             """)
             if count > 0:
                 found_decl_types.append(decl_type)
-                print(f"✓ Found {count} {decl_type} declarations")
+                print(f"[OK] Found {count} {decl_type} declarations")
             else:
                 print(f"Warning: No {decl_type} declarations found")
         
@@ -48,7 +48,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if access_specifiers:
-            print("✓ Access specifiers found:")
+            print("[OK] Access specifiers found:")
             for access in access_specifiers:
                 print(f"  {access['access']}: {access['count']} declarations")
         
@@ -61,7 +61,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if storage_classes:
-            print("✓ Storage classes found:")
+            print("[OK] Storage classes found:")
             for storage in storage_classes:
                 print(f"  {storage['storage']}: {storage['count']} declarations")
         
@@ -78,8 +78,8 @@ class TestDeclarationsTest(BaseTest):
             RETURN count(d) as count
         """)
         
-        print(f"✓ Definitions: {definitions}")
-        print(f"✓ Declarations only: {declarations_only}")
+        print(f"[OK] Definitions: {definitions}")
+        print(f"[OK] Declarations only: {declarations_only}")
         
         # Test function declarations
         function_count = self.framework.query_count("""
@@ -89,7 +89,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if function_count > 0:
-            print(f"✓ Found {function_count} function declarations")
+            print(f"[OK] Found {function_count} function declarations")
             
             # Test specific functions from our test files
             expected_functions = [
@@ -106,7 +106,7 @@ class TestDeclarationsTest(BaseTest):
                     RETURN count(f) as count
                 """)
                 if count > 0:
-                    print(f"  ✓ Found function {func_name}")
+                    print(f"  [OK] Found function {func_name}")
         
         # Test variable declarations
         variable_count = self.framework.query_count("""
@@ -116,7 +116,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if variable_count > 0:
-            print(f"✓ Found {variable_count} variable declarations")
+            print(f"[OK] Found {variable_count} variable declarations")
             
             # Test global vs local variables
             global_vars = self.framework.query_count("""
@@ -136,7 +136,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if class_count > 0:
-            print(f"✓ Found {class_count} class declarations")
+            print(f"[OK] Found {class_count} class declarations")
             
             # Test specific classes from our test files
             expected_classes = [
@@ -153,7 +153,7 @@ class TestDeclarationsTest(BaseTest):
                 """)
                 if count > 0:
                     found_classes.append(class_name)
-                    print(f"  ✓ Found class {class_name}")
+                    print(f"  [OK] Found class {class_name}")
             
             print(f"  Found {len(found_classes)}/{len(expected_classes)} expected classes")
         
@@ -171,9 +171,9 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if constructor_count > 0:
-            print(f"✓ Found {constructor_count} constructors")
+            print(f"[OK] Found {constructor_count} constructors")
         if destructor_count > 0:
-            print(f"✓ Found {destructor_count} destructors")
+            print(f"[OK] Found {destructor_count} destructors")
         
         # Test namespace declarations
         namespace_count = self.framework.query_count("""
@@ -183,7 +183,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if namespace_count > 0:
-            print(f"✓ Found {namespace_count} namespace declarations")
+            print(f"[OK] Found {namespace_count} namespace declarations")
         
         # Test qualified names
         qualified_names = self.framework.query_count("""
@@ -193,7 +193,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if qualified_names > 0:
-            print(f"✓ Found {qualified_names} declarations with qualified names")
+            print(f"[OK] Found {qualified_names} declarations with qualified names")
             
             # Show longest qualified names
             long_names = self.framework.query_to_list("""
@@ -217,7 +217,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if template_decl_count > 0:
-            print(f"✓ Found {template_decl_count} template-related declarations")
+            print(f"[OK] Found {template_decl_count} template-related declarations")
         
         # Test enum declarations
         enum_count = self.framework.query_count("""
@@ -233,9 +233,9 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if enum_count > 0:
-            print(f"✓ Found {enum_count} enum declarations")
+            print(f"[OK] Found {enum_count} enum declarations")
         if enum_constant_count > 0:
-            print(f"✓ Found {enum_constant_count} enum constant declarations")
+            print(f"[OK] Found {enum_constant_count} enum constant declarations")
         
         # Test typedef declarations
         typedef_count = self.framework.query_count("""
@@ -245,7 +245,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if typedef_count > 0:
-            print(f"✓ Found {typedef_count} typedef/type alias declarations")
+            print(f"[OK] Found {typedef_count} typedef/type alias declarations")
         
         # Test static members
         static_count = self.framework.query_count("""
@@ -255,7 +255,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if static_count > 0:
-            print(f"✓ Found {static_count} static declarations")
+            print(f"[OK] Found {static_count} static declarations")
         
         # Test inline functions
         inline_count = self.framework.query_count("""
@@ -266,7 +266,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if inline_count > 0:
-            print(f"✓ Found {inline_count} inline function declarations")
+            print(f"[OK] Found {inline_count} inline function declarations")
         
         # Test virtual functions
         virtual_count = self.framework.query_count("""
@@ -276,7 +276,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if virtual_count > 0:
-            print(f"✓ Found {virtual_count} virtual function declarations")
+            print(f"[OK] Found {virtual_count} virtual function declarations")
         
         # Test pure virtual functions
         pure_virtual_count = self.framework.query_count("""
@@ -286,7 +286,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if pure_virtual_count > 0:
-            print(f"✓ Found {pure_virtual_count} pure virtual function declarations")
+            print(f"[OK] Found {pure_virtual_count} pure virtual function declarations")
         
         # Test friend declarations
         friend_count = self.framework.query_count("""
@@ -296,7 +296,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if friend_count > 0:
-            print(f"✓ Found {friend_count} friend declarations")
+            print(f"[OK] Found {friend_count} friend declarations")
         
         # Test using declarations
         using_count = self.framework.query_count("""
@@ -306,7 +306,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if using_count > 0:
-            print(f"✓ Found {using_count} using declarations")
+            print(f"[OK] Found {using_count} using declarations")
         
         # Test most common declaration names
         common_names = self.framework.query_to_list("""
@@ -320,7 +320,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if common_names:
-            print("✓ Most common declaration names:")
+            print("[OK] Most common declaration names:")
             for name in common_names:
                 print(f"  {name['name']}: {name['usage_count']} declarations")
         
@@ -334,7 +334,7 @@ class TestDeclarationsTest(BaseTest):
         """)
         
         if namespace_contexts:
-            print("✓ Most common namespace contexts:")
+            print("[OK] Most common namespace contexts:")
             for context in namespace_contexts:
                 print(f"  {context['context']}: {context['count']} declarations")
         

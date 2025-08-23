@@ -36,7 +36,7 @@ class TestStatementsTest(BaseTest):
             total_statements += count
             if count > 0:
                 found_statement_kinds.append(stmt_kind)
-                print(f"✓ Found {count} {stmt_kind} statements")
+                print(f"[OK] Found {count} {stmt_kind} statements")
             else:
                 print(f"Warning: No {stmt_kind} statements found")
         
@@ -50,7 +50,7 @@ class TestStatementsTest(BaseTest):
         """)
         
         if compound_count > 0:
-            print(f"✓ Found {compound_count} compound statements")
+            print(f"[OK] Found {compound_count} compound statements")
             
             # Test nested compound statements
             nested_compound = self.framework.query_count("""
@@ -70,7 +70,7 @@ class TestStatementsTest(BaseTest):
         """)
         
         if side_effects_count > 0:
-            print(f"✓ Found {side_effects_count} statements with side effects")
+            print(f"[OK] Found {side_effects_count} statements with side effects")
         
         # Test control flow statements
         control_flow_count = self.framework.query_count("""
@@ -80,7 +80,7 @@ class TestStatementsTest(BaseTest):
         """)
         
         if control_flow_count > 0:
-            print(f"✓ Found {control_flow_count} control flow statements")
+            print(f"[OK] Found {control_flow_count} control flow statements")
             
             # Test control flow types
             control_types = self.framework.query_to_list("""
@@ -103,7 +103,7 @@ class TestStatementsTest(BaseTest):
         """)
         
         if conditional_count > 0:
-            print(f"✓ Found {conditional_count} conditional statements")
+            print(f"[OK] Found {conditional_count} conditional statements")
             
             # Show some condition examples
             conditions = self.framework.query_to_list("""
@@ -125,7 +125,7 @@ class TestStatementsTest(BaseTest):
         """)
         
         if constexpr_count > 0:
-            print(f"✓ Found {constexpr_count} constexpr statements")
+            print(f"[OK] Found {constexpr_count} constexpr statements")
         
         # Test expression statements
         expr_stmt_count = self.framework.query_count("""
@@ -135,7 +135,7 @@ class TestStatementsTest(BaseTest):
         """)
         
         if expr_stmt_count > 0:
-            print(f"✓ Found {expr_stmt_count} expression statements")
+            print(f"[OK] Found {expr_stmt_count} expression statements")
         
         # Test declaration statements
         decl_stmt_count = self.framework.query_count("""
@@ -145,7 +145,7 @@ class TestStatementsTest(BaseTest):
         """)
         
         if decl_stmt_count > 0:
-            print(f"✓ Found {decl_stmt_count} declaration statements")
+            print(f"[OK] Found {decl_stmt_count} declaration statements")
         
         # Test loop statements
         loop_kinds = ["ForStmt", "WhileStmt", "DoStmt"]
@@ -160,7 +160,7 @@ class TestStatementsTest(BaseTest):
             loop_count += count
         
         if loop_count > 0:
-            print(f"✓ Found {loop_count} loop statements")
+            print(f"[OK] Found {loop_count} loop statements")
             
             # Test nested loops
             nested_loops = self.framework.query_count(f"""
@@ -193,7 +193,7 @@ class TestStatementsTest(BaseTest):
         """)
         
         if switch_count > 0:
-            print(f"✓ Switch statements: {switch_count} switches, {case_count} cases, {default_count} defaults")
+            print(f"[OK] Switch statements: {switch_count} switches, {case_count} cases, {default_count} defaults")
         
         # Test jump statements
         jump_kinds = ["BreakStmt", "ContinueStmt", "ReturnStmt", "GotoStmt"]
@@ -210,7 +210,7 @@ class TestStatementsTest(BaseTest):
             total_jumps += count
         
         if total_jumps > 0:
-            print(f"✓ Found {total_jumps} jump statements:")
+            print(f"[OK] Found {total_jumps} jump statements:")
             for jump_kind, count in jump_counts.items():
                 if count > 0:
                     print(f"  {jump_kind}: {count}")
@@ -235,7 +235,7 @@ class TestStatementsTest(BaseTest):
         """)
         
         if try_count > 0 or catch_count > 0 or throw_count > 0:
-            print(f"✓ Exception handling: {try_count} try, {catch_count} catch, {throw_count} throw")
+            print(f"[OK] Exception handling: {try_count} try, {catch_count} catch, {throw_count} throw")
         
         # Test label statements
         label_count = self.framework.query_count("""
@@ -245,7 +245,7 @@ class TestStatementsTest(BaseTest):
         """)
         
         if label_count > 0:
-            print(f"✓ Found {label_count} label statements")
+            print(f"[OK] Found {label_count} label statements")
         
         # Test null statements
         null_count = self.framework.query_count("""
@@ -255,7 +255,7 @@ class TestStatementsTest(BaseTest):
         """)
         
         if null_count > 0:
-            print(f"✓ Found {null_count} null statements")
+            print(f"[OK] Found {null_count} null statements")
         
         # Test statement nesting depth
         max_depth = self.framework.query_to_list("""
@@ -267,7 +267,7 @@ class TestStatementsTest(BaseTest):
         """)
         
         if max_depth and max_depth[0]['depth'] is not None:
-            print(f"✓ Maximum statement nesting depth: {max_depth[0]['depth']}")
+            print(f"[OK] Maximum statement nesting depth: {max_depth[0]['depth']}")
         
         # Test statements per function
         stmt_per_function = self.framework.query_to_list("""
@@ -281,7 +281,7 @@ class TestStatementsTest(BaseTest):
         """)
         
         if stmt_per_function:
-            print("✓ Functions with most statements:")
+            print("[OK] Functions with most statements:")
             for func in stmt_per_function:
                 print(f"  {func['function_name']}: {func['stmt_count']} statements")
         
@@ -294,7 +294,7 @@ class TestStatementsTest(BaseTest):
         """)
         
         if for_stmt_details:
-            print("✓ Example for-loop conditions:")
+            print("[OK] Example for-loop conditions:")
             for detail in for_stmt_details:
                 print(f"  {detail['condition']}")
         
@@ -309,7 +309,7 @@ class TestStatementsTest(BaseTest):
         """)
         
         if stmt_by_file:
-            print("✓ Statements by source file:")
+            print("[OK] Statements by source file:")
             for file_info in stmt_by_file:
                 filename = file_info['file'].split('/')[-1] if '/' in file_info['file'] else file_info['file']
                 print(f"  {filename}: {file_info['stmt_count']} statements")
@@ -322,7 +322,7 @@ class TestStatementsTest(BaseTest):
         """)
         
         if complex_if_count > 0:
-            print(f"✓ Found {complex_if_count} nested if statements")
+            print(f"[OK] Found {complex_if_count} nested if statements")
         
         # Test early returns
         early_return_count = self.framework.query_count("""
@@ -335,6 +335,6 @@ class TestStatementsTest(BaseTest):
         """)
         
         if early_return_count > 0:
-            print(f"✓ Found {early_return_count} functions with multiple return statements")
+            print(f"[OK] Found {early_return_count} functions with multiple return statements")
         
         print("Statement analysis completed!")

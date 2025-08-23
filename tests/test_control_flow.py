@@ -32,7 +32,7 @@ class TestControlFlowTest(BaseTest):
             """)
             if count > 0:
                 found_statement_kinds.append(stmt_kind)
-                print(f"✓ Found {count} {stmt_kind} statements")
+                print(f"[OK] Found {count} {stmt_kind} statements")
             else:
                 print(f"Warning: No {stmt_kind} statements found")
         
@@ -47,7 +47,7 @@ class TestControlFlowTest(BaseTest):
         """)
         
         if control_flow_types:
-            print("✓ Control flow types found:")
+            print("[OK] Control flow types found:")
             for cf_type in control_flow_types:
                 print(f"  {cf_type['type']}: {cf_type['count']} statements")
         
@@ -59,7 +59,7 @@ class TestControlFlowTest(BaseTest):
         """)
         
         if conditional_count > 0:
-            print(f"✓ Found {conditional_count} conditional statements with condition text")
+            print(f"[OK] Found {conditional_count} conditional statements with condition text")
             
             # Show some examples
             conditions = self.framework.query_to_list("""
@@ -80,7 +80,7 @@ class TestControlFlowTest(BaseTest):
         """)
         
         if compound_count > 0:
-            print(f"✓ Found {compound_count} compound statements")
+            print(f"[OK] Found {compound_count} compound statements")
         
         # Test constexpr statements
         constexpr_count = self.framework.query_count("""
@@ -90,7 +90,7 @@ class TestControlFlowTest(BaseTest):
         """)
         
         if constexpr_count > 0:
-            print(f"✓ Found {constexpr_count} constexpr statements")
+            print(f"[OK] Found {constexpr_count} constexpr statements")
         
         # Test CFG blocks
         cfg_block_count = self.framework.query_count(
@@ -98,7 +98,7 @@ class TestControlFlowTest(BaseTest):
         )
         
         if cfg_block_count > 0:
-            print(f"✓ Found {cfg_block_count} CFG blocks")
+            print(f"[OK] Found {cfg_block_count} CFG blocks")
             
             # Test entry and exit blocks
             entry_blocks = self.framework.query_count("""
@@ -137,7 +137,7 @@ class TestControlFlowTest(BaseTest):
         )
         
         if cfg_edge_count > 0:
-            print(f"✓ Found {cfg_edge_count} CFG edges")
+            print(f"[OK] Found {cfg_edge_count} CFG edges")
             
             # Test edge types
             edge_types = self.framework.query_to_list("""
@@ -160,7 +160,7 @@ class TestControlFlowTest(BaseTest):
         )
         
         if function_cfg_count > 0:
-            print(f"✓ Found {function_cfg_count} function-to-CFG relationships")
+            print(f"[OK] Found {function_cfg_count} function-to-CFG relationships")
             
             # Test functions with multiple blocks
             complex_functions = self.framework.query_to_list("""
@@ -186,7 +186,7 @@ class TestControlFlowTest(BaseTest):
         )
         
         if cfg_stmt_count > 0:
-            print(f"✓ Found {cfg_stmt_count} CFG block-to-statement relationships")
+            print(f"[OK] Found {cfg_stmt_count} CFG block-to-statement relationships")
         else:
             print("Warning: No CFG-statement relationships found")
         
@@ -201,7 +201,7 @@ class TestControlFlowTest(BaseTest):
         """)
         
         if nested_loops > 0:
-            print(f"✓ Found {nested_loops} nested loop patterns")
+            print(f"[OK] Found {nested_loops} nested loop patterns")
         
         # Test exception handling
         try_stmt_count = self.framework.query_count("""
@@ -217,7 +217,7 @@ class TestControlFlowTest(BaseTest):
         """)
         
         if try_stmt_count > 0 or catch_stmt_count > 0:
-            print(f"✓ Exception handling: {try_stmt_count} try blocks, {catch_stmt_count} catch blocks")
+            print(f"[OK] Exception handling: {try_stmt_count} try blocks, {catch_stmt_count} catch blocks")
         
         # Test switch cases
         case_stmt_count = self.framework.query_count("""
@@ -233,7 +233,7 @@ class TestControlFlowTest(BaseTest):
         """)
         
         if case_stmt_count > 0 or default_stmt_count > 0:
-            print(f"✓ Switch statements: {case_stmt_count} case labels, {default_stmt_count} default labels")
+            print(f"[OK] Switch statements: {case_stmt_count} case labels, {default_stmt_count} default labels")
         
         # Test goto statements and labels
         goto_count = self.framework.query_count("""
@@ -249,7 +249,7 @@ class TestControlFlowTest(BaseTest):
         """)
         
         if goto_count > 0 or label_count > 0:
-            print(f"✓ Goto/Label: {goto_count} goto statements, {label_count} labels")
+            print(f"[OK] Goto/Label: {goto_count} goto statements, {label_count} labels")
         
         # Test statements with side effects
         side_effects_count = self.framework.query_count("""
@@ -259,7 +259,7 @@ class TestControlFlowTest(BaseTest):
         """)
         
         if side_effects_count > 0:
-            print(f"✓ Found {side_effects_count} statements with side effects")
+            print(f"[OK] Found {side_effects_count} statements with side effects")
         
         # Test unreachable blocks
         unreachable_count = self.framework.query_count("""
@@ -271,7 +271,7 @@ class TestControlFlowTest(BaseTest):
         if unreachable_count > 0:
             print(f"Warning: Found {unreachable_count} unreachable CFG blocks")
         else:
-            print("✓ No unreachable blocks detected")
+            print("[OK] No unreachable blocks detected")
         
         # Test control flow paths
         simple_paths = self.framework.query_count("""
@@ -281,6 +281,6 @@ class TestControlFlowTest(BaseTest):
         """)
         
         if simple_paths > 0:
-            print(f"✓ Found {simple_paths} simple control flow paths")
+            print(f"[OK] Found {simple_paths} simple control flow paths")
         
         print("Control flow analysis completed!")

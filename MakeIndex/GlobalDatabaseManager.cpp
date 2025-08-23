@@ -27,7 +27,7 @@ void GlobalDatabaseManager::initializeDatabase(const std::string& databasePath)
         llvm::errs() << "Warning: Database already initialized, ignoring duplicate initialization\n";
         return;
     }
-    
+
     try
     {
         database = std::make_unique<KuzuDatabase>(databasePath);

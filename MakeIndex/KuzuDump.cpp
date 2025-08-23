@@ -29,9 +29,7 @@ KuzuDump::KuzuDump(std::string databasePath, const ASTContext& Context, bool Sho
     // Get global database instance - initialize if not already done
     auto& dbManager = GlobalDatabaseManager::getInstance();
     if (!dbManager.isInitialized())
-    {
         dbManager.initializeDatabase(databasePath);
-    }
     database = dbManager.getDatabase();
 
     initializeAnalyzers(Context);
@@ -44,9 +42,7 @@ KuzuDump::KuzuDump(std::string databasePath, const ASTContext& Context, bool Sho
     // Get global database instance - initialize if not already done
     auto& dbManager = GlobalDatabaseManager::getInstance();
     if (!dbManager.isInitialized())
-    {
         dbManager.initializeDatabase(databasePath);
-    }
     database = dbManager.getDatabase();
 
     initializeAnalyzers(Context);
@@ -133,11 +129,18 @@ void KuzuDump::VisitFunctionDecl(const FunctionDecl* D)
     // Push function as new scope for its contents
     scopeManager->pushScope(nodeId);
 
+    // Push function as parent for its contents (for PARENT_OF relationships)
+    scopeManager->pushParent(nodeId);
+
     // Standard AST traversal
     if (!databaseOnlyMode)
         NodeDumper.Visit(D);
 
-    // Pop function scope
+    // Continue recursive traversal for child nodes (always needed for database)
+    ASTNodeTraverser<KuzuDump, TextNodeDumper>::VisitFunctionDecl(D);
+
+    // Pop function scope and parent
+    scopeManager->popParent();
     scopeManager->popScope();
 }
 
@@ -190,11 +193,18 @@ void KuzuDump::VisitNamespaceDecl(const NamespaceDecl* D)
     // Push this namespace as a new scope for its contents
     scopeManager->pushScope(nodeId);
 
+    // Push namespace as parent for its contents (for PARENT_OF relationships)
+    scopeManager->pushParent(nodeId);
+
     // Standard AST traversal
     if (!databaseOnlyMode)
         NodeDumper.Visit(D);
 
-    // Pop namespace scope after traversal
+    // Continue recursive traversal for child nodes
+    ASTNodeTraverser<KuzuDump, TextNodeDumper>::VisitNamespaceDecl(D);
+
+    // Pop namespace scope and parent after traversal
+    scopeManager->popParent();
     scopeManager->popScope();
 }
 
@@ -302,9 +312,15 @@ void KuzuDump::VisitCXXRecordDecl(const CXXRecordDecl* D)
     // Push class as new scope for its members
     scopeManager->pushScope(nodeId);
 
+    // Push class as parent for its members (for PARENT_OF relationships)
+    scopeManager->pushParent(nodeId);
+
     // Standard AST traversal
     if (!databaseOnlyMode)
         NodeDumper.Visit(D);
+
+    // Continue recursive traversal for child nodes
+    ASTNodeTraverser<KuzuDump, TextNodeDumper>::VisitCXXRecordDecl(D);
 
     // Note: In full implementation, would also:
     // - Process inheritance relationships
@@ -313,7 +329,8 @@ void KuzuDump::VisitCXXRecordDecl(const CXXRecordDecl* D)
     // - Analyze access specifiers
     // - Handle friend declarations
 
-    // Pop class scope
+    // Pop class scope and parent
+    scopeManager->popParent();
     scopeManager->popScope();
 }
 
@@ -450,9 +467,18 @@ void KuzuDump::VisitStmt(const Stmt* S)
     // Create hierarchy relationships
     scopeManager->createHierarchyRelationship(nodeId);
 
+    // Push statement as parent for its child expressions/statements
+    scopeManager->pushParent(nodeId);
+
     // Text output (if enabled)
     if (!databaseOnlyMode)
         NodeDumper.Visit(S);
+
+    // Continue recursive traversal for child nodes
+    ASTNodeTraverser<KuzuDump, TextNodeDumper>::VisitStmt(S);
+
+    // Pop statement parent
+    scopeManager->popParent();
 }
 
 void KuzuDump::VisitExpr(const Expr* E)
@@ -475,9 +501,18 @@ void KuzuDump::VisitExpr(const Expr* E)
     // Create hierarchy relationships
     scopeManager->createHierarchyRelationship(nodeId);
 
+    // Push expression as parent for its child sub-expressions
+    scopeManager->pushParent(nodeId);
+
     // Text output (if enabled)
     if (!databaseOnlyMode)
         NodeDumper.Visit(E);
+
+    // Continue recursive traversal for child nodes
+    ASTNodeTraverser<KuzuDump, TextNodeDumper>::VisitExpr(E);
+
+    // Pop expression parent
+    scopeManager->popParent();
 }
 
 void KuzuDump::processDeclaration(const Decl* D)
@@ -524,12 +559,12 @@ void KuzuDump::processStatement(const Stmt* S)
     // Create hierarchy relationships
     scopeManager->createHierarchyRelationship(nodeId);
 
-    // Note: Full implementation would delegate to StatementAnalyzer:
-    // statementAnalyzer->createStatementNode(nodeId, S);
-    //
-    // And for expressions, delegate to specialized expression handling:
-    // if (const auto* expr = dyn_cast<Expr>(S))
-    //     statementAnalyzer->createExpressionNode(nodeId, expr);
+    // Create statement node using StatementAnalyzer
+    statementAnalyzer->createStatementNode(nodeId, S);
+
+    // For expressions, delegate to specialized expression handling
+    if (const auto* expr = dyn_cast<Expr>(S))
+        statementAnalyzer->createExpressionNode(nodeId, expr);
 }
 
 // Legacy compatibility methods

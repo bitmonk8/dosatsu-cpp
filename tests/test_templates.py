@@ -13,7 +13,7 @@ class TestTemplatesTest(BaseTest):
         
         # Test template declarations exist
         self.framework.assert_query_has_results(
-            "MATCH (n:Declaration) WHERE n.node_type CONTAINS 'Template' RETURN n LIMIT 1",
+            "MATCH (a:ASTNode), (d:Declaration) WHERE a.node_type CONTAINS 'Template' AND a.node_id = d.node_id RETURN d LIMIT 1",
             "Should have template declarations"
         )
         
@@ -27,12 +27,12 @@ class TestTemplatesTest(BaseTest):
         
         for template_type in template_types:
             count = self.framework.query_count(f"""
-                MATCH (n:Declaration) 
-                WHERE n.node_type = '{template_type}'
-                RETURN count(n) as count
+                MATCH (a:ASTNode), (d:Declaration) 
+                WHERE a.node_type = '{template_type}' AND a.node_id = d.node_id
+                RETURN count(d) as count
             """)
             if count > 0:
-                print(f"✓ Found {count} {template_type} declarations")
+                print(f"[OK] Found {count} {template_type} declarations")
             else:
                 print(f"Warning: No {template_type} declarations found")
         
@@ -42,7 +42,7 @@ class TestTemplatesTest(BaseTest):
         )
         
         if template_param_count > 0:
-            print(f"✓ Found {template_param_count} template parameters")
+            print(f"[OK] Found {template_param_count} template parameters")
             
             # Test parameter kinds
             param_kinds = self.framework.query_to_list("""
@@ -61,12 +61,12 @@ class TestTemplatesTest(BaseTest):
         
         for template_name in expected_templates:
             count = self.framework.query_count(f"""
-                MATCH (n:Declaration) 
-                WHERE n.node_type CONTAINS 'Template' AND n.name = '{template_name}'
-                RETURN count(n) as count
+                MATCH (a:ASTNode), (d:Declaration) 
+                WHERE a.node_type CONTAINS 'Template' AND a.node_id = d.node_id AND d.name = '{template_name}'
+                RETURN count(d) as count
             """)
             if count > 0:
-                print(f"✓ Found template {template_name}")
+                print(f"[OK] Found template {template_name}")
             else:
                 print(f"Warning: Template {template_name} not found")
         
@@ -76,7 +76,7 @@ class TestTemplatesTest(BaseTest):
         )
         
         if specialization_count > 0:
-            print(f"✓ Found {specialization_count} template specializations")
+            print(f"[OK] Found {specialization_count} template specializations")
             
             # Get examples of specializations
             specializations = self.framework.query_to_list("""
@@ -99,7 +99,7 @@ class TestTemplatesTest(BaseTest):
         """)
         
         if instantiation_count > 0:
-            print(f"✓ Found {instantiation_count} template instantiations")
+            print(f"[OK] Found {instantiation_count} template instantiations")
         else:
             print("Warning: No template instantiations detected")
         
@@ -111,7 +111,7 @@ class TestTemplatesTest(BaseTest):
         """)
         
         if variadic_count > 0:
-            print(f"✓ Found {variadic_count} variadic template parameters")
+            print(f"[OK] Found {variadic_count} variadic template parameters")
         else:
             print("No variadic template parameters detected")
         
@@ -123,7 +123,7 @@ class TestTemplatesTest(BaseTest):
         """)
         
         if default_args_count > 0:
-            print(f"✓ Found {default_args_count} template parameters with default arguments")
+            print(f"[OK] Found {default_args_count} template parameters with default arguments")
             
             # Show some examples
             defaults = self.framework.query_to_list("""
@@ -142,7 +142,7 @@ class TestTemplatesTest(BaseTest):
         )
         
         if metaprog_count > 0:
-            print(f"✓ Found {metaprog_count} template metaprogramming constructs")
+            print(f"[OK] Found {metaprog_count} template metaprogramming constructs")
         
         # Test SFINAE and enable_if patterns
         sfinae_count = self.framework.query_count("""
@@ -152,7 +152,7 @@ class TestTemplatesTest(BaseTest):
         """)
         
         if sfinae_count > 0:
-            print(f"✓ Found {sfinae_count} SFINAE/enable_if patterns")
+            print(f"[OK] Found {sfinae_count} SFINAE/enable_if patterns")
         
         # Test nested template classes
         nested_template_count = self.framework.query_count("""
@@ -162,7 +162,7 @@ class TestTemplatesTest(BaseTest):
         """)
         
         if nested_template_count > 0:
-            print(f"✓ Found {nested_template_count} nested template declarations")
+            print(f"[OK] Found {nested_template_count} nested template declarations")
         
         # Test template function overloads
         template_function_overloads = self.framework.query_to_list("""
@@ -176,7 +176,7 @@ class TestTemplatesTest(BaseTest):
         """)
         
         if template_function_overloads:
-            print("✓ Template function overloads found:")
+            print("[OK] Template function overloads found:")
             for overload in template_function_overloads:
                 print(f"  {overload['func_name']}: {overload['overload_count']} overloads")
         
@@ -188,7 +188,7 @@ class TestTemplatesTest(BaseTest):
         """)
         
         if auto_decltype_count > 0:
-            print(f"✓ Found {auto_decltype_count} uses of auto/decltype")
+            print(f"[OK] Found {auto_decltype_count} uses of auto/decltype")
         
         # Test constexpr templates
         constexpr_template_count = self.framework.query_count("""
@@ -198,7 +198,7 @@ class TestTemplatesTest(BaseTest):
         """)
         
         if constexpr_template_count > 0:
-            print(f"✓ Found {constexpr_template_count} constexpr templates")
+            print(f"[OK] Found {constexpr_template_count} constexpr templates")
         
         # Test alias templates
         alias_template_count = self.framework.query_count("""
@@ -208,6 +208,6 @@ class TestTemplatesTest(BaseTest):
         """)
         
         if alias_template_count > 0:
-            print(f"✓ Found {alias_template_count} alias templates")
+            print(f"[OK] Found {alias_template_count} alias templates")
         
         print("Template analysis completed!")
