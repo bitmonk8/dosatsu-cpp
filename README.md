@@ -47,96 +47,96 @@ git clone https://github.com/your-org/CppGraphIndex.git
 cd CppGraphIndex
 
 # Initial environment setup (creates artifact directories, validates tools)
-python build.py setup
+python please.py setup
 
 # Display build environment information
-python build.py info
+python please.py info
 ```
 
 ### 2. Build the Project
 
 ```bash
 # Configure and build (debug mode)
-python build.py configure --debug
-python build.py build --debug
+python please.py configure --debug
+python please.py build --debug
 
 # Or do everything in one step
-python build.py rebuild --debug
+python please.py rebuild --debug
 ```
 
 ### 3. Run Tests
 
 ```bash
 # Run all tests
-python build.py test
+python please.py test
 
 # Run tests with detailed reporting
-python build.py test --verbose --report-format html
+python please.py test --verbose --report-format html
 ```
 
 ## 🔧 Build System Commands
 
-The `build.py` script provides a unified interface for all development operations:
+The `please.py` script provides a unified interface for all development operations:
 
 ### Configuration & Building
 
 ```bash
 # Configuration
-python build.py configure [--debug|--release] [--clean]
-python build.py reconfigure                           # Clean configure from scratch
+python please.py configure [--debug|--release] [--clean]
+python please.py reconfigure                           # Clean configure from scratch
 
 # Building
-python build.py build [--debug|--release] [--parallel N]
-python build.py rebuild                               # Clean + configure + build + test
-python build.py clean                                 # Clean build artifacts
+python please.py build [--debug|--release] [--parallel N]
+python please.py rebuild                               # Clean + configure + build + test
+python please.py clean                                 # Clean build artifacts
 ```
 
 ### Testing & Quality
 
 ```bash
 # Testing
-python build.py test [--verbose] [--parallel N]
-python build.py test --target specific_test
-python build.py test --ci-mode --coverage            # CI-friendly with coverage
+python please.py test [--verbose] [--parallel N]
+python please.py test --target specific_test
+python please.py test --ci-mode --coverage            # CI-friendly with coverage
 
 # Code Quality
-python build.py format [--check-only]                # Format code with clang-format
-python build.py lint [--summary-only]                # Two-phase lint: auto-fix then report
+python please.py format [--check-only]                # Format code with clang-format
+python please.py lint [--summary-only]                # Two-phase lint: auto-fix then report
 ```
 
 ### Git Integration
 
 ```bash
 # Git Operations (with intelligent pre/post checks)
-python build.py git-status                           # Enhanced git status
-python build.py git-pull [--rebase] [--check-clean]
-python build.py git-push [--set-upstream]
-python build.py git-commit -m "message"              # With pre-commit checks
-python build.py git-clean [--force] [--include-build-artifacts]
+python please.py git-status                           # Enhanced git status
+python please.py git-pull [--rebase] [--check-clean]
+python please.py git-push [--set-upstream]
+python please.py git-commit -m "message"              # With pre-commit checks
+python please.py git-clean [--force] [--include-build-artifacts]
 ```
 
 ### Performance & Analysis
 
 ```bash
 # Performance Analysis
-python build.py build-stats                          # Build performance metrics
-python build.py cache-mgmt [--clean-deps] [--clean-cmake]
-python build.py info                                 # Environment information
+python please.py build-stats                          # Build performance metrics
+python please.py cache-mgmt [--clean-deps] [--clean-cmake]
+python please.py info                                 # Environment information
 ```
 
 ### Utility Commands
 
 ```bash
 # Development Tools
-python build.py install-git-hooks                    # Install formatting pre-commit hooks
-python build.py compile-db [--copy-to-root]          # Manage compilation database
+python please.py install-git-hooks                    # Install formatting pre-commit hooks
+python please.py compile-db [--copy-to-root]          # Manage compilation database
 ```
 
 ## 🏗️ Project Structure
 
 ```
 CppGraphIndex/
-├── build.py                    # 🎯 Main build orchestrator (single entry point)
+├── please.py                   # 🎯 Main build orchestrator (single entry point)
 ├── CMakeLists.txt             # Root CMake configuration
 ├── .clang-format              # Code formatting rules
 ├── .clang-tidy                # Static analysis configuration
@@ -184,13 +184,13 @@ The project uses [doctest](https://github.com/doctest/doctest) for unit testing 
 
 ```bash
 # Basic test execution
-python build.py test
+python please.py test
 
 # Advanced test options
-python build.py test --verbose --parallel auto
-python build.py test --target MakeIndex_SelfTest
-python build.py test --ci-mode --historical
-python build.py test --coverage --report-format html
+python please.py test --verbose --parallel auto
+python please.py test --target MakeIndex_SelfTest
+python please.py test --ci-mode --historical
+python please.py test --coverage --report-format html
 ```
 
 ### Test Artifacts
@@ -208,23 +208,23 @@ Tests generate comprehensive reports in `artifacts/test/`:
 
 ```bash
 # 1. Start with clean environment
-python build.py git-status
+python please.py git-status
 
 # 2. Pull latest changes
-python build.py git-pull --rebase
+python please.py git-pull --rebase
 
 # 3. Make your changes...
 
 # 4. Pre-commit workflow
-python build.py format              # Auto-format code
-python build.py lint                 # Two-phase: auto-fix then report remaining issues
-python build.py rebuild             # Full rebuild + test
+python please.py format              # Auto-format code
+python please.py lint                 # Two-phase: auto-fix then report remaining issues
+python please.py rebuild             # Full rebuild + test
 
 # 5. Commit with validation
-python build.py git-commit -m "Your changes"
+python please.py git-commit -m "Your changes"
 
 # 6. Push changes
-python build.py git-push
+python please.py git-push
 ```
 
 ### Code Quality Standards
@@ -238,7 +238,7 @@ The build system enforces consistent code quality:
 
 #### Two-Phase Linting
 
-The `python build.py lint` command runs in two phases for optimal developer experience:
+The `python please.py lint` command runs in two phases for optimal developer experience:
 
 1. **Phase 1 (Auto-fix)**: Runs clang-tidy with `--fix` to automatically correct common issues
 2. **Phase 2 (Report)**: Runs clang-tidy again to report issues requiring manual attention
@@ -251,13 +251,13 @@ Monitor and optimize build performance:
 
 ```bash
 # Analyze build performance
-python build.py build-stats
+python please.py build-stats
 
 # Manage caches (LLVM dependencies can be ~36GB)
-python build.py cache-mgmt
+python please.py cache-mgmt
 
 # Clean specific caches
-python build.py cache-mgmt --clean-cmake --clean-deps
+python please.py cache-mgmt --clean-cmake --clean-deps
 ```
 
 ## 🚀 CI/CD Pipeline
@@ -283,10 +283,10 @@ The project includes a comprehensive GitHub Actions workflow:
 
 ```bash
 # Simulate CI locally
-python build.py rebuild --debug --skip-tests     # Quick build check
-python build.py test --ci-mode                   # CI-style testing
-python build.py format --check-only              # Format validation
-python build.py lint --summary-only              # Quick two-phase lint check
+python please.py rebuild --debug --skip-tests     # Quick build check
+python please.py test --ci-mode                   # CI-style testing
+python please.py format --check-only              # Format validation
+python please.py lint --summary-only              # Quick two-phase lint check
 ```
 
 ## 🔧 Advanced Configuration
@@ -295,13 +295,13 @@ python build.py lint --summary-only              # Quick two-phase lint check
 
 ```bash
 # Debug (default) - fast builds, debug symbols
-python build.py configure --debug
+python please.py configure --debug
 
 # Release - optimized builds
-python build.py configure --release
+python please.py configure --release
 
 # Custom parallel jobs
-python build.py build --parallel 8
+python please.py build --parallel 8
 ```
 
 ### Dependency Management
@@ -315,13 +315,13 @@ LLVM 19.1.7 is automatically managed via CMake FetchContent:
 
 ```bash
 # Generate compilation database for IDEs
-python build.py compile-db --copy-to-root
+python please.py compile-db --copy-to-root
 
 # Install git pre-commit hooks
-python build.py install-git-hooks
+python please.py install-git-hooks
 
 # Environment validation
-python build.py info
+python please.py info
 ```
 
 
@@ -334,42 +334,42 @@ python build.py info
 ```bash
 # Solution: Ensure 64-bit compiler environment
 # On Windows, use: vcvars64.bat or VS 2022 x64 Native Tools Command Prompt
-python build.py info  # Check compiler detection
+python please.py info  # Check compiler detection
 ```
 
 **Issue**: LLVM build takes too long
 ```bash
 # Solution: Use cached builds and parallel jobs
-python build.py build --parallel 4  # Adjust for your CPU
-python build.py cache-mgmt           # Check cache status
+python please.py build --parallel 4  # Adjust for your CPU
+python please.py cache-mgmt           # Check cache status
 ```
 
 **Issue**: Git operations fail
 ```bash
 # Solution: Check repository status
-python build.py git-status          # Comprehensive status
-python build.py git-clean --force   # Clean untracked files
+python please.py git-status          # Comprehensive status
+python please.py git-clean --force   # Clean untracked files
 ```
 
 **Issue**: Tests fail
 ```bash
 # Solution: Check test output and rebuild
-python build.py test --verbose      # Detailed test output
-python build.py rebuild             # Clean rebuild
+python please.py test --verbose      # Detailed test output
+python please.py rebuild             # Clean rebuild
 ```
 
 ### Getting Help
 
 ```bash
 # Comprehensive environment information
-python build.py info
+python please.py info
 
 # Command-specific help
-python build.py --help
-python build.py <command> --help
+python please.py --help
+python please.py <command> --help
 
 # Build performance analysis
-python build.py build-stats
+python please.py build-stats
 ```
 
 ## 📝 Programming Language
@@ -402,8 +402,8 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 1. **Fork** the repository
 2. **Setup** development environment:
    ```bash
-   python build.py setup
-   python build.py install-git-hooks  # Optional but recommended
+   python please.py setup
+   python please.py install-git-hooks  # Optional but recommended
    ```
 3. **Create** a feature branch:
    ```bash
@@ -412,17 +412,17 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 4. **Develop** with quality checks:
    ```bash
    # Make your changes...
-   python build.py format              # Auto-format
-   python build.py lint                 # Two-phase: auto-fix then report
-   python build.py rebuild             # Build + test
+   python please.py format              # Auto-format
+   python please.py lint                 # Two-phase: auto-fix then report
+   python please.py rebuild             # Build + test
    ```
 5. **Commit** with validation:
    ```bash
-   python build.py git-commit -m "Add amazing feature"
+   python please.py git-commit -m "Add amazing feature"
    ```
 6. **Push** and create Pull Request:
    ```bash
-   python build.py git-push --set-upstream
+   python please.py git-push --set-upstream
    ```
 
 ### Development Guidelines

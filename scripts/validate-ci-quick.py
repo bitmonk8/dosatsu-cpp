@@ -78,10 +78,10 @@ def validate_build_script():
     """Validate that the build script has required CI features."""
     print("🔍 Validating build script CI integration...")
     
-    # Check if build.py exists
-    build_script = Path("build.py")
+    # Check if please.py exists
+    build_script = Path("please.py")
     if not build_script.exists():
-        print("❌ build.py not found")
+        print("❌ please.py not found")
         return False
     
     # Check for CI-related features in build script
@@ -115,7 +115,7 @@ def validate_project_structure():
     
     required_files = [
         'CMakeLists.txt',
-        'build.py', 
+        'please.py', 
         '.github/workflows/ci.yml',
         'third_party/dependencies.cmake',
         'scripts/setup_deps.cmake'
@@ -167,8 +167,8 @@ def test_quick_commands():
     print("🔍 Testing quick CI commands...")
     
     test_commands = [
-        "python build.py info",
-        "python build.py format --check-only",
+        "python please.py info",
+        "python please.py format --check-only",
         "python -c \"import yaml; print('YAML support: OK')\"",
         "python -c \"import json; print('JSON support: OK')\"",
     ]

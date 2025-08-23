@@ -8,16 +8,16 @@ Before diving into specific issues, run these diagnostic commands:
 
 ```bash
 # Environment validation
-python build.py info
+python please.py info
 
 # Git repository status
-python build.py git-status
+python please.py git-status
 
 # Build performance analysis
-python build.py build-stats
+python please.py build-stats
 
 # Cache status
-python build.py cache-mgmt
+python please.py cache-mgmt
 ```
 
 ## 🛠️ Common Build Issues
@@ -41,13 +41,13 @@ LINK : fatal error LNK1318: Unexpected PDB error; OK (0)
    
    # Option 2: Activate 64-bit environment in current shell
    call "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat"
-   python build.py reconfigure --debug
-   python build.py build --debug
+   python please.py reconfigure --debug
+   python please.py build --debug
    ```
 
 2. **Verify 64-bit Environment:**
    ```bash
-   python build.py info
+   python please.py info
    # Look for: "cl.exe" path contains "HostX64\x64"
    # Should NOT contain "HostX86\x86"
    ```
@@ -68,16 +68,16 @@ LINK : fatal error LNK1318: Unexpected PDB error; OK (0)
 1. **Optimize Parallel Building:**
    ```bash
    # Use all available CPU cores
-   python build.py build --parallel auto
+   python please.py build --parallel auto
    
    # Or specify core count (recommended: cores - 1)
-   python build.py build --parallel 7  # For 8-core system
+   python please.py build --parallel 7  # For 8-core system
    ```
 
 2. **Monitor Build Progress:**
    ```bash
    # Check build statistics
-   python build.py build-stats
+   python please.py build-stats
    
    # Monitor build logs (separate terminal)
    tail -f artifacts/debug/logs/build.log  # Linux/macOS
@@ -94,7 +94,7 @@ LINK : fatal error LNK1318: Unexpected PDB error; OK (0)
 4. **Use Cached Builds:**
    ```bash
    # Check if cache exists
-   python build.py cache-mgmt
+   python please.py cache-mgmt
    
    # On CI: Download artifacts from successful builds
    # Copy _deps directory from successful build machine
@@ -143,7 +143,7 @@ CMake Error: The C compiler is not able to compile a simple test program
 4. **Path Issues:**
    ```bash
    # Verify tools in PATH
-   python build.py info
+   python please.py info
    
    # Check specific tools
    cmake --version    # Should be 3.24+
@@ -163,7 +163,7 @@ warning: LF will be replaced by CRLF
 1. **Repository Not Initialized:**
    ```bash
    # Check if in git repository
-   python build.py git-status
+   python please.py git-status
    
    # If not, initialize
    git init
@@ -205,7 +205,7 @@ Errors while running CTest
 
 1. **Build First:**
    ```bash
-   python build.py build --debug
+   python please.py build --debug
    
    # Verify executable exists
    ls artifacts/debug/bin/MakeIndex*
@@ -213,9 +213,9 @@ Errors while running CTest
 
 2. **Check Build Configuration:**
    ```bash
-   python build.py configure --debug
-   python build.py build --debug
-   python build.py test
+   python please.py configure --debug
+   python please.py build --debug
+   python please.py test
    ```
 
 3. **Manual Test Execution:**
@@ -233,7 +233,7 @@ Errors while running CTest
 
 1. **Get Detailed Output:**
    ```bash
-   python build.py test --verbose
+   python please.py test --verbose
    
    # Check test logs
    cat artifacts/test/test-output.log
@@ -242,7 +242,7 @@ Errors while running CTest
 2. **Run Specific Tests:**
    ```bash
    # Run individual test
-   python build.py test --target MakeIndex_SelfTest
+   python please.py test --target MakeIndex_SelfTest
    
    # Run with maximum verbosity
    artifacts/debug/bin/MakeIndex.exe --selftest --verbose
@@ -250,7 +250,7 @@ Errors while running CTest
 
 3. **Clean Rebuild:**
    ```bash
-   python build.py rebuild --debug
+   python please.py rebuild --debug
    ```
 
 ## ⚡ Performance Issues
@@ -262,7 +262,7 @@ Errors while running CTest
 **Analysis:**
 ```bash
 # Check what's being rebuilt
-python build.py build --debug --verbose
+python please.py build --debug --verbose
 
 # Check dependencies
 ninja -C artifacts/debug/build -t graph
@@ -280,16 +280,16 @@ ninja -C artifacts/debug/build -t graph
 2. **Parallel Building:**
    ```bash
    # Increase parallel jobs
-   python build.py build --parallel 8
+   python please.py build --parallel 8
    ```
 
 3. **Incremental vs Full Builds:**
    ```bash
    # Use incremental builds for development
-   python build.py build --debug
+   python please.py build --debug
    
    # Use full rebuilds only when necessary
-   python build.py rebuild --debug
+   python please.py rebuild --debug
    ```
 
 ### Issue: Excessive Disk Usage
@@ -298,8 +298,8 @@ ninja -C artifacts/debug/build -t graph
 
 **Analysis:**
 ```bash
-python build.py build-stats
-python build.py cache-mgmt
+python please.py build-stats
+python please.py cache-mgmt
 ```
 
 **Solutions:**
@@ -307,19 +307,19 @@ python build.py cache-mgmt
 1. **Clean Unnecessary Artifacts:**
    ```bash
    # Clean build artifacts
-   python build.py clean
+   python please.py clean
    
    # Clean specific caches
-   python build.py cache-mgmt --clean-cmake
+   python please.py cache-mgmt --clean-cmake
    ```
 
 2. **Selective Cache Cleaning:**
    ```bash
    # Clean LLVM cache (will trigger rebuild)
-   python build.py cache-mgmt --clean-deps
+   python please.py cache-mgmt --clean-deps
    
    # Clean only CMake files (faster)
-   python build.py cache-mgmt --clean-cmake
+   python please.py cache-mgmt --clean-cmake
    ```
 
 3. **Storage Optimization:**
@@ -358,7 +358,7 @@ Python 3.8+ required, found 3.7.x
    venv\Scripts\activate.bat # Windows
    
    # Then use build system
-   python build.py setup
+   python please.py setup
    ```
 
 ### Issue: Tool Version Mismatches
@@ -369,7 +369,7 @@ Python 3.8+ required, found 3.7.x
 
 1. **Check Tool Versions:**
    ```bash
-   python build.py info
+   python please.py info
    
    # Manual verification
    cmake --version    # Needs 3.24+
@@ -430,7 +430,7 @@ cmake -S . -B artifacts/debug/build --debug-output
 ninja -C artifacts/debug/build -v
 
 # Build system debug (if available)
-python build.py build --debug --verbose
+python please.py build --debug --verbose
 ```
 
 ### Log Analysis
@@ -478,16 +478,16 @@ If everything is broken, start fresh:
 # Ctrl+C or close terminals
 
 # 2. Clean all artifacts
-python build.py clean
+python please.py clean
 # Or manually: rm -rf artifacts/
 
 # 3. Clean git (CAREFUL - loses changes)
-python build.py git-clean --force --include-directories
+python please.py git-clean --force --include-directories
 # Or manually: git clean -fdx
 
 # 4. Fresh start
-python build.py setup
-python build.py rebuild --debug
+python please.py setup
+python please.py rebuild --debug
 ```
 
 ### Reset to Known Good State
@@ -498,8 +498,8 @@ git log --oneline  # Find good commit hash
 git reset --hard <good-commit-hash>
 
 # 2. Clean rebuild
-python build.py clean
-python build.py rebuild --debug
+python please.py clean
+python please.py rebuild --debug
 ```
 
 ## 📞 Getting Help
@@ -510,16 +510,16 @@ When reporting issues, include:
 
 ```bash
 # System information
-python build.py info > system-info.txt
+python please.py info > system-info.txt
 
 # Build statistics
-python build.py build-stats > build-stats.txt
+python please.py build-stats > build-stats.txt
 
 # Repository status
-python build.py git-status > git-status.txt
+python please.py git-status > git-status.txt
 
 # Cache status
-python build.py cache-mgmt > cache-status.txt
+python please.py cache-mgmt > cache-status.txt
 ```
 
 ### Common Support Channels
@@ -558,7 +558,7 @@ python build.py cache-mgmt > cache-status.txt
 ```
 
 ## System Information
-[Output of: python build.py info]
+[Output of: python please.py info]
 ```
 
 This troubleshooting guide covers the most common issues. For specific problems not covered here, please create a GitHub issue with detailed information about your environment and the specific error you're encountering.

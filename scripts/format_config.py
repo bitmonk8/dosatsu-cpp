@@ -60,7 +60,7 @@ def run_format_check(files: List[Path], project_root: Path) -> Tuple[bool, str]:
             error_msg = f"Formatting issues found in {len(files)} files:\n"
             if result.stderr:
                 error_msg += result.stderr
-            error_msg += "\nRun 'python build.py format' to fix formatting issues"
+            error_msg += "\nRun 'python please.py format' to fix formatting issues"
             return False, error_msg
             
     except FileNotFoundError:
@@ -89,14 +89,14 @@ echo "Running pre-commit formatting checks..."
 cd "{project_root}"
 
 # Run format check using the build system
-python build.py format --check-only --files $(git diff --cached --name-only --diff-filter=ACM | grep -E "\\.(cpp|h|hpp|cxx|cc)$" | tr '\\n' ' ')
+python please.py format --check-only --files $(git diff --cached --name-only --diff-filter=ACM | grep -E "\\.(cpp|h|hpp|cxx|cc)$" | tr '\\n' ' ')
 
 # Check the exit code
 if [ $? -ne 0 ]; then
     echo ""
     echo "❌ Pre-commit formatting check failed!"
     echo "Fix formatting issues before committing:"
-    echo "  python build.py format"
+    echo "  python please.py format"
     echo ""
     echo "Or skip this check with: git commit --no-verify"
     exit 1
