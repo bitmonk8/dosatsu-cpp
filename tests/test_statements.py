@@ -271,8 +271,8 @@ class TestStatementsTest(BaseTest):
         
         # Test statements per function
         stmt_per_function = self.framework.query_to_list("""
-            MATCH (f:Declaration)-[:PARENT_OF*]->(s:Statement)
-            WHERE f.node_type IN ['FunctionDecl', 'CXXMethodDecl']
+            MATCH (a:ASTNode), (f:Declaration)-[:PARENT_OF*]->(s:Statement)
+            WHERE a.node_id = f.node_id AND a.node_type IN ['FunctionDecl', 'CXXMethodDecl']
             WITH f, count(s) as stmt_count
             WHERE stmt_count > 5
             RETURN f.name as function_name, stmt_count
@@ -326,8 +326,8 @@ class TestStatementsTest(BaseTest):
         
         # Test early returns
         early_return_count = self.framework.query_count("""
-            MATCH (func:Declaration)-[:PARENT_OF*]->(ret:Statement)
-            WHERE func.node_type IN ['FunctionDecl', 'CXXMethodDecl'] 
+            MATCH (a:ASTNode), (func:Declaration)-[:PARENT_OF*]->(ret:Statement)
+            WHERE a.node_id = func.node_id AND a.node_type IN ['FunctionDecl', 'CXXMethodDecl'] 
                AND ret.statement_kind = 'ReturnStmt'
             WITH func, count(ret) as return_count
             WHERE return_count > 1

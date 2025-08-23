@@ -118,10 +118,10 @@ class TestNamespacesTest(BaseTest):
             
             # Show examples of qualified names
             qualified_examples = self.framework.query_to_list("""
-                MATCH (d:Declaration)
-                WHERE d.qualified_name CONTAINS '::'
-                RETURN d.qualified_name as qualified_name, d.name as simple_name, d.node_type as type
-                ORDER BY length(d.qualified_name) DESC
+                MATCH (a:ASTNode), (d:Declaration)
+                WHERE d.qualified_name CONTAINS '::' AND a.node_id = d.node_id
+                RETURN d.qualified_name as qualified_name, d.name as simple_name, a.node_type as type
+                ORDER BY size(d.qualified_name) DESC
                 LIMIT 5
             """)
             

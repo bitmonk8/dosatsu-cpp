@@ -169,7 +169,7 @@ class TestTypesTest(BaseTest):
                 MATCH (t:Type)
                 WHERE t.type_name CONTAINS '<' AND t.type_name CONTAINS '>'
                 RETURN DISTINCT t.type_name as name
-                ORDER BY length(t.type_name) DESC
+                ORDER BY size(t.type_name) DESC
                 LIMIT 5
             """)
             
@@ -259,7 +259,7 @@ class TestTypesTest(BaseTest):
         complex_types = self.framework.query_to_list("""
             MATCH (t:Type)
             WHERE t.type_name IS NOT NULL
-            RETURN t.type_name as name, length(t.type_name) as complexity
+            RETURN t.type_name as name, size(t.type_name) as complexity
             ORDER BY complexity DESC
             LIMIT 5
         """)

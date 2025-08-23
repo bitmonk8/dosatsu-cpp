@@ -319,11 +319,42 @@ void KuzuDump::VisitCXXRecordDecl(const CXXRecordDecl* D)
     if (!databaseOnlyMode)
         NodeDumper.Visit(D);
 
+    // Process inheritance relationships
+    if (D->hasDefinition()) {
+        for (const auto& base : D->bases()) {
+            const CXXRecordDecl* baseDecl = base.getType()->getAsCXXRecordDecl();
+            if (baseDecl) {
+                // Create AST node for base class if it doesn't exist
+                int64_t baseNodeId = nodeProcessor->createASTNode(baseDecl);
+                if (baseNodeId != -1) {
+                    // Create declaration node for base class
+                    declarationAnalyzer->createDeclarationNode(baseNodeId, baseDecl);
+                    
+                    // Create INHERITS_FROM relationship
+                    std::string inheritanceType = "public";
+                    if (base.getAccessSpecifier() == AS_private)
+                        inheritanceType = "private";
+                    else if (base.getAccessSpecifier() == AS_protected)
+                        inheritanceType = "protected";
+                    
+                    bool isVirtual = base.isVirtual();
+                    
+                    // Insert INHERITS_FROM relationship
+                    std::string query = "MATCH (d:Declaration {node_id: " + std::to_string(nodeId) + 
+                                       "}), (b:Declaration {node_id: " + std::to_string(baseNodeId) + 
+                                       "}) CREATE (d)-[:INHERITS_FROM {inheritance_type: '" + inheritanceType + 
+                                       "', is_virtual: " + (isVirtual ? "true" : "false") + 
+                                       ", base_access_path: ''}]->(b)";
+                    database->addToBatch(query);
+                }
+            }
+        }
+    }
+
     // Continue recursive traversal for child nodes
     ASTNodeTraverser<KuzuDump, TextNodeDumper>::VisitCXXRecordDecl(D);
 
     // Note: In full implementation, would also:
-    // - Process inheritance relationships
     // - Handle virtual methods and overrides
     // - Process class templates
     // - Analyze access specifiers

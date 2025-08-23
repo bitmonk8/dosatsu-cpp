@@ -156,8 +156,9 @@ class TestTemplatesTest(BaseTest):
         
         # Test nested template classes
         nested_template_count = self.framework.query_count("""
-            MATCH (outer:Declaration)-[:PARENT_OF*]->(inner:Declaration)
-            WHERE outer.node_type CONTAINS 'Template' AND inner.node_type CONTAINS 'Template'
+            MATCH (ao:ASTNode), (ai:ASTNode), (outer:Declaration)-[:PARENT_OF*]->(inner:Declaration)
+            WHERE ao.node_id = outer.node_id AND ai.node_id = inner.node_id 
+              AND ao.node_type CONTAINS 'Template' AND ai.node_type CONTAINS 'Template'
             RETURN count(DISTINCT inner) as count
         """)
         
@@ -166,8 +167,8 @@ class TestTemplatesTest(BaseTest):
         
         # Test template function overloads
         template_function_overloads = self.framework.query_to_list("""
-            MATCH (f:Declaration)
-            WHERE f.node_type = 'FunctionTemplateDecl'
+            MATCH (a:ASTNode), (f:Declaration)
+            WHERE a.node_id = f.node_id AND a.node_type = 'FunctionTemplateDecl'
             WITH f.name as func_name, count(*) as overload_count
             WHERE overload_count > 1
             RETURN func_name, overload_count
@@ -192,8 +193,8 @@ class TestTemplatesTest(BaseTest):
         
         # Test constexpr templates
         constexpr_template_count = self.framework.query_count("""
-            MATCH (n:Declaration)
-            WHERE n.node_type CONTAINS 'Template' AND (n.raw_text CONTAINS 'constexpr' OR n.name CONTAINS 'constexpr')
+            MATCH (a:ASTNode), (n:Declaration)
+            WHERE a.node_id = n.node_id AND a.node_type CONTAINS 'Template' AND (n.raw_text CONTAINS 'constexpr' OR n.name CONTAINS 'constexpr')
             RETURN count(n) as count
         """)
         
@@ -202,8 +203,8 @@ class TestTemplatesTest(BaseTest):
         
         # Test alias templates
         alias_template_count = self.framework.query_count("""
-            MATCH (n:Declaration)
-            WHERE n.node_type = 'TypeAliasTemplateDecl'
+            MATCH (a:ASTNode), (n:Declaration)
+            WHERE a.node_id = n.node_id AND a.node_type = 'TypeAliasTemplateDecl'
             RETURN count(n) as count
         """)
         

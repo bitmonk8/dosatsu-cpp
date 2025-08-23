@@ -270,7 +270,7 @@ class TestPreprocessorTest(BaseTest):
         # Test multi-line macros
         multiline_count = self.framework.query_count("""
             MATCH (m:MacroDefinition)
-            WHERE m.replacement_text CONTAINS '\\'
+            WHERE m.replacement_text CONTAINS '\\\\'
             RETURN count(m) as count
         """)
         

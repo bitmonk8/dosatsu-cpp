@@ -117,8 +117,10 @@ class TestInheritanceTest(BaseTest):
         
         # Test inheritance hierarchies (multi-level)
         hierarchy_depth = self.framework.query_to_list("""
-            MATCH path = (derived:Declaration)-[:INHERITS_FROM*1..3]->(ancestor:Declaration)
-            WHERE derived.node_type = 'CXXRecordDecl' AND ancestor.node_type = 'CXXRecordDecl'
+            MATCH path = (derived:Declaration)-[:INHERITS_FROM*1..3]->(ancestor:Declaration),
+                  (ad:ASTNode), (aa:ASTNode)
+            WHERE ad.node_id = derived.node_id AND aa.node_id = ancestor.node_id
+              AND ad.node_type = 'CXXRecordDecl' AND aa.node_type = 'CXXRecordDecl'
             RETURN derived.name as derived, ancestor.name as ancestor, length(path) as depth
             ORDER BY depth DESC, derived
             LIMIT 10

@@ -83,8 +83,8 @@ class TestDeclarationsTest(BaseTest):
         
         # Test function declarations
         function_count = self.framework.query_count("""
-            MATCH (f:Declaration)
-            WHERE f.node_type IN ['FunctionDecl', 'CXXMethodDecl']
+            MATCH (a:ASTNode), (f:Declaration)
+            WHERE a.node_id = f.node_id AND a.node_type IN ['FunctionDecl', 'CXXMethodDecl']
             RETURN count(f) as count
         """)
         
@@ -100,8 +100,8 @@ class TestDeclarationsTest(BaseTest):
             
             for func_name in expected_functions:
                 count = self.framework.query_count(f"""
-                    MATCH (f:Declaration)
-                    WHERE f.node_type IN ['FunctionDecl', 'CXXMethodDecl'] 
+                    MATCH (a:ASTNode), (f:Declaration)
+                    WHERE a.node_id = f.node_id AND a.node_type IN ['FunctionDecl', 'CXXMethodDecl'] 
                        AND f.name = '{func_name}'
                     RETURN count(f) as count
                 """)
@@ -110,8 +110,8 @@ class TestDeclarationsTest(BaseTest):
         
         # Test variable declarations
         variable_count = self.framework.query_count("""
-            MATCH (v:Declaration)
-            WHERE v.node_type IN ['VarDecl', 'ParmVarDecl', 'FieldDecl']
+            MATCH (a:ASTNode), (v:Declaration)
+            WHERE a.node_id = v.node_id AND a.node_type IN ['VarDecl', 'ParmVarDecl', 'FieldDecl']
             RETURN count(v) as count
         """)
         
@@ -120,8 +120,8 @@ class TestDeclarationsTest(BaseTest):
             
             # Test global vs local variables
             global_vars = self.framework.query_count("""
-                MATCH (v:Declaration)
-                WHERE v.node_type = 'VarDecl' AND v.namespace_context IS NOT NULL
+                MATCH (a:ASTNode), (v:Declaration)
+                WHERE a.node_id = v.node_id AND a.node_type = 'VarDecl' AND v.namespace_context IS NOT NULL
                 RETURN count(v) as count
             """)
             
@@ -130,8 +130,8 @@ class TestDeclarationsTest(BaseTest):
         
         # Test class declarations
         class_count = self.framework.query_count("""
-            MATCH (c:Declaration)
-            WHERE c.node_type = 'CXXRecordDecl'
+            MATCH (a:ASTNode), (c:Declaration)
+            WHERE a.node_id = c.node_id AND a.node_type = 'CXXRecordDecl'
             RETURN count(c) as count
         """)
         
@@ -147,8 +147,8 @@ class TestDeclarationsTest(BaseTest):
             found_classes = []
             for class_name in expected_classes:
                 count = self.framework.query_count(f"""
-                    MATCH (c:Declaration)
-                    WHERE c.node_type = 'CXXRecordDecl' AND c.name = '{class_name}'
+                    MATCH (a:ASTNode), (c:Declaration)
+                    WHERE a.node_id = c.node_id AND a.node_type = 'CXXRecordDecl' AND c.name = '{class_name}'
                     RETURN count(c) as count
                 """)
                 if count > 0:
@@ -159,14 +159,14 @@ class TestDeclarationsTest(BaseTest):
         
         # Test constructors and destructors
         constructor_count = self.framework.query_count("""
-            MATCH (c:Declaration)
-            WHERE c.node_type = 'CXXConstructorDecl'
+            MATCH (a:ASTNode), (c:Declaration)
+            WHERE a.node_id = c.node_id AND a.node_type = 'CXXConstructorDecl'
             RETURN count(c) as count
         """)
         
         destructor_count = self.framework.query_count("""
-            MATCH (d:Declaration)
-            WHERE d.node_type = 'CXXDestructorDecl'
+            MATCH (a:ASTNode), (d:Declaration)
+            WHERE a.node_id = d.node_id AND a.node_type = 'CXXDestructorDecl'
             RETURN count(d) as count
         """)
         
@@ -177,8 +177,8 @@ class TestDeclarationsTest(BaseTest):
         
         # Test namespace declarations
         namespace_count = self.framework.query_count("""
-            MATCH (n:Declaration)
-            WHERE n.node_type = 'NamespaceDecl'
+            MATCH (a:ASTNode), (n:Declaration)
+            WHERE a.node_id = n.node_id AND a.node_type = 'NamespaceDecl'
             RETURN count(n) as count
         """)
         
@@ -199,7 +199,7 @@ class TestDeclarationsTest(BaseTest):
             long_names = self.framework.query_to_list("""
                 MATCH (d:Declaration)
                 WHERE d.qualified_name IS NOT NULL AND d.qualified_name CONTAINS '::'
-                RETURN d.qualified_name as name, length(d.qualified_name) as length
+                RETURN d.qualified_name as name, size(d.qualified_name) as length
                 ORDER BY length DESC
                 LIMIT 3
             """)
@@ -221,14 +221,14 @@ class TestDeclarationsTest(BaseTest):
         
         # Test enum declarations
         enum_count = self.framework.query_count("""
-            MATCH (e:Declaration)
-            WHERE e.node_type = 'EnumDecl'
+            MATCH (a:ASTNode), (e:Declaration)
+            WHERE a.node_id = e.node_id AND a.node_type = 'EnumDecl'
             RETURN count(e) as count
         """)
         
         enum_constant_count = self.framework.query_count("""
-            MATCH (ec:Declaration)
-            WHERE ec.node_type = 'EnumConstantDecl'
+            MATCH (a:ASTNode), (ec:Declaration)
+            WHERE a.node_id = ec.node_id AND a.node_type = 'EnumConstantDecl'
             RETURN count(ec) as count
         """)
         
@@ -270,8 +270,8 @@ class TestDeclarationsTest(BaseTest):
         
         # Test virtual functions
         virtual_count = self.framework.query_count("""
-            MATCH (v:Declaration)
-            WHERE v.node_type = 'CXXMethodDecl' AND v.raw_text CONTAINS 'virtual'
+            MATCH (a:ASTNode), (v:Declaration)
+            WHERE a.node_id = v.node_id AND a.node_type = 'CXXMethodDecl' AND v.raw_text CONTAINS 'virtual'
             RETURN count(v) as count
         """)
         
@@ -280,8 +280,8 @@ class TestDeclarationsTest(BaseTest):
         
         # Test pure virtual functions
         pure_virtual_count = self.framework.query_count("""
-            MATCH (pv:Declaration)
-            WHERE pv.node_type = 'CXXMethodDecl' AND pv.raw_text CONTAINS '= 0'
+            MATCH (a:ASTNode), (pv:Declaration)
+            WHERE a.node_id = pv.node_id AND a.node_type = 'CXXMethodDecl' AND pv.raw_text CONTAINS '= 0'
             RETURN count(pv) as count
         """)
         
@@ -290,8 +290,8 @@ class TestDeclarationsTest(BaseTest):
         
         # Test friend declarations
         friend_count = self.framework.query_count("""
-            MATCH (f:Declaration)
-            WHERE f.node_type = 'FriendDecl'
+            MATCH (a:ASTNode), (f:Declaration)
+            WHERE a.node_id = f.node_id AND a.node_type = 'FriendDecl'
             RETURN count(f) as count
         """)
         
@@ -300,8 +300,8 @@ class TestDeclarationsTest(BaseTest):
         
         # Test using declarations
         using_count = self.framework.query_count("""
-            MATCH (u:Declaration)
-            WHERE u.node_type = 'UsingDecl'
+            MATCH (a:ASTNode), (u:Declaration)
+            WHERE a.node_id = u.node_id AND a.node_type = 'UsingDecl'
             RETURN count(u) as count
         """)
         
