@@ -283,14 +283,14 @@ auto TemplateAnalyzer::extractTemplateArguments(const clang::TemplateArgumentLis
         switch (arg.getKind())
         {
         case TemplateArgument::Type:
-            {
-                QualType type = arg.getAsType();
-                if (type.getTypePtrOrNull() != nullptr && !type.isNull())
-                    result += type.getAsString();
-                else
-                    result += "?";
-            }
-            break;
+        {
+            QualType type = arg.getAsType();
+            if (type.getTypePtrOrNull() != nullptr && !type.isNull())
+                result += type.getAsString();
+            else
+                result += "?";
+        }
+        break;
         case TemplateArgument::Integral:
             result += std::to_string(arg.getAsIntegral().getLimitedValue());
             break;

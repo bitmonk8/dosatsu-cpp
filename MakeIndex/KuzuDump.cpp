@@ -52,7 +52,7 @@ KuzuDump::~KuzuDump() = default;
 
 void KuzuDump::initializeAnalyzers(const ASTContext& Context)
 {
-    if (!database)
+    if (database == nullptr)
     {
         // For text-only mode, we don't need a database
         return;
@@ -325,7 +325,7 @@ void KuzuDump::VisitCXXRecordDecl(const CXXRecordDecl* D)
         for (const auto& base : D->bases())
         {
             const CXXRecordDecl* baseDecl = base.getType()->getAsCXXRecordDecl();
-            if (baseDecl)
+            if (baseDecl != nullptr)
             {
                 // Create AST node for base class if it doesn't exist
                 int64_t baseNodeId = nodeProcessor->createASTNode(baseDecl);

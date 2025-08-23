@@ -153,7 +153,8 @@ auto TypeAnalyzer::extractTypeQualifiers(clang::QualType qualType) -> std::strin
         return "";
 
     std::string qualifiers;
-    if (!qualType.isNull()) {
+    if (!qualType.isNull())
+    {
         if (qualType.isConstQualified())
             qualifiers += "const ";
         if (qualType.isVolatileQualified())

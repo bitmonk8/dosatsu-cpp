@@ -30,7 +30,7 @@ public:
     auto getDatabase() -> KuzuDatabase*;
 
     /// Check if database is initialized
-    auto isInitialized() const -> bool;
+    [[nodiscard]] auto isInitialized() const -> bool;
 
     /// Get the node ID for a previously processed pointer (global across all files)
     /// \param ptr Pointer to the AST node
@@ -50,7 +50,7 @@ public:
     /// Check if a Declaration node has been created for this node ID
     /// \param nodeId The node ID to check
     /// \return True if Declaration node already exists
-    auto hasDeclarationNode(int64_t nodeId) const -> bool;
+    [[nodiscard]] auto hasDeclarationNode(int64_t nodeId) const -> bool;
 
     /// Register that a Declaration node has been created for this node ID
     /// \param nodeId The node ID to register
@@ -59,7 +59,7 @@ public:
     /// Check if a Type node has been created for this node ID
     /// \param nodeId The node ID to check
     /// \return True if Type node already exists
-    auto hasTypeNode(int64_t nodeId) const -> bool;
+    [[nodiscard]] auto hasTypeNode(int64_t nodeId) const -> bool;
 
     /// Register that a Type node has been created for this node ID
     /// \param nodeId The node ID to register
@@ -68,7 +68,7 @@ public:
     /// Check if a Statement node has been created for this node ID
     /// \param nodeId The node ID to check
     /// \return True if Statement node already exists
-    auto hasStatementNode(int64_t nodeId) const -> bool;
+    [[nodiscard]] auto hasStatementNode(int64_t nodeId) const -> bool;
 
     /// Register that a Statement node has been created for this node ID
     /// \param nodeId The node ID to register
@@ -77,7 +77,7 @@ public:
     /// Check if an Expression node has been created for this node ID
     /// \param nodeId The node ID to check
     /// \return True if Expression node already exists
-    auto hasExpressionNode(int64_t nodeId) const -> bool;
+    [[nodiscard]] auto hasExpressionNode(int64_t nodeId) const -> bool;
 
     /// Register that an Expression node has been created for this node ID
     /// \param nodeId The node ID to register
@@ -86,15 +86,15 @@ public:
     /// Cleanup (optional - called automatically on destruction)
     void cleanup();
 
+    // Prevent copy/move - deleted functions should be public for better error messages
+    GlobalDatabaseManager(const GlobalDatabaseManager&) = delete;
+    auto operator=(const GlobalDatabaseManager&) -> GlobalDatabaseManager& = delete;
+    GlobalDatabaseManager(GlobalDatabaseManager&&) = delete;
+    auto operator=(GlobalDatabaseManager&&) -> GlobalDatabaseManager& = delete;
+
 private:
     GlobalDatabaseManager() = default;
     ~GlobalDatabaseManager();
-
-    // Prevent copy/move
-    GlobalDatabaseManager(const GlobalDatabaseManager&) = delete;
-    GlobalDatabaseManager& operator=(const GlobalDatabaseManager&) = delete;
-    GlobalDatabaseManager(GlobalDatabaseManager&&) = delete;
-    GlobalDatabaseManager& operator=(GlobalDatabaseManager&&) = delete;
 
     std::unique_ptr<KuzuDatabase> database;
     bool initialized = false;
