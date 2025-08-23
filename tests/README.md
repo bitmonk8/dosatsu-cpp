@@ -1,6 +1,6 @@
 # CppGraphIndex End-to-End Test Suite
 
-This directory contains comprehensive black-box end-to-end tests for the CppGraphIndex project. The tests verify that the system correctly analyzes C++ code and stores the results in a Kuzu graph database according to the schema defined in `KUZU_SCHEMA.md`.
+This directory contains comprehensive black-box end-to-end tests for the CppGraphIndex project. The tests verify that the system correctly analyzes C++ code and stores the results in a Kuzu graph database according to the schema defined in `DB_SCHEMA.md`.
 
 ## Overview
 
