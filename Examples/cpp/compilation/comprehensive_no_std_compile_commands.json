@@ -1,0 +1,7 @@
+[
+  {
+    "directory": "C:/UnitySrc/CppGraphIndex",
+    "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE Examples/cpp/comprehensive/no_std_example.cpp -o Examples/cpp/comprehensive/no_std_example",
+    "file": "Examples/cpp/comprehensive/no_std_example.cpp"
+  }
+]

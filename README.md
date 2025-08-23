@@ -74,6 +74,59 @@ please test
 please test --verbose --report-format html
 ```
 
+## 📚 Examples and Analysis
+
+CppGraphIndex includes comprehensive C++ examples and analysis tools to demonstrate its capabilities and verify correct operation.
+
+### C++ Examples
+
+The `Examples/cpp/` directory contains well-documented C++ code demonstrating various language features:
+
+- **Basic Examples** (`Examples/cpp/basic/`): Focused examples of specific C++ features
+  - `inheritance.cpp` - Class inheritance and virtual functions
+  - `templates.cpp` - Template classes, functions, and specializations
+  - `namespaces.cpp` - Namespace usage and scope resolution
+  - `control_flow.cpp` - Control flow statements and exception handling
+  - `expressions.cpp` - Operators, literals, and type conversions
+  - `preprocessor.cpp` - Preprocessor directives and macros
+
+- **Comprehensive Examples** (`Examples/cpp/comprehensive/`): Complex multi-feature examples
+  - `complete_example.cpp` - Integration of all major C++ features
+  - `no_std_example.cpp` - Examples without standard library dependencies
+
+### Analysis Tools
+
+The `Examples/analysis/` directory provides Python tools for verifying CppGraphIndex output:
+
+```bash
+# Easy way: Use the examples runner
+python Examples/run_examples.py --all
+
+# Or run analysis verification directly
+python Examples/analysis/run_analysis.py
+```
+
+The analysis suite:
+1. Builds a Kuzu database from the C++ examples
+2. Runs verification queries to ensure correct parsing
+3. Validates that all major C++ constructs are properly captured
+4. Reports detailed results and statistics
+
+### Using Examples
+
+```bash
+# Easy way: Use the examples runner
+python Examples/run_examples.py --list                    # List all examples
+python Examples/run_examples.py --analyze comprehensive_no_std_compile_commands.json  # Analyze examples
+python Examples/run_examples.py --verify                  # Run verification
+
+# Manual approach
+./artifacts/debug/bin/MakeIndex.exe Examples/cpp/compilation/comprehensive_no_std_compile_commands.json my_database
+clang++ -std=c++17 Examples/cpp/basic/inheritance.cpp -o inheritance_example
+```
+
+See `Examples/README.md` for detailed documentation.
+
 ## 🔧 Build System Commands
 
 The `please` script provides a unified interface for all development operations:
