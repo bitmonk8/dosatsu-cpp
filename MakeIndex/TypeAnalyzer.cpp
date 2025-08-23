@@ -7,6 +7,7 @@
 #include "TypeAnalyzer.h"
 
 #include "ASTNodeProcessor.h"
+#include "GlobalDatabaseManager.h"
 #include "KuzuDatabase.h"
 
 // clang-format off
@@ -50,6 +51,11 @@ auto TypeAnalyzer::createTypeNode(clang::QualType qualType) -> int64_t
         if (typeNodeId == -1)
             return -1;
 
+        // Check if Type node already exists for this nodeId
+        auto& dbManager = GlobalDatabaseManager::getInstance();
+        if (dbManager.hasTypeNode(typeNodeId))
+            return typeNodeId;
+
         std::string typeName = extractTypeName(qualType);
         std::string typeCategory = extractTypeCategory(qualType);
         std::string qualifiers = extractTypeQualifiers(qualType);
@@ -63,6 +69,9 @@ auto TypeAnalyzer::createTypeNode(clang::QualType qualType) -> int64_t
 
         // Use batched operation for performance optimization
         database.addToBatch(query);
+        
+        // Register that this Type node has been created
+        dbManager.registerTypeNode(typeNodeId);
 
         return typeNodeId;
     }

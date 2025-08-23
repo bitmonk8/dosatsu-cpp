@@ -7,6 +7,7 @@
 #include "StatementAnalyzer.h"
 
 #include "ASTNodeProcessor.h"
+#include "GlobalDatabaseManager.h"
 #include "KuzuDatabase.h"
 
 // clang-format off
@@ -35,6 +36,11 @@ void StatementAnalyzer::createStatementNode(int64_t nodeId, const clang::Stmt* s
     if (!database.isInitialized() || (stmt == nullptr))
         return;
 
+    // Check if Statement node already exists for this nodeId
+    auto& dbManager = GlobalDatabaseManager::getInstance();
+    if (dbManager.hasStatementNode(nodeId))
+        return;
+
     try
     {
         std::string statementKind = extractStatementKind(stmt);
@@ -54,6 +60,9 @@ void StatementAnalyzer::createStatementNode(int64_t nodeId, const clang::Stmt* s
                             "', is_constexpr: " + (isConstexpr ? "true" : "false") + "})";
 
         database.addToBatch(query);
+        
+        // Register that this Statement node has been created
+        dbManager.registerStatementNode(nodeId);
     }
     catch (const std::exception& e)
     {
@@ -64,6 +73,11 @@ void StatementAnalyzer::createStatementNode(int64_t nodeId, const clang::Stmt* s
 void StatementAnalyzer::createExpressionNode(int64_t nodeId, const clang::Expr* expr)
 {
     if (!database.isInitialized() || (expr == nullptr))
+        return;
+
+    // Check if Expression node already exists for this nodeId
+    auto& dbManager = GlobalDatabaseManager::getInstance();
+    if (dbManager.hasExpressionNode(nodeId))
         return;
 
     try
@@ -87,6 +101,9 @@ void StatementAnalyzer::createExpressionNode(int64_t nodeId, const clang::Expr* 
                             evaluationResult + "', implicit_cast_kind: '" + implicitCastKind + "'})";
 
         database.addToBatch(query);
+        
+        // Register that this Expression node has been created
+        dbManager.registerExpressionNode(nodeId);
     }
     catch (const std::exception& e)
     {

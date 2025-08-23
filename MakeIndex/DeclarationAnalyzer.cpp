@@ -6,6 +6,7 @@
 
 #include "DeclarationAnalyzer.h"
 
+#include "GlobalDatabaseManager.h"
 #include "KuzuDatabase.h"
 
 // clang-format off
@@ -31,6 +32,11 @@ void DeclarationAnalyzer::createDeclarationNode(int64_t nodeId, const clang::Nam
     if (!database.isInitialized() || (decl == nullptr))
         return;
 
+    // Check if Declaration node already exists for this nodeId
+    auto& dbManager = GlobalDatabaseManager::getInstance();
+    if (dbManager.hasDeclarationNode(nodeId))
+        return;
+
     try
     {
         std::string name = decl->getNameAsString();
@@ -48,6 +54,9 @@ void DeclarationAnalyzer::createDeclarationNode(int64_t nodeId, const clang::Nam
 
         // Use batched operation for performance optimization
         database.addToBatch(query);
+        
+        // Register that this Declaration node has been created
+        dbManager.registerDeclarationNode(nodeId);
     }
     catch (const std::exception& e)
     {

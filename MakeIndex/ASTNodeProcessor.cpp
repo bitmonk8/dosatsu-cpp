@@ -6,6 +6,7 @@
 
 #include "ASTNodeProcessor.h"
 
+#include "GlobalDatabaseManager.h"
 #include "KuzuDatabase.h"
 
 // clang-format off
@@ -30,13 +31,26 @@ auto ASTNodeProcessor::createASTNode(const clang::Decl* decl) -> int64_t
     if (!database.isInitialized() || (decl == nullptr))
         return -1;
 
-    // Check if already processed
+    // Check if already processed globally first
+    auto& dbManager = GlobalDatabaseManager::getInstance();
+    int64_t existingNodeId = dbManager.getGlobalNodeId(decl);
+    if (existingNodeId != -1)
+    {
+        // Also store in local map for faster lookup
+        nodeIdMap[decl] = existingNodeId;
+        return existingNodeId;
+    }
+
+    // Check if already processed locally
     auto it = nodeIdMap.find(decl);
     if (it != nodeIdMap.end())
         return it->second;
 
     int64_t nodeId = getNextNodeId();
     nodeIdMap[decl] = nodeId;
+    
+    // Register globally to prevent duplicates across files
+    dbManager.registerGlobalNode(decl, nodeId);
 
     try
     {
@@ -82,13 +96,26 @@ auto ASTNodeProcessor::createASTNode(const clang::Stmt* stmt) -> int64_t
     if (!database.isInitialized() || (stmt == nullptr))
         return -1;
 
-    // Check if already processed
+    // Check if already processed globally first
+    auto& dbManager = GlobalDatabaseManager::getInstance();
+    int64_t existingNodeId = dbManager.getGlobalNodeId(stmt);
+    if (existingNodeId != -1)
+    {
+        // Also store in local map for faster lookup
+        nodeIdMap[stmt] = existingNodeId;
+        return existingNodeId;
+    }
+
+    // Check if already processed locally
     auto it = nodeIdMap.find(stmt);
     if (it != nodeIdMap.end())
         return it->second;
 
     int64_t nodeId = getNextNodeId();
     nodeIdMap[stmt] = nodeId;
+    
+    // Register globally to prevent duplicates across files
+    dbManager.registerGlobalNode(stmt, nodeId);
 
     try
     {
@@ -131,13 +158,26 @@ auto ASTNodeProcessor::createASTNode(const clang::Type* type) -> int64_t
     if (!database.isInitialized() || (type == nullptr))
         return -1;
 
-    // Check if already processed
+    // Check if already processed globally first
+    auto& dbManager = GlobalDatabaseManager::getInstance();
+    int64_t existingNodeId = dbManager.getGlobalNodeId(type);
+    if (existingNodeId != -1)
+    {
+        // Also store in local map for faster lookup
+        nodeIdMap[type] = existingNodeId;
+        return existingNodeId;
+    }
+
+    // Check if already processed locally
     auto it = nodeIdMap.find(type);
     if (it != nodeIdMap.end())
         return it->second;
 
     int64_t nodeId = getNextNodeId();
     nodeIdMap[type] = nodeId;
+    
+    // Register globally to prevent duplicates across files
+    dbManager.registerGlobalNode(type, nodeId);
 
     try
     {
@@ -177,8 +217,22 @@ auto ASTNodeProcessor::createASTNode(const clang::Type* type) -> int64_t
 
 auto ASTNodeProcessor::getNodeId(const void* ptr) -> int64_t
 {
+    // Check local map first for performance
     auto it = nodeIdMap.find(ptr);
-    return (it != nodeIdMap.end()) ? it->second : -1;
+    if (it != nodeIdMap.end())
+        return it->second;
+    
+    // Check global map
+    auto& dbManager = GlobalDatabaseManager::getInstance();
+    int64_t globalNodeId = dbManager.getGlobalNodeId(ptr);
+    if (globalNodeId != -1)
+    {
+        // Cache in local map for faster future lookups
+        nodeIdMap[ptr] = globalNodeId;
+        return globalNodeId;
+    }
+    
+    return -1;
 }
 
 auto ASTNodeProcessor::getNextNodeId() -> int64_t
@@ -188,7 +242,13 @@ auto ASTNodeProcessor::getNextNodeId() -> int64_t
 
 auto ASTNodeProcessor::hasNode(const void* ptr) const -> bool
 {
-    return nodeIdMap.find(ptr) != nodeIdMap.end();
+    // Check local map first
+    if (nodeIdMap.find(ptr) != nodeIdMap.end())
+        return true;
+    
+    // Check global map
+    auto& dbManager = GlobalDatabaseManager::getInstance();
+    return dbManager.hasGlobalNode(ptr);
 }
 
 auto ASTNodeProcessor::extractSourceLocation(const clang::SourceLocation& loc) -> std::string
