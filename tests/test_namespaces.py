@@ -13,7 +13,7 @@ class TestNamespacesTest(BaseTest):
         
         # Test namespace declarations exist
         self.framework.assert_query_has_results(
-            "MATCH (a:ASTNode), (d:Declaration) WHERE a.node_type = 'Namespace' AND a.node_id = d.node_id RETURN d LIMIT 1",
+            "MATCH (a:ASTNode), (d:Declaration) WHERE a.node_type = 'NamespaceDecl' AND a.node_id = d.node_id RETURN d LIMIT 1",
             "Should have namespace declarations"
         )
         
@@ -26,7 +26,7 @@ class TestNamespacesTest(BaseTest):
         for namespace in expected_namespaces:
             count = self.framework.query_count(f"""
                 MATCH (a:ASTNode), (d:Declaration) 
-                WHERE a.node_type = 'Namespace' AND a.node_id = d.node_id AND d.name = '{namespace}'
+                WHERE a.node_type = 'NamespaceDecl' AND a.node_id = d.node_id AND d.name = '{namespace}'
                 RETURN count(d) as count
             """)
             if count > 0:

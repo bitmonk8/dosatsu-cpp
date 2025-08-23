@@ -32,7 +32,7 @@ class TestTypesTest(BaseTest):
                 MATCH (t:Type)
                 WHERE t.is_builtin = true
                 RETURN DISTINCT t.type_name as name
-                ORDER BY t.type_name
+                ORDER BY name
                 LIMIT 10
             """)
             
@@ -82,7 +82,7 @@ class TestTypesTest(BaseTest):
                 MATCH (t:Type)
                 WHERE t.size_bytes IS NOT NULL AND t.size_bytes > 0
                 RETURN t.size_bytes as size, count(*) as count
-                ORDER BY t.size_bytes
+                ORDER BY size
                 LIMIT 10
             """)
             
@@ -169,7 +169,7 @@ class TestTypesTest(BaseTest):
                 MATCH (t:Type)
                 WHERE t.type_name CONTAINS '<' AND t.type_name CONTAINS '>'
                 RETURN DISTINCT t.type_name as name
-                ORDER BY size(t.type_name) DESC
+                ORDER BY size(name) DESC
                 LIMIT 5
             """)
             

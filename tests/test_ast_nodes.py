@@ -35,7 +35,7 @@ class TestAstNodesTest(BaseTest):
         )
         
         expected_types = [
-            "Function", "CXXRecord", "Var", "CompoundStmt",
+            "FunctionDecl", "CXXRecordDecl", "VarDecl", "CompoundStmt",
             "CallExpr", "ReturnStmt", "IfStmt"
         ]
         
@@ -53,8 +53,7 @@ class TestAstNodesTest(BaseTest):
         )
         
         expected_files = [
-            "test_inheritance.cpp", "test_templates.cpp", "test_namespaces.cpp",
-            "test_control_flow.cpp", "test_expressions.cpp", "test_preprocessor.cpp"
+            "comprehensive_test_no_std.cpp"
         ]
         
         found_files = [row["file"] for row in source_files]

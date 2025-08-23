@@ -60,7 +60,7 @@ void StatementAnalyzer::createStatementNode(int64_t nodeId, const clang::Stmt* s
                             "', is_constexpr: " + (isConstexpr ? "true" : "false") + "})";
 
         database.addToBatch(query);
-        
+
         // Register that this Statement node has been created
         dbManager.registerStatementNode(nodeId);
     }
@@ -101,7 +101,7 @@ void StatementAnalyzer::createExpressionNode(int64_t nodeId, const clang::Expr* 
                             evaluationResult + "', implicit_cast_kind: '" + implicitCastKind + "'})";
 
         database.addToBatch(query);
-        
+
         // Register that this Expression node has been created
         dbManager.registerExpressionNode(nodeId);
     }

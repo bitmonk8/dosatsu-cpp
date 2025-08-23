@@ -194,7 +194,7 @@ class TestTemplatesTest(BaseTest):
         # Test constexpr templates
         constexpr_template_count = self.framework.query_count("""
             MATCH (a:ASTNode), (n:Declaration)
-            WHERE a.node_id = n.node_id AND a.node_type CONTAINS 'Template' AND (n.raw_text CONTAINS 'constexpr' OR n.name CONTAINS 'constexpr')
+            WHERE a.node_id = n.node_id AND a.node_type CONTAINS 'Template' AND (a.raw_text CONTAINS 'constexpr' OR n.name CONTAINS 'constexpr')
             RETURN count(n) as count
         """)
         

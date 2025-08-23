@@ -1,6 +1,18 @@
 // Comprehensive C++ test file without standard library dependencies
 // Tests inheritance, templates, namespaces, control flow, expressions, etc.
 
+// Macro definitions for preprocessor testing
+#define PI 3.14159
+#define MAX_SIZE 1024
+#define DEBUG_MODE 1
+#define SQUARE(x) ((x) * (x))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define SWAP(a, b) do { auto temp = a; a = b; b = temp; } while(0)
+#define DEBUG_PRINT(msg) // Debug print macro
+#define LOG(level, msg) // Logging macro
+#define STRINGIFY(x) #x
+
 // Forward declarations
 class Base;
 class Derived;

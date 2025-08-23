@@ -101,7 +101,7 @@ private:
 
     // Global node ID map to prevent duplicate processing across files
     std::unordered_map<const void*, int64_t> globalNodeIdMap;
-    
+
     // Track which specialized nodes have been created to prevent duplicates
     std::unordered_set<int64_t> createdDeclarationNodes;
     std::unordered_set<int64_t> createdTypeNodes;

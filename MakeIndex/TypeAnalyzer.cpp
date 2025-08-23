@@ -69,7 +69,7 @@ auto TypeAnalyzer::createTypeNode(clang::QualType qualType) -> int64_t
 
         // Use batched operation for performance optimization
         database.addToBatch(query);
-        
+
         // Register that this Type node has been created
         dbManager.registerTypeNode(typeNodeId);
 

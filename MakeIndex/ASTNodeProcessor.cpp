@@ -48,7 +48,7 @@ auto ASTNodeProcessor::createASTNode(const clang::Decl* decl) -> int64_t
 
     int64_t nodeId = getNextNodeId();
     nodeIdMap[decl] = nodeId;
-    
+
     // Register globally to prevent duplicates across files
     dbManager.registerGlobalNode(decl, nodeId);
 
@@ -113,7 +113,7 @@ auto ASTNodeProcessor::createASTNode(const clang::Stmt* stmt) -> int64_t
 
     int64_t nodeId = getNextNodeId();
     nodeIdMap[stmt] = nodeId;
-    
+
     // Register globally to prevent duplicates across files
     dbManager.registerGlobalNode(stmt, nodeId);
 
@@ -175,7 +175,7 @@ auto ASTNodeProcessor::createASTNode(const clang::Type* type) -> int64_t
 
     int64_t nodeId = getNextNodeId();
     nodeIdMap[type] = nodeId;
-    
+
     // Register globally to prevent duplicates across files
     dbManager.registerGlobalNode(type, nodeId);
 
@@ -221,7 +221,7 @@ auto ASTNodeProcessor::getNodeId(const void* ptr) -> int64_t
     auto it = nodeIdMap.find(ptr);
     if (it != nodeIdMap.end())
         return it->second;
-    
+
     // Check global map
     auto& dbManager = GlobalDatabaseManager::getInstance();
     int64_t globalNodeId = dbManager.getGlobalNodeId(ptr);
@@ -231,7 +231,7 @@ auto ASTNodeProcessor::getNodeId(const void* ptr) -> int64_t
         nodeIdMap[ptr] = globalNodeId;
         return globalNodeId;
     }
-    
+
     return -1;
 }
 
@@ -245,7 +245,7 @@ auto ASTNodeProcessor::hasNode(const void* ptr) const -> bool
     // Check local map first
     if (nodeIdMap.find(ptr) != nodeIdMap.end())
         return true;
-    
+
     // Check global map
     auto& dbManager = GlobalDatabaseManager::getInstance();
     return dbManager.hasGlobalNode(ptr);
@@ -300,7 +300,7 @@ auto ASTNodeProcessor::extractNodeType(const clang::Decl* decl) -> std::string
 {
     if (decl == nullptr)
         return "UnknownDecl";
-    return decl->getDeclKindName();
+    return std::string(decl->getDeclKindName()) + "Decl";
 }
 
 auto ASTNodeProcessor::extractNodeType(const clang::Stmt* stmt) -> std::string

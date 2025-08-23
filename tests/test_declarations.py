@@ -211,8 +211,8 @@ class TestDeclarationsTest(BaseTest):
         
         # Test template declarations
         template_decl_count = self.framework.query_count("""
-            MATCH (t:Declaration)
-            WHERE t.node_type CONTAINS 'Template'
+            MATCH (a:ASTNode), (t:Declaration)
+            WHERE a.node_id = t.node_id AND a.node_type CONTAINS 'Template'
             RETURN count(t) as count
         """)
         
@@ -239,8 +239,8 @@ class TestDeclarationsTest(BaseTest):
         
         # Test typedef declarations
         typedef_count = self.framework.query_count("""
-            MATCH (t:Declaration)
-            WHERE t.node_type IN ['TypedefDecl', 'TypeAliasDecl']
+            MATCH (a:ASTNode), (t:Declaration)
+            WHERE a.node_id = t.node_id AND a.node_type IN ['TypedefDecl', 'TypeAliasDecl']
             RETURN count(t) as count
         """)
         
@@ -259,9 +259,9 @@ class TestDeclarationsTest(BaseTest):
         
         # Test inline functions
         inline_count = self.framework.query_count("""
-            MATCH (i:Declaration)
-            WHERE i.node_type IN ['FunctionDecl', 'CXXMethodDecl'] 
-               AND (i.storage_class CONTAINS 'inline' OR i.raw_text CONTAINS 'inline')
+            MATCH (a:ASTNode), (i:Declaration)
+            WHERE a.node_id = i.node_id AND a.node_type IN ['FunctionDecl', 'CXXMethodDecl'] 
+               AND (i.storage_class CONTAINS 'inline' OR a.raw_text CONTAINS 'inline')
             RETURN count(i) as count
         """)
         
@@ -271,7 +271,7 @@ class TestDeclarationsTest(BaseTest):
         # Test virtual functions
         virtual_count = self.framework.query_count("""
             MATCH (a:ASTNode), (v:Declaration)
-            WHERE a.node_id = v.node_id AND a.node_type = 'CXXMethodDecl' AND v.raw_text CONTAINS 'virtual'
+            WHERE a.node_id = v.node_id AND a.node_type = 'CXXMethodDecl' AND a.raw_text CONTAINS 'virtual'
             RETURN count(v) as count
         """)
         
@@ -281,7 +281,7 @@ class TestDeclarationsTest(BaseTest):
         # Test pure virtual functions
         pure_virtual_count = self.framework.query_count("""
             MATCH (a:ASTNode), (pv:Declaration)
-            WHERE a.node_id = pv.node_id AND a.node_type = 'CXXMethodDecl' AND pv.raw_text CONTAINS '= 0'
+            WHERE a.node_id = pv.node_id AND a.node_type = 'CXXMethodDecl' AND a.raw_text CONTAINS '= 0'
             RETURN count(pv) as count
         """)
         

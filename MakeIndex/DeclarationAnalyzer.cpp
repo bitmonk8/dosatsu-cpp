@@ -54,7 +54,7 @@ void DeclarationAnalyzer::createDeclarationNode(int64_t nodeId, const clang::Nam
 
         // Use batched operation for performance optimization
         database.addToBatch(query);
-        
+
         // Register that this Declaration node has been created
         dbManager.registerDeclarationNode(nodeId);
     }
