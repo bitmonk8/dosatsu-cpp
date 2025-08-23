@@ -33,7 +33,7 @@ public:
     /// Constructor
     /// \param database Database instance for storage
     /// \param astContext AST context for source location information
-    explicit ASTNodeProcessor(KuzuDatabase& database, const ASTContext& astContext);
+    explicit ASTNodeProcessor(KuzuDatabase& database, ASTContext& astContext);
 
     /// Create a new AST node for a declaration
     /// \param decl The declaration to create a node for

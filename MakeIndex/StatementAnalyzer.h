@@ -31,7 +31,7 @@ public:
     /// \param database Database instance for storage
     /// \param nodeProcessor Node processor for creating basic nodes
     /// \param astContext AST context for analysis
-    StatementAnalyzer(KuzuDatabase& database, ASTNodeProcessor& nodeProcessor, const ASTContext& astContext);
+    StatementAnalyzer(KuzuDatabase& database, ASTNodeProcessor& nodeProcessor, ASTContext& astContext);
 
     /// Create statement node
     /// \param nodeId Node ID for the statement

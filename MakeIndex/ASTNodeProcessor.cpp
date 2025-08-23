@@ -21,7 +21,7 @@
 
 using namespace clang;
 
-ASTNodeProcessor::ASTNodeProcessor(KuzuDatabase& database, const ASTContext& astContext)
+ASTNodeProcessor::ASTNodeProcessor(KuzuDatabase& database, ASTContext& astContext)
     : database(database), sourceManager(&astContext.getSourceManager())
 {
 }

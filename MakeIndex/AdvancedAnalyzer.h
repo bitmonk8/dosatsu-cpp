@@ -34,7 +34,7 @@ public:
     /// \param database Database instance for storage
     /// \param nodeProcessor Node processor for creating basic nodes
     /// \param astContext AST context for analysis
-    AdvancedAnalyzer(KuzuDatabase& database, ASTNodeProcessor& nodeProcessor, const ASTContext& astContext);
+    AdvancedAnalyzer(KuzuDatabase& database, ASTNodeProcessor& nodeProcessor, ASTContext& astContext);
 
     /// Analyze CFG for a function
     /// \param func Function declaration to analyze
@@ -101,7 +101,7 @@ public:
 private:
     KuzuDatabase& database;
     ASTNodeProcessor& nodeProcessor;
-    const ASTContext* astContext;
+    ASTContext* astContext;
 
     /// Create CFG block node
     /// \param blockNodeId Node ID for the block

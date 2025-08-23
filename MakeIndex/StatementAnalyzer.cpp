@@ -24,9 +24,7 @@
 
 using namespace clang;
 
-StatementAnalyzer::StatementAnalyzer(KuzuDatabase& database,
-                                     ASTNodeProcessor& nodeProcessor,
-                                     const ASTContext& astContext)
+StatementAnalyzer::StatementAnalyzer(KuzuDatabase& database, ASTNodeProcessor& nodeProcessor, ASTContext& astContext)
     : database(database), nodeProcessor(nodeProcessor), astContext(&astContext)
 {
 }

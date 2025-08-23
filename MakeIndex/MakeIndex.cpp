@@ -324,7 +324,7 @@ auto main(int argc, char** argv) -> int
                 docTestArgv.push_back(s.c_str());
 
             doctest::Context ctx;
-            ctx.applyCommandLine(static_cast<int>(docTestArgv.size()), const_cast<char**>(docTestArgv.data()));
+            ctx.applyCommandLine(static_cast<int>(docTestArgv.size()), docTestArgv.data());
             return ctx.run();
         }
 

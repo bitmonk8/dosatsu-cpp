@@ -21,7 +21,7 @@
 
 using namespace clang;
 
-TypeAnalyzer::TypeAnalyzer(KuzuDatabase& database, ASTNodeProcessor& nodeProcessor, const ASTContext& astContext)
+TypeAnalyzer::TypeAnalyzer(KuzuDatabase& database, ASTNodeProcessor& nodeProcessor, ASTContext& astContext)
     : database(database), nodeProcessor(nodeProcessor)
 {
     (void)astContext;  // Unused parameter - kept for future expansion

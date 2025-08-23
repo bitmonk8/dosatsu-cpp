@@ -31,7 +31,7 @@ public:
     /// \param database Database instance for storage
     /// \param nodeProcessor Node processor for creating basic nodes
     /// \param astContext AST context for template analysis
-    TemplateAnalyzer(KuzuDatabase& database, ASTNodeProcessor& nodeProcessor, const ASTContext& astContext);
+    TemplateAnalyzer(KuzuDatabase& database, ASTNodeProcessor& nodeProcessor, ASTContext& astContext);
 
     /// Process template declaration
     /// \param nodeId Node ID for the template

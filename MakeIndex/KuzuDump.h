@@ -57,13 +57,13 @@ private:
 
 public:
     // Legacy constructors (text output only)
-    KuzuDump(raw_ostream& OS, const ASTContext& Context, bool ShowColors);
+    KuzuDump(raw_ostream& OS, ASTContext& Context, bool ShowColors);
 
     // Database constructors
-    KuzuDump(std::string databasePath, const ASTContext& Context, bool ShowColors = false);
+    KuzuDump(std::string databasePath, ASTContext& Context, bool ShowColors = false);
 
     // Database-only constructor (no text output dependencies)
-    KuzuDump(std::string databasePath, const ASTContext& Context, bool ShowColors, bool pureDatabaseMode);
+    KuzuDump(std::string databasePath, ASTContext& Context, bool ShowColors, bool pureDatabaseMode);
 
     // Destructor
     ~KuzuDump();
@@ -94,7 +94,7 @@ public:
 
 private:
     /// Initialize all analyzer components
-    void initializeAnalyzers(const ASTContext& Context);
+    void initializeAnalyzers(ASTContext& Context);
 
     /// Process a declaration using the appropriate analyzers
     void processDeclaration(const Decl* D);

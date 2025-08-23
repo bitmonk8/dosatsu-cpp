@@ -16,13 +16,13 @@
 
 using namespace clang;
 
-KuzuDump::KuzuDump(raw_ostream& OS, const ASTContext& Context, bool ShowColors)
+KuzuDump::KuzuDump(raw_ostream& OS, ASTContext& Context, bool ShowColors)
     : nullStream(nullptr), NodeDumper(OS, Context, ShowColors), OS(OS), database(nullptr)
 {
     initializeAnalyzers(Context);
 }
 
-KuzuDump::KuzuDump(std::string databasePath, const ASTContext& Context, bool ShowColors)
+KuzuDump::KuzuDump(std::string databasePath, ASTContext& Context, bool ShowColors)
     : nullStream(std::make_unique<llvm::raw_null_ostream>()), NodeDumper(*nullStream, Context, ShowColors),
       OS(*nullStream)
 {
@@ -35,7 +35,7 @@ KuzuDump::KuzuDump(std::string databasePath, const ASTContext& Context, bool Sho
     initializeAnalyzers(Context);
 }
 
-KuzuDump::KuzuDump(std::string databasePath, const ASTContext& Context, bool ShowColors, bool pureDatabaseMode)
+KuzuDump::KuzuDump(std::string databasePath, ASTContext& Context, bool ShowColors, bool pureDatabaseMode)
     : nullStream(std::make_unique<llvm::raw_null_ostream>()), NodeDumper(*nullStream, Context, ShowColors),
       OS(*nullStream), databaseOnlyMode(pureDatabaseMode)
 {
@@ -50,7 +50,7 @@ KuzuDump::KuzuDump(std::string databasePath, const ASTContext& Context, bool Sho
 
 KuzuDump::~KuzuDump() = default;
 
-void KuzuDump::initializeAnalyzers(const ASTContext& Context)
+void KuzuDump::initializeAnalyzers(ASTContext& Context)
 {
     if (database == nullptr)
     {

@@ -22,9 +22,7 @@
 using namespace clang;
 using namespace clang::comments;
 
-CommentProcessor::CommentProcessor(KuzuDatabase& database,
-                                   ASTNodeProcessor& nodeProcessor,
-                                   const ASTContext& astContext)
+CommentProcessor::CommentProcessor(KuzuDatabase& database, ASTNodeProcessor& nodeProcessor, ASTContext& astContext)
     : database(database), astContext(&astContext)
 {
     (void)nodeProcessor;  // Unused parameter for now - kept for future expansion

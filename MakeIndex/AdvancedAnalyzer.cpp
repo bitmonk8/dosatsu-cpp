@@ -23,9 +23,7 @@
 
 using namespace clang;
 
-AdvancedAnalyzer::AdvancedAnalyzer(KuzuDatabase& database,
-                                   ASTNodeProcessor& nodeProcessor,
-                                   const ASTContext& astContext)
+AdvancedAnalyzer::AdvancedAnalyzer(KuzuDatabase& database, ASTNodeProcessor& nodeProcessor, ASTContext& astContext)
     : database(database), nodeProcessor(nodeProcessor), astContext(&astContext)
 {
 }
@@ -50,8 +48,7 @@ void AdvancedAnalyzer::analyzeCFGForFunction(const clang::FunctionDecl* func, in
         buildOptions.AddLoopExit = true;
         buildOptions.AddTemporaryDtors = true;
 
-        std::unique_ptr<CFG> cfg =
-            CFG::buildCFG(func, func->getBody(), const_cast<ASTContext*>(astContext), buildOptions);
+        std::unique_ptr<CFG> cfg = CFG::buildCFG(func, func->getBody(), astContext, buildOptions);
         if (!cfg)
             return;
 

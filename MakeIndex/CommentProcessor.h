@@ -32,7 +32,7 @@ public:
     /// \param database Database instance for storage
     /// \param nodeProcessor Node processor for creating basic nodes
     /// \param astContext AST context for comment analysis
-    CommentProcessor(KuzuDatabase& database, ASTNodeProcessor& nodeProcessor, const ASTContext& astContext);
+    CommentProcessor(KuzuDatabase& database, ASTNodeProcessor& nodeProcessor, ASTContext& astContext);
 
     /// Process comments for a declaration
     /// \param decl Declaration to process comments for
