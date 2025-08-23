@@ -95,6 +95,18 @@ namespace Mathematics {
     auto sum(Args... args) -> decltype((args + ...)) {
         return (args + ...);  // C++17 fold expression
     }
+    
+    // Additional namespaces expected by tests
+    namespace Statistics {
+        template<typename T>
+        T mean(const T* values, int count) {
+            T sum = T{};
+            for (int i = 0; i < count; ++i) {
+                sum += values[i];
+            }
+            return count > 0 ? sum / static_cast<T>(count) : T{};
+        }
+    }
 }
 
 // Global namespace scope testing
@@ -106,6 +118,172 @@ public:
     virtual int getValue() const { return base_value; }
     virtual ~GlobalBase() = default;
 };
+
+// Additional classes expected by tests
+class Animal {
+protected:
+    int age;
+public:
+    Animal(int a) : age(a) {}
+    virtual ~Animal() = default;
+    virtual void makeSound() const = 0;
+    virtual void move() const {}
+};
+
+class Mammal : public Animal {
+public:
+    Mammal(int a) : Animal(a) {}
+    void makeSound() const override {}
+    virtual void breathe() const {}
+};
+
+class Flyable {
+public:
+    virtual ~Flyable() = default;
+    virtual void fly() const = 0;
+    virtual double getMaxAltitude() const { return 1000.0; }
+};
+
+class Swimmer {
+public:
+    virtual ~Swimmer() = default;
+    virtual void swim() const = 0;
+    virtual double getMaxDepth() const { return 100.0; }
+};
+
+class Bat : public Mammal, public Flyable {
+public:
+    Bat(int a) : Mammal(a) {}
+    void makeSound() const override {}
+    void fly() const override {}
+    double getMaxAltitude() const override { return 3000.0; }
+};
+
+class WaterBird : public virtual Animal, public Flyable, public Swimmer {
+public:
+    WaterBird(int a) : Animal(a) {}
+    void makeSound() const override {}
+    void fly() const override {}
+    void swim() const override {}
+};
+
+class Duck : protected WaterBird {
+public:
+    Duck(int a) : Animal(a), WaterBird(a) {}
+    void fly() const override {}
+    void swim() const override {}
+    using WaterBird::makeSound;
+};
+
+class Penguin : protected WaterBird {
+public:
+    Penguin(int a) : Animal(a), WaterBird(a) {}
+    void fly() const override {}
+    void swim() const override {}
+    using WaterBird::makeSound;
+};
+
+class ExpressionTestClass {
+private:
+    int value;
+public:
+    ExpressionTestClass(int v) : value(v) {}
+    ExpressionTestClass operator+(const ExpressionTestClass& other) const {
+        return ExpressionTestClass(value + other.value);
+    }
+    bool operator==(const ExpressionTestClass& other) const {
+        return value == other.value;
+    }
+    int getValue() const { return value; }
+};
+
+class MacroTestClass {
+private:
+    double radius;
+public:
+    MacroTestClass(double r) : radius(r) {}
+    double getArea() const { return 3.14159 * radius * radius; }
+};
+
+// Template class expected by tests
+template<typename T, int Size = 10>
+class FixedArray {
+private:
+    T data[Size];
+    int count;
+public:
+    FixedArray() : count(0) {}
+    void add(const T& item) {
+        if (count < Size) {
+            data[count++] = item;
+        }
+    }
+    T& operator[](int index) { return data[index]; }
+    const T& operator[](int index) const { return data[index]; }
+};
+
+// Function templates expected by tests
+template<typename T>
+T max(const T& a, const T& b) {
+    return (a > b) ? a : b;
+}
+
+template<typename T, typename U>
+auto multiplyGeneric(const T& a, const U& b) -> decltype(a * b) {
+    return a * b;
+}
+
+// Additional namespaces
+namespace Graphics {
+    inline namespace v2 {
+        class Renderer {
+        public:
+            void render() {}
+            int getVersion() const { return 2; }
+        };
+    }
+    
+    namespace v1 {
+        class Renderer {
+        public:
+            void render() {}
+            int getVersion() const { return 1; }
+        };
+    }
+}
+
+namespace CustomTypes {
+    class MyClass {
+    private:
+        int value;
+    public:
+        MyClass(int v) : value(v) {}
+        int getValue() const { return value; }
+    };
+    
+    bool operator==(const MyClass& a, const MyClass& b) {
+        return a.getValue() == b.getValue();
+    }
+}
+
+namespace TemplateDemo {
+    template<typename T>
+    class Container {
+    private:
+        T* data;
+        int count;
+    public:
+        Container() : data(nullptr), count(0) {}
+        void add(const T& item) {}
+        int size() const { return count; }
+    };
+    
+    extern template class Container<int>;
+}
+
+namespace Colors {
+    enum class RGB { Red, Green, Blue };
+}
 
 // Template class template specialization
 template<typename T>
