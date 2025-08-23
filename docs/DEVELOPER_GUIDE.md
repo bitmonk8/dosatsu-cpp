@@ -23,7 +23,7 @@ Ensure you have the required tools installed:
 
 ```bash
 # Check prerequisites
-python please.py info
+please info
 ```
 
 **Required Tools:**
@@ -44,13 +44,13 @@ git clone https://github.com/your-org/CppGraphIndex.git
 cd CppGraphIndex
 
 # 2. Environment setup (creates directories, validates tools)
-python please.py setup
+please setup
 
 # 3. Install git hooks (optional but recommended)
-python please.py install-git-hooks
+please install-git-hooks
 
 # 4. Initial build
-python please.py rebuild --debug
+please rebuild --debug
 ```
 
 ### IDE Configuration
@@ -64,7 +64,7 @@ python please.py rebuild --debug
 
 2. **Generate Compilation Database:**
    ```bash
-   python please.py compile-db --copy-to-root
+   please compile-db --copy-to-root
    ```
 
 3. **VS Code Settings** (`.vscode/settings.json`):
@@ -86,7 +86,7 @@ python please.py rebuild --debug
 
 ```bash
 # Comprehensive environment check
-python please.py info
+please info
 
 # Expected output should show:
 # ✓ Platform detection
@@ -101,27 +101,27 @@ python please.py info
 
 ```bash
 # 1. Start with status check
-python please.py git-status
+please git-status
 
 # 2. Pull latest changes (with safety checks)
-python please.py git-pull --rebase
+please git-pull --rebase
 
 # 3. Make your code changes...
 
 # 4. Code quality workflow
-python please.py format                    # Auto-format all code
-python please.py lint                       # Two-phase: auto-fix then report remaining issues
-python please.py build --debug             # Incremental build
+please format                    # Auto-format all code
+please lint                       # Two-phase: auto-fix then report remaining issues
+please build --debug             # Incremental build
 
 # 5. Test changes
-python please.py test                       # Run full test suite
-python please.py test --target specific    # Run specific tests
+please test                       # Run full test suite
+please test --target specific    # Run specific tests
 
 # 6. Commit with validation
-python please.py git-commit -m "Your descriptive message"
+please git-commit -m "Your descriptive message"
 
 # 7. Push changes
-python please.py git-push
+please git-push
 ```
 
 ### Rapid Development Mode
@@ -130,14 +130,14 @@ For quick iteration during development:
 
 ```bash
 # Quick build + test cycle
-python please.py build --debug --parallel 8
-python please.py test --target MakeIndex_SelfTest
+please build --debug --parallel 8
+please test --target MakeIndex_SelfTest
 
 # Format check without auto-fix
-python please.py format --check-only
+please format --check-only
 
 # Quick lint without detailed reports
-python please.py lint --summary-only
+please lint --summary-only
 ```
 
 ### Clean Build Workflow
@@ -146,13 +146,13 @@ When you need a clean slate:
 
 ```bash
 # Full clean and rebuild
-python please.py rebuild --debug
+please rebuild --debug
 
 # Or step by step:
-python please.py clean
-python please.py reconfigure --debug
-python please.py build --debug
-python please.py test
+please clean
+please reconfigure --debug
+please build --debug
+please test
 ```
 
 ## 🏗️ Build System Deep Dive
@@ -172,33 +172,33 @@ Python Build Orchestrator (please.py)
 
 ```bash
 # Basic configuration
-python please.py configure [--debug|--release] [--clean]
+please configure [--debug|--release] [--clean]
 
 # Fresh configuration (cleans first)
-python please.py reconfigure [--debug|--release]
+please reconfigure [--debug|--release]
 
 # Environment setup
-python please.py setup
+please setup
 ```
 
 #### Build Commands
 
 ```bash
 # Standard build
-python please.py build [--debug|--release] [--target TARGET] [--parallel N]
+please build [--debug|--release] [--target TARGET] [--parallel N]
 
 # Integrated workflows
-python please.py rebuild                    # Clean + configure + build + test
-python please.py clean                      # Clean all artifacts
+please rebuild                    # Clean + configure + build + test
+please clean                      # Clean all artifacts
 ```
 
 #### Analysis Commands
 
 ```bash
 # Performance analysis
-python please.py build-stats                # Build size and performance metrics
-python please.py cache-mgmt                 # Cache management and optimization
-python please.py info                       # Environment information
+please build-stats                # Build size and performance metrics
+please cache-mgmt                 # Cache management and optimization
+please info                       # Environment information
 ```
 
 ### Artifact Organization
@@ -229,10 +229,10 @@ LLVM 19.1.7 is managed via CMake FetchContent:
 
 ```bash
 # Monitor dependency status
-python please.py cache-mgmt
+please cache-mgmt
 
 # Clean dependency cache (forces rebuild)
-python please.py cache-mgmt --clean-deps
+please cache-mgmt --clean-deps
 ```
 
 ## 🧪 Testing Framework
@@ -249,13 +249,13 @@ The project uses **doctest** for C++ unit testing with multiple test configurati
 
 ```bash
 # Basic test execution
-python please.py test
+please test
 
 # Advanced options
-python please.py test --verbose              # Detailed output
-python please.py test --parallel auto        # Parallel execution
-python please.py test --target "SelfTest"    # Specific test pattern
-python please.py test --ci-mode              # CI-friendly output
+please test --verbose              # Detailed output
+please test --parallel auto        # Parallel execution
+please test --target "SelfTest"    # Specific test pattern
+please test --ci-mode              # CI-friendly output
 ```
 
 ### Test Reporting
@@ -264,7 +264,7 @@ Tests generate comprehensive reports:
 
 ```bash
 # Enable detailed reporting
-python please.py test --report-format html --historical
+please test --report-format html --historical
 
 # Generated reports:
 # - artifacts/test/results.xml         (JUnit format)
@@ -295,13 +295,13 @@ The project uses **clang-format** with LLVM style and customizations:
 
 ```bash
 # Auto-format all code
-python please.py format
+please format
 
 # Check formatting without changes
-python please.py format --check-only
+please format --check-only
 
 # Format specific files
-python please.py format --files src/file1.cpp src/file2.h
+please format --files src/file1.cpp src/file2.h
 ```
 
 **Configuration**: `.clang-format` (LLVM base with project customizations)
@@ -312,17 +312,17 @@ python please.py format --files src/file1.cpp src/file2.h
 
 ```bash
 # Run two-phase linting (auto-fix then report)
-python please.py lint
+please lint
 
 # Quick summary without detailed output
-python please.py lint --summary-only
+please lint --summary-only
 
 # Generate markdown report
-python please.py lint --report-format markdown
+please lint --report-format markdown
 
 # Target specific files
-python please.py lint --files src/file1.cpp src/file2.cpp
-python please.py lint --target src/specific_file.cpp
+please lint --files src/file1.cpp src/file2.cpp
+please lint --target src/specific_file.cpp
 ```
 
 **Configuration**: `.clang-tidy` (comprehensive rule set)
@@ -344,7 +344,7 @@ The lint command automatically runs in two phases for optimal developer experien
 
 **Example Output Flow**:
 ```bash
-python please.py lint
+please lint
 
 # Phase 1: Applied automatic fixes to 12 issues
 # Phase 2: 3 issues require manual attention
@@ -364,7 +364,7 @@ Install git hooks for automatic quality checks:
 
 ```bash
 # Install hooks
-python please.py install-git-hooks
+please install-git-hooks
 
 # Hooks will automatically:
 # 1. Check formatting on staged C++ files
@@ -378,7 +378,7 @@ Monitor code quality with detailed reports:
 
 ```bash
 # View linting statistics
-python please.py lint --summary-only
+please lint --summary-only
 
 # Generates reports:
 # - artifacts/lint/analysis-report.md    (Comprehensive analysis)
@@ -393,36 +393,36 @@ The build system provides intelligent git integration:
 
 ```bash
 # Enhanced status with build context
-python please.py git-status
+please git-status
 
 # Safe pull with clean directory checks
-python please.py git-pull --check-clean --rebase
+please git-pull --check-clean --rebase
 
 # Smart push with validation
-python please.py git-push --set-upstream
+please git-push --set-upstream
 
 # Commit with pre-commit checks
-python please.py git-commit -m "Message" [--skip-checks] [--force]
+please git-commit -m "Message" [--skip-checks] [--force]
 
 # Repository cleanup
-python please.py git-clean --force --include-build-artifacts
+please git-clean --force --include-build-artifacts
 ```
 
 ### Git Workflow Integration
 
 ```bash
 # Typical workflow
-python please.py git-status                 # Check current state
-python please.py git-pull --rebase          # Get latest changes
+please git-status                 # Check current state
+please git-pull --rebase          # Get latest changes
 # ... make changes ...
-python please.py format                     # Format code
-python please.py git-commit -m "Fix bug"    # Commit with validation
-python please.py git-push                   # Push changes
+please format                     # Format code
+please git-commit -m "Fix bug"    # Commit with validation
+please git-push                   # Push changes
 ```
 
 ### Pre-commit Validation
 
-When using `python please.py git-commit`, automatic checks run:
+When using `please git-commit`, automatic checks run:
 
 1. **Format Check**: Validates code formatting
 2. **Build Check**: Ensures code compiles
@@ -438,7 +438,7 @@ Monitor and optimize build performance:
 
 ```bash
 # Analyze build performance
-python please.py build-stats
+please build-stats
 
 # Sample output:
 # Debug Build Statistics:
@@ -455,37 +455,37 @@ Optimize disk usage and build times:
 
 ```bash
 # View cache status
-python please.py cache-mgmt
+please cache-mgmt
 
 # Clean specific caches
-python please.py cache-mgmt --clean-cmake    # CMake caches
-python please.py cache-mgmt --clean-deps     # Dependency caches
+please cache-mgmt --clean-cmake    # CMake caches
+please cache-mgmt --clean-deps     # Dependency caches
 
 # Optimize cache storage
-python please.py cache-mgmt --optimize
+please cache-mgmt --optimize
 ```
 
 ### Parallel Build Configuration
 
 ```bash
 # Use all available cores
-python please.py build --parallel auto
+please build --parallel auto
 
 # Specify core count
-python please.py build --parallel 8
+please build --parallel 8
 
 # For CI/low-memory systems
-python please.py build --parallel 2
+please build --parallel 2
 ```
 
 ### Incremental Build Optimization
 
 ```bash
 # For development, use incremental builds
-python please.py build --debug               # Only builds changes
+please build --debug               # Only builds changes
 
 # For clean builds when needed
-python please.py rebuild --debug             # Full clean rebuild
+please rebuild --debug             # Full clean rebuild
 ```
 
 ## 🚀 CI/CD Integration
@@ -510,23 +510,23 @@ Test CI-like conditions locally:
 
 ```bash
 # Simulate CI build process
-python please.py clean
-python please.py configure --debug --clean
-python please.py build --debug --parallel 2
-python please.py test --ci-mode
-python please.py format --check-only
-python please.py lint --summary-only
+please clean
+please configure --debug --clean
+please build --debug --parallel 2
+please test --ci-mode
+please format --check-only
+please lint --summary-only
 ```
 
 ### CI-Specific Commands
 
 ```bash
 # CI-friendly test execution
-python please.py test --ci-mode --historical --report-format html
+please test --ci-mode --historical --report-format html
 
 # Quick validation for PR checks
-python please.py format --check-only --files changed_files.cpp
-python please.py build --debug --target MakeIndex
+please format --check-only --files changed_files.cpp
+please build --debug --target MakeIndex
 ```
 
 ## 🛠️ Troubleshooting
@@ -545,7 +545,7 @@ python please.py build --debug --target MakeIndex
 
 # Option 2: Manual setup
 call "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat"
-python please.py reconfigure --debug
+please reconfigure --debug
 ```
 
 #### Issue: LLVM Build Too Slow
@@ -556,10 +556,10 @@ python please.py reconfigure --debug
 **Solutions**:
 ```bash
 # Use maximum parallel jobs
-python please.py build --parallel auto
+please build --parallel auto
 
 # Monitor build progress
-python please.py build-stats
+please build-stats
 
 # Use cached CI artifacts (if available)
 # Download artifacts from successful CI runs
@@ -573,14 +573,14 @@ python please.py build-stats
 **Solutions**:
 ```bash
 # Check repository status
-python please.py git-status
+please git-status
 
 # Clean repository
-python please.py git-clean --force --include-directories
+please git-clean --force --include-directories
 
 # Reset to clean state (CAREFUL - loses changes)
 git reset --hard HEAD
-python please.py git-clean --force
+please git-clean --force
 ```
 
 #### Issue: Test Failures
@@ -591,10 +591,10 @@ python please.py git-clean --force
 **Solutions**:
 ```bash
 # Get detailed test output
-python please.py test --verbose
+please test --verbose
 
 # Clean rebuild and test
-python please.py rebuild --debug
+please rebuild --debug
 
 # Check test artifacts
 ls artifacts/test/
@@ -608,22 +608,22 @@ cat artifacts/test/test-output.log
 **Analysis**:
 ```bash
 # Check build statistics
-python please.py build-stats
+please build-stats
 
 # Check cache status
-python please.py cache-mgmt
+please cache-mgmt
 ```
 
 **Solutions**:
 ```bash
 # Increase parallel jobs
-python please.py build --parallel 8
+please build --parallel 8
 
 # Clean unnecessary caches
-python please.py cache-mgmt --clean-cmake
+please cache-mgmt --clean-cmake
 
 # Use incremental builds
-python please.py build  # Instead of rebuild
+please build  # Instead of rebuild
 ```
 
 #### Issue: Large Disk Usage
@@ -631,17 +631,17 @@ python please.py build  # Instead of rebuild
 **Analysis**:
 ```bash
 # Check artifact sizes
-python please.py build-stats
-python please.py cache-mgmt
+please build-stats
+please cache-mgmt
 ```
 
 **Solutions**:
 ```bash
 # Clean build artifacts
-python please.py clean
+please clean
 
 # Clean dependency caches (will trigger rebuild)
-python please.py cache-mgmt --clean-deps
+please cache-mgmt --clean-deps
 
 # Clean unused configurations
 rm -rf artifacts/release  # If only using debug
@@ -651,7 +651,7 @@ rm -rf artifacts/release  # If only using debug
 
 #### Issue: Tool Detection Failures
 
-**Symptoms**: `python please.py info` shows missing tools
+**Symptoms**: `please info` shows missing tools
 **Cause**: Tools not in PATH or incorrect versions
 
 **Solutions**:
@@ -697,7 +697,7 @@ endif()
 
 ```bash
 # Use custom build type
-python please.py configure --release
+please configure --release
 # Then manually: cmake -DCMAKE_BUILD_TYPE=ProfileRelease artifacts/release/build
 ```
 
@@ -706,7 +706,7 @@ python please.py configure --release
 ```bash
 # Environment variable approach
 export CXXFLAGS="-march=native"
-python please.py reconfigure --release
+please reconfigure --release
 ```
 
 ### Integration with External Tools
@@ -720,7 +720,7 @@ python please.py reconfigure --release
 
 # Configure CMake to use ccache
 export CMAKE_CXX_COMPILER_LAUNCHER=ccache
-python please.py reconfigure --debug
+please reconfigure --debug
 ```
 
 #### Custom Linting Rules
@@ -745,7 +745,7 @@ CheckOptions:
 cmake -S . -B artifacts/debug/build --debug-output
 
 # Or with build script
-python please.py configure --debug -v  # If verbose flag exists
+please configure --debug -v  # If verbose flag exists
 ```
 
 #### Ninja Debug Mode
@@ -774,8 +774,8 @@ tail -f artifacts/debug/logs/build.log
 
 ```bash
 # Time individual commands
-time python please.py configure --debug
-time python please.py build --debug
+time please configure --debug
+time please build --debug
 
 # Profile with detailed timing
 cmake --build artifacts/debug/build --verbose

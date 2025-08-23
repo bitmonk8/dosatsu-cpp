@@ -129,11 +129,11 @@ def test_local_ci_simulation():
     print("🔍 Testing CI command simulation...")
     
     test_commands = [
-        "python please.py info",
-        "python please.py configure --debug --clean",
-        "python please.py build --debug",
-        "python please.py test --ci-mode --report-format json",
-        "python please.py format --check-only",
+        "please info",
+        "please configure --debug --clean",
+        "please build --debug",
+        "please test --ci-mode --report-format json",
+        "please format --check-only",
     ]
     
     all_passed = True

@@ -167,8 +167,8 @@ def test_quick_commands():
     print("🔍 Testing quick CI commands...")
     
     test_commands = [
-        "python please.py info",
-        "python please.py format --check-only",
+        "please info",
+        "please format --check-only",
         "python -c \"import yaml; print('YAML support: OK')\"",
         "python -c \"import json; print('JSON support: OK')\"",
     ]

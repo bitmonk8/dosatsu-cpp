@@ -1,0 +1,15 @@
+#!/bin/bash
+# This script forwards all arguments to the Python please.py script
+
+# Try to find the best available Python interpreter
+if command -v python3 >/dev/null 2>&1; then
+    PYTHON_CMD="python3"
+elif command -v python >/dev/null 2>&1; then
+    PYTHON_CMD="python"
+else
+    echo "Error: No Python interpreter found. Please install Python 3.6 or later."
+    exit 1
+fi
+
+# Execute the please.py script with all arguments
+exec "$PYTHON_CMD" please.py "$@"

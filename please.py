@@ -449,7 +449,7 @@ class BuildOrchestrator:
         
         if not build_dir.exists():
             self.logger.error(f"Build directory not found: {build_dir}")
-            self.logger.info("Run 'python please.py configure' first")
+            self.logger.info("Run 'please configure' first")
             return 1
             
         # CMake build command
@@ -492,7 +492,7 @@ class BuildOrchestrator:
             # Provide helpful suggestions
             self.logger.info("Troubleshooting suggestions:")
             self.logger.info("1. Check if dependencies are properly downloaded (LLVM build may take 30+ minutes)")
-            self.logger.info("2. Try running 'python please.py configure --clean' to reconfigure")
+            self.logger.info("2. Try running 'please configure --clean' to reconfigure")
             self.logger.info("3. Check build logs in artifacts/debug/logs/")
             return 1
             
@@ -532,14 +532,14 @@ fi
 echo "Checking formatting for staged files..."
 
 # Run format check on staged files
-python please.py format --check-only --files $STAGED_FILES
+please format --check-only --files $STAGED_FILES
 
 # Check the exit code
 if [ $? -ne 0 ]; then
     echo ""
     echo "[ERROR] Pre-commit formatting check failed!"
     echo "Fix formatting issues before committing:"
-    echo "  python please.py format"
+    echo "  please format"
     echo ""
     echo "Or skip this check with: git commit --no-verify"
     exit 1
@@ -583,7 +583,7 @@ exit 0
             # Provide helpful suggestions
             self.logger.info("Troubleshooting suggestions:")
             self.logger.info("1. Check if dependencies are properly downloaded (LLVM build may take 30+ minutes)")
-            self.logger.info("2. Try running 'python please.py configure --clean' to reconfigure")
+            self.logger.info("2. Try running 'please configure --clean' to reconfigure")
             self.logger.info("3. Check build logs in artifacts/debug/logs/")
             return 1
         
@@ -705,7 +705,7 @@ exit 0
                 if result.stderr:
                     self.logger.error("clang-format output:")
                     self.logger.error(result.stderr)
-                self.logger.info("Run 'python please.py format' to fix formatting issues")
+                self.logger.info("Run 'please format' to fix formatting issues")
                 self.logger.info(f"Detailed results saved to: {format_log_file}")
             else:
                 self.logger.error("Formatting failed!")
@@ -777,7 +777,7 @@ exit 0
         compile_commands = self.artifacts_dir / "debug" / "build" / "compile_commands.json"
         if not compile_commands.exists():
             self.logger.error("compile_commands.json not found")
-            self.logger.info("Run 'python please.py configure' first to generate compilation database")
+            self.logger.info("Run 'please configure' first to generate compilation database")
             return 1
             
         # Check if .clang-tidy exists
@@ -1478,7 +1478,7 @@ exit 0
         # Check again after configure
         if not compile_commands_src.exists():
             self.logger.error("Failed to generate compilation database")
-            self.logger.info("Try running 'python please.py build' to trigger compilation")
+            self.logger.info("Try running 'please build' to trigger compilation")
             return 1
             
         self.logger.info(f"Found compilation database: {compile_commands_src}")
@@ -1570,11 +1570,11 @@ fi
 echo "Checking formatting for staged C++ files..."
 
 # Run format check
-python please.py format --check-only --files $STAGED_FILES
+please format --check-only --files $STAGED_FILES
 
 if [ $? -ne 0 ]; then
     echo "[ERROR] Code formatting issues found!"
-    echo "Run 'python please.py format' to fix formatting issues"
+    echo "Run 'please format' to fix formatting issues"
     echo "Then stage the corrected files and commit again"
     exit 1
 fi
@@ -1610,7 +1610,7 @@ exit 0
         
         if not build_dir.exists():
             self.logger.error(f"Build directory not found: {build_dir}")
-            self.logger.info("Run 'python please.py configure' first")
+            self.logger.info("Run 'please configure' first")
             return 1
         
         # Create test artifacts directory
@@ -2362,7 +2362,7 @@ exit 0
             
             # Suggest rebuild if there were changes
             if not args.skip_rebuild_suggestion:
-                self.logger.info("Consider running 'python please.py rebuild' to ensure everything works with the latest changes")
+                self.logger.info("Consider running 'please rebuild' to ensure everything works with the latest changes")
             
             return 0
         else:
@@ -2431,7 +2431,7 @@ exit 0
                 format_result = self.cmd_format(argparse.Namespace(check_only=True, files=None))
                 if format_result != 0:
                     self.logger.error("Formatting check failed")
-                    self.logger.info("Fix formatting with: python please.py format")
+                    self.logger.info("Fix formatting with: please format")
                     if not args.force:
                         return 1
             
@@ -2636,12 +2636,12 @@ exit 0
         # Build directory recommendations
         if total_build_size > 5 * 1024 * 1024 * 1024:  # 5GB
             self.logger.info("Large build directory:")
-            self.logger.info("  - Run 'python please.py clean' periodically")
+            self.logger.info("  - Run 'please clean' periodically")
             self.logger.info("  - Consider separate debug/release builds")
         
         # General recommendations
         self.logger.info("General optimizations:")
-        self.logger.info("  - Use 'python please.py build --parallel N' for faster builds")
+        self.logger.info("  - Use 'please build --parallel N' for faster builds")
         self.logger.info("  - Enable LTO for release builds if needed")
         self.logger.info("  - Use incremental builds when possible")
     
@@ -2715,21 +2715,24 @@ def create_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python please.py setup                    # Initial environment setup
-  python please.py info                     # Show environment information
-  python please.py configure --debug        # Configure debug build
-  python please.py build --release          # Build release version
-  python please.py test                     # Run all tests
-  python please.py format --check-only      # Check formatting
-  python please.py lint                     # Run two-phase linter with per-file progress (default)
-  python please.py lint --fast              # Run fast linter (auto-fix only, skip Phase 2)
-  python please.py lint --batch             # Run linter in batch mode (faster but less responsive)
-  python please.py clean                    # Clean artifacts
-  python please.py rebuild                  # Clean, build, and test
-  python please.py git-status               # Show git repository status
-  python please.py git-commit -m "Fix bug"  # Commit with pre-commit checks
-  python please.py build-stats              # Show build performance stats
-  python please.py cache-mgmt --clean-cmake # Clean CMake caches
+  please setup                    # Initial environment setup
+  please info                     # Show environment information
+  please configure --debug        # Configure debug build
+  please build --release          # Build release version
+  please test                     # Run all tests
+  please format --check-only      # Check formatting
+  please lint                     # Run two-phase linter with per-file progress (default)
+  please lint --fast              # Run fast linter (auto-fix only, skip Phase 2)
+  please lint --batch             # Run linter in batch mode (faster but less responsive)
+  please clean                    # Clean artifacts
+  please rebuild                  # Clean, build, and test
+  please git-status               # Show git repository status
+  please git-commit -m "Fix bug"  # Commit with pre-commit checks
+  please build-stats              # Show build performance stats
+  please cache-mgmt --clean-cmake # Clean CMake caches
+
+Note: Use 'please.bat' on Windows or './please' on Unix/Linux/macOS
+      These wrapper scripts automatically call 'python please.py' with all arguments
         """
     )
     

@@ -54,7 +54,7 @@ Each test module validates a specific aspect:
 
 1. **Build the project**:
    ```bash
-   python please.py build
+   please build
    ```
 
 2. **Install Kuzu Python library**:
@@ -176,7 +176,7 @@ The framework provides these assertion methods:
 
 Ensure you've built the project:
 ```bash
-python please.py build
+please build
 ```
 
 ### Kuzu Import Error

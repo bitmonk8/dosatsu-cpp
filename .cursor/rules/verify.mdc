@@ -5,15 +5,15 @@ alwaysApply: true
 ---
 After each incremental C++ code change
 
-* Run "python build.py build" to check that everything still compiles
+* Run "python please.py build" to check that everything still compiles
   - If any compilation errors occur, fix them before doing anything else.
 
-* Run "python build.py format" to automatically reformat the code (this step should always succeed).
+* Run "python please.py format" to automatically reformat the code (this step should always succeed).
   - Reread the affected files after formatting as they may have changed.
 
-* Run "python build.py lint" to lint the code to enforce style and invariants.
+* Run "python please.py lint" to lint the code to enforce style and invariants.
   - If linters fix things automatically, reread the files.
   - If any lint errors remain, fix those errors before moving on.
 
-* Run "python build.py test" to ensure all tests pass.
-  - If tests fail, run python build.py test --verbose for verbose output and fix any detected bugs.
+* Run "python please.py test" to ensure all tests pass.
+  - If tests fail, run python please.py test --verbose for verbose output and fix any detected bugs.
