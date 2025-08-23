@@ -1,0 +1,7 @@
+[
+  {
+    "directory": "C:/UnitySrc/CppGraphIndex",
+    "command": "clang++ -std=c++17 -I. -DTEST_MODE KuzuOutputTest/comprehensive_test_no_std.cpp -o KuzuOutputTest/comprehensive_test_no_std",
+    "file": "KuzuOutputTest/comprehensive_test_no_std.cpp"
+  }
+]

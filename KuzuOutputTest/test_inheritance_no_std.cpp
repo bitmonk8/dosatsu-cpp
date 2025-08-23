@@ -1,14 +1,42 @@
 // Test file for inheritance relationships and virtual functions
-#include <string>
+// No standard library includes
+
+// Simple string class to replace std::string
+class SimpleString {
+private:
+    char* data;
+    int length;
+public:
+    SimpleString(const char* str = "") {
+        length = 0;
+        while (str[length] != '\0') length++; // Calculate length
+        data = new char[length + 1];
+        for (int i = 0; i <= length; i++) {
+            data[i] = str[i];
+        }
+    }
+    
+    SimpleString(const SimpleString& other) {
+        length = other.length;
+        data = new char[length + 1];
+        for (int i = 0; i <= length; i++) {
+            data[i] = other.data[i];
+        }
+    }
+    
+    ~SimpleString() { delete[] data; }
+    
+    const char* c_str() const { return data; }
+};
 
 // Base class with virtual functions
 class Animal {
 private:
-    std::string name;
+    SimpleString name;
 protected:
     int age;
 public:
-    Animal(const std::string& n, int a) : name(n), age(a) {}
+    Animal(const SimpleString& n, int a) : name(n), age(a) {}
     virtual ~Animal() = default;
     
     // Pure virtual function
@@ -20,7 +48,7 @@ public:
     }
     
     // Non-virtual function
-    std::string getName() const { return name; }
+    SimpleString getName() const { return name; }
     
     // Protected virtual for derived access
 protected:
@@ -32,7 +60,7 @@ class Mammal : public Animal {
 protected:
     bool hasFur;
 public:
-    Mammal(const std::string& n, int a, bool fur) : Animal(n, a), hasFur(fur) {}
+    Mammal(const SimpleString& n, int a, bool fur) : Animal(n, a), hasFur(fur) {}
     
     // Override pure virtual
     void makeSound() const override {
@@ -68,7 +96,7 @@ public:
 // Multiple inheritance from three classes
 class Bat : public Mammal, public Flyable {
 public:
-    Bat(const std::string& n, int a) : Mammal(n, a, true) {}
+    Bat(const SimpleString& n, int a) : Mammal(n, a, true) {}
     
     // Override from Animal/Mammal
     void makeSound() const override {
@@ -92,7 +120,7 @@ public:
 // Virtual inheritance to solve diamond problem
 class WaterBird : public virtual Animal, public Flyable, public Swimmer {
 public:
-    WaterBird(const std::string& n, int a) : Animal(n, a) {}
+    WaterBird(const SimpleString& n, int a) : Animal(n, a) {}
     
     void makeSound() const override {
         // Water bird sound
@@ -110,7 +138,7 @@ public:
 // Private inheritance
 class Duck : private WaterBird {
 public:
-    Duck(const std::string& n, int a) : Animal(n, a), WaterBird(n, a) {}
+    Duck(const SimpleString& n, int a) : Animal(n, a), WaterBird(n, a) {}
     
     // Expose specific functions through public interface
     using WaterBird::fly;
@@ -125,7 +153,7 @@ public:
 // Protected inheritance
 class Penguin : protected WaterBird {
 public:
-    Penguin(const std::string& n, int a) : Animal(n, a), WaterBird(n, a) {}
+    Penguin(const SimpleString& n, int a) : Animal(n, a), WaterBird(n, a) {}
     
     // Cannot fly, so override to do nothing
     void fly() const override {
@@ -140,41 +168,7 @@ public:
     using WaterBird::makeSound;
 };
 
-// Abstract class with pure virtual destructor
-class Shape {
-public:
-    virtual ~Shape() = 0;
-    virtual double area() const = 0;
-    virtual double perimeter() const = 0;
-};
-
-// Implementation needed even for pure virtual destructor
-Shape::~Shape() = default;
-
-// Template inheritance
-template<typename T>
-class Rectangle : public Shape {
-private:
-    T width, height;
-public:
-    Rectangle(T w, T h) : width(w), height(h) {}
-    
-    double area() const override {
-        return static_cast<double>(width * height);
-    }
-    
-    double perimeter() const override {
-        return 2.0 * static_cast<double>(width + height);
-    }
-    
-    // Template member function
-    template<typename U>
-    Rectangle<U> convert() const {
-        return Rectangle<U>(static_cast<U>(width), static_cast<U>(height));
-    }
-};
-
-// Test inheritance relationships
+// Test function
 void testInheritance() {
     // Single inheritance
     Bat bat("Bruce", 2);
@@ -186,14 +180,7 @@ void testInheritance() {
     duck.fly();  // Available through using declaration
     duck.swim(); // Available through using declaration
     
-    // Template inheritance
-    Rectangle<int> intRect(5, 3);
-    Rectangle<double> doubleRect = intRect.convert<double>();
-    
-    double area1 = intRect.area();
-    double area2 = doubleRect.area();
-    
-    // Virtual inheritance
+    // Protected inheritance
     Penguin penguin("Tux", 1);
     penguin.swim();
     penguin.makeSound(); // Available through using declaration

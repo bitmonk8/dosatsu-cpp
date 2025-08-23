@@ -35,7 +35,7 @@ class TestAstNodesTest(BaseTest):
         )
         
         expected_types = [
-            "FunctionDecl", "CXXRecordDecl", "VarDecl", "CompoundStmt",
+            "Function", "CXXRecord", "Var", "CompoundStmt",
             "CallExpr", "ReturnStmt", "IfStmt"
         ]
         

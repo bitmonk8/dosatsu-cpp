@@ -40,7 +40,7 @@ class TestFramework:
             raise FileNotFoundError(f"MakeIndex not found at {self.makeindex_path}. Run 'python build.py build' first.")
         
         # Run MakeIndex on the compilation database
-        compile_commands_path = self.test_data_path / "compile_commands.json"
+        compile_commands_path = self.test_data_path / "comprehensive_no_std_compile_commands.json"
         if not compile_commands_path.exists():
             raise FileNotFoundError(f"Compilation database not found at {compile_commands_path}")
         

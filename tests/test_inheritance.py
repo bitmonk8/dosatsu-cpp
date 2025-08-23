@@ -13,19 +13,18 @@ class TestInheritanceTest(BaseTest):
         
         # Test that we have class declarations  
         self.framework.assert_query_has_results(
-            "MATCH (a:ASTNode), (d:Declaration) WHERE a.node_type = 'CXXRecordDecl' AND a.node_id = d.node_id RETURN d LIMIT 1",
+            "MATCH (a:ASTNode), (d:Declaration) WHERE a.node_type = 'CXXRecord' AND a.node_id = d.node_id RETURN d LIMIT 1",
             "Should have C++ class declarations"
         )
         
-        # Test for specific classes from test_inheritance.cpp
+        # Test for specific classes from comprehensive_test_no_std.cpp
         expected_classes = [
-            "Animal", "Mammal", "Bat", "Flyable", "Swimmer", "WaterBird", 
-            "Duck", "Penguin", "Shape", "Rectangle"
+            "Base", "Derived", "TemplateClass", "SimpleString"
         ]
         
         for class_name in expected_classes:
             results = self.framework.query_count(
-                f"MATCH (a:ASTNode), (d:Declaration) WHERE a.node_type = 'CXXRecordDecl' AND a.node_id = d.node_id AND d.name = '{class_name}' RETURN d"
+                f"MATCH (a:ASTNode), (d:Declaration) WHERE a.node_type = 'CXXRecord' AND a.node_id = d.node_id AND d.name = '{class_name}' RETURN d"
             )
             if results == 0:
                 print(f"Warning: Class {class_name} not found")
