@@ -1,0 +1,7 @@
+[
+  {
+    "directory": "C:/UnitySrc/CppGraphIndex/Examples/cpp/comprehensive",
+    "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE -c schema_coverage_complete.cpp -o schema_coverage_complete.o",
+    "file": "schema_coverage_complete.cpp"
+  }
+]

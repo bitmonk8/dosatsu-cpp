@@ -1,0 +1,7 @@
+[
+  {
+    "directory": "C:/UnitySrc/CppGraphIndex/Examples/cpp/comprehensive",
+    "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE -DDEBUG -DENABLE_OPTIMIZATION=1 -DADVANCED_MODE -c advanced_features_no_std.cpp -o advanced_features_no_std.o",
+    "file": "advanced_features_no_std.cpp"
+  }
+]
