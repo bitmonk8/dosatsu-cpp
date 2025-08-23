@@ -3,27 +3,62 @@
 > **DOCUMENT PRINCIPLES:**
 > - Issues present in this document are **NOT YET FIXED**
 > - Issues absent from this document are either **FIXED** or **NOT YET DISCOVERED**
-> - No status indicators are used - presence in document = unfixed
-> - No numbering is used to avoid maintenance overhead
+> - Each issue includes reproduction steps and expected vs actual behavior
 
 ## Current Issues
 
-### Test Framework Configuration Issue - PARTIALLY FIXED
-~~The test framework is using the wrong compilation database.~~ Fixed by switching to `simple_compile_commands.json` to avoid standard library dependency issues. However, tests now expect more comprehensive C++ constructs than what's available in the simple test file.
+### Missing Inheritance Relationship Processing
 
-### Database Schema Issues
-Several test failures indicate problems with the database schema or data population:
+**Description**: MakeIndex does not analyze or store C++ inheritance relationships between classes.
 
-1. **Missing node_type property**: Tests fail with "Cannot find property node_type for f" and similar errors, suggesting the ASTNode table may not be properly joined with Declaration table in queries.
+**How to reproduce**:
+1. Create a C++ file with class inheritance: `class Derived : public Base { };`
+2. Run MakeIndex on the file: `MakeIndex.exe compile_commands.json --output-db test_db`
+3. Query for inheritance relationships: `MATCH (d:Declaration)-[:INHERITS_FROM]->(b:Declaration) RETURN d, b`
 
-2. **Query syntax errors**: Some queries have syntax errors like malformed CONTAINS clauses with quotes.
+**Expected behavior**: Query should return inheritance relationships showing Derived inherits from Base.
 
-3. **Missing inheritance relationship processing**: Tests expect relationships like INHERITS_FROM and OVERRIDES but MakeIndex doesn't implement inheritance relationship analysis yet. The schema exists but the code to populate it is missing (see KuzuDump.cpp line 326 comment).
+**Actual behavior**: Query returns 0 results. No `INHERITS_FROM` relationships are created in the database.
 
-4. **Node type mismatches - FIXED**: Tests expected `CXXRecordDecl` but actual node type is `CXXRecord`. Fixed by updating test expectations.
+**Technical details**: The database schema includes `INHERITS_FROM` relationship table, but the code to populate it is missing (see comment in `KuzuDump.cpp` line 326).
 
-### Type Analysis Query Issues
-The TestTypesTest fails with "Variable t is not in scope" suggesting incorrect Cypher query syntax in type-related queries.
+### Query Schema Mismatches in Tests
 
-### Declaration Analysis Issues  
-TestDeclarationsTest fails with "Function LENGTH did not receive correct arguments" indicating incorrect usage of Kuzu built-in functions.
+**Description**: Multiple test queries fail with "Cannot find property node_type for X" errors.
+
+**How to reproduce**:
+1. Run `python tests/run_tests.py`
+2. Observe failures in TestDeclarationsTest, TestStatementsTest, TestTypesTest
+
+**Expected behavior**: Queries should successfully access node_type property from appropriate table aliases.
+
+**Actual behavior**: Queries fail with binder exceptions like "Cannot find property node_type for f".
+
+**Technical details**: Queries attempt to access `node_type` property on Declaration table aliases instead of ASTNode table aliases. The `node_type` property only exists on ASTNode table.
+
+### Kuzu Query Syntax Errors
+
+**Description**: Some test queries use incorrect Kuzu/Cypher syntax causing parser or function errors.
+
+**How to reproduce**:
+1. Run `python tests/run_tests.py`
+2. Observe TestTypesTest failure: "Variable t is not in scope"
+3. Observe TestDeclarationsTest failure: "Function LENGTH did not receive correct arguments"
+
+**Expected behavior**: Queries should use correct Kuzu syntax and built-in functions.
+
+**Actual behavior**: 
+- Type queries fail with variable scoping errors
+- Declaration queries fail with incorrect function argument types (STRING vs RECURSIVE_REL)
+
+### Preprocessor Query Syntax Error
+
+**Description**: Preprocessor test has malformed query with invalid quote handling.
+
+**How to reproduce**:
+1. Run `python tests/run_tests.py`
+2. Observe TestPreprocessorTest parser error: `WHERE m.replacement_text CONTAINS '>'`
+
+**Expected behavior**: Query should properly escape quotes in CONTAINS clause.
+
+**Actual behavior**: Parser exception due to malformed quote handling in query string.
