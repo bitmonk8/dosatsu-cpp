@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-CppGraphIndex Examples Runner
+Dosatsu Examples Runner
 
-This script provides an easy way to run and process the C++ examples included with CppGraphIndex.
-It can compile examples, run CppGraphIndex indexing on them, and verify the results.
+This script provides an easy way to run and process the C++ examples included with Dosatsu.
+It can compile examples, run Dosatsu indexing on them, and verify the results.
 """
 
 import sys
@@ -101,7 +101,7 @@ def compile_example(example_path, output_dir=None):
         return False
 
 def run_makeindex_indexing(compile_commands_path, output_db_path=None):
-    """Run MakeIndex indexing on examples."""
+    """Run Dosatsu indexing on examples."""
     project_root = get_project_root()
     
     if output_db_path is None:
@@ -110,10 +110,10 @@ def run_makeindex_indexing(compile_commands_path, output_db_path=None):
         timestamp = int(time.time())
         output_db_path = project_root / "artifacts" / "examples" / f"example_database_{timestamp}"
     
-    makeindex_path = project_root / "artifacts" / "debug" / "bin" / "MakeIndex.exe"
+    makeindex_path = project_root / "artifacts" / "debug" / "bin" / "Dosatsu.exe"
     
     if not makeindex_path.exists():
-        print("[ERROR] MakeIndex not found. Please run 'python please.py build' first.")
+        print("[ERROR] Dosatsu not found. Please run 'python please.py build' first.")
         return False
     
     compile_commands_path = Path(compile_commands_path)
@@ -124,14 +124,14 @@ def run_makeindex_indexing(compile_commands_path, output_db_path=None):
         print(f"[ERROR] Compilation database not found: {compile_commands_path}")
         return False
     
-    # Run MakeIndex
+    # Run Dosatsu
     cmd = [
         str(makeindex_path),
         str(compile_commands_path),
         "--output-db", str(output_db_path)
     ]
     
-    print(f"Running CppGraphIndex indexing...")
+    print(f"Running Dosatsu indexing...")
     print(f"   Input: {compile_commands_path.name}")
     print(f"   Output: {output_db_path}")
     
@@ -171,7 +171,7 @@ def run_verification():
 
 def main():
     parser = argparse.ArgumentParser(
-        description="CppGraphIndex Examples Runner",
+        description="Dosatsu Examples Runner",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -188,7 +188,7 @@ Examples:
     parser.add_argument("--compile", metavar="EXAMPLE",
                        help="Compile a specific C++ example")
     parser.add_argument("--index", metavar="COMPILE_DB",
-                       help="Run CppGraphIndex indexing on examples")
+                       help="Run Dosatsu indexing on examples")
     parser.add_argument("--verify", action="store_true",
                        help="Run verification query suite")
     parser.add_argument("--all", action="store_true",
@@ -204,7 +204,7 @@ Examples:
         parser.print_help()
         return 1
     
-    print("CppGraphIndex Examples Runner")
+    print("Dosatsu Examples Runner")
     print("=" * 50)
     
     success = True

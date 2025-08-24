@@ -1,6 +1,6 @@
-# CppGraphIndex Verification Queries
+# Dosatsu Verification Queries
 
-This directory contains Python tools for querying and verifying that CppGraphIndex correctly captures C++ language constructs in the generated database.
+This directory contains Python tools for querying and verifying that Dosatsu correctly captures C++ language constructs in the generated database.
 
 ## Overview
 
@@ -32,7 +32,7 @@ python run_queries.py
 
 This will:
 1. Create a temporary Kuzu database
-2. Run MakeIndex on the example C++ files
+2. Run Dosatsu on the example C++ files
 3. Execute all verification queries
 4. Report results and clean up
 

@@ -1,6 +1,6 @@
 [
   {
-    "directory": "C:/UnitySrc/CppGraphIndex",
+    "directory": "C:/UnitySrc/Dosatsu",
     "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE Examples/example_simple_no_includes.cpp -o Examples/test_simple_no_includes",
     "file": "Examples/example_simple_no_includes.cpp"
   }

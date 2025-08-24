@@ -1,6 +1,6 @@
 //===--- ScopeManager.cpp - Hierarchy and scope management --------------===//
 //
-// Part of the MakeIndex project
+// Part of the Dosatsu project
 //
 //===----------------------------------------------------------------------===//
 

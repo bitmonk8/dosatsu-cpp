@@ -1,6 +1,6 @@
 //===--- CompilationDatabaseLoader.cpp - Load compile_commands.json ------===//
 //
-// Part of the MakeIndex project
+// Part of the Dosatsu project
 //
 //===----------------------------------------------------------------------===//
 

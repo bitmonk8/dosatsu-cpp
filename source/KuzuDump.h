@@ -1,6 +1,6 @@
 //===--- KuzuDump.h - AST dumping implementation -------------------------===//
 //
-// Part of the MakeIndex project
+// Part of the Dosatsu project
 // This demonstrates the refactored architecture using specialized analyzers
 //
 //===----------------------------------------------------------------------===//

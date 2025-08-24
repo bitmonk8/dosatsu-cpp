@@ -1,6 +1,6 @@
 //===--- AdvancedAnalyzer.h - Advanced analysis (CFG, macros, etc.) ----===//
 //
-// Part of the MakeIndex project
+// Part of the Dosatsu project
 //
 //===----------------------------------------------------------------------===//
 

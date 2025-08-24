@@ -1,6 +1,6 @@
-# CppGraphIndex Examples
+# Dosatsu Examples
 
-This directory contains comprehensive examples and analysis tools for the CppGraphIndex project, demonstrating C++ language features and providing tools to verify correct analysis.
+This directory contains comprehensive examples and analysis tools for the Dosatsu project, demonstrating C++ language features and providing tools to verify correct analysis.
 
 ## Directory Structure
 
@@ -26,7 +26,7 @@ Examples/
 
 ### Running Examples
 
-1. **Build CppGraphIndex:**
+1. **Build Dosatsu:**
    ```bash
    python please.py build
    ```
@@ -56,9 +56,9 @@ Examples/
    clang++ -std=c++17 -I. Examples/cpp/basic/inheritance.cpp -o inheritance_example
    ```
 
-2. **Analyze with CppGraphIndex:**
+2. **Analyze with Dosatsu:**
    ```bash
-   ./artifacts/debug/bin/MakeIndex.exe Examples/cpp/compilation/comprehensive_compile_commands.json my_database
+   ./artifacts/debug/bin/Dosatsu.exe Examples/cpp/compilation/comprehensive_compile_commands.json my_database
    ```
 
 ## C++ Examples
@@ -73,7 +73,7 @@ Each example includes comprehensive documentation and demonstrates real-world us
 
 ## Verification Query Tools
 
-The `queries/` directory contains Python tools for verifying that CppGraphIndex correctly analyzes C++ code using a functional approach:
+The `queries/` directory contains Python tools for verifying that Dosatsu correctly analyzes C++ code using a functional approach:
 
 - **Database Operations** - Database setup and management functions
 - **Query Operations** - Cypher query execution and result processing
@@ -86,7 +86,7 @@ The `queries/` directory contains Python tools for verifying that CppGraphIndex 
 These examples serve multiple purposes:
 
 1. **Learning C++** - Well-documented examples of language features
-2. **Understanding CppGraphIndex** - See how the tool analyzes code
+2. **Understanding Dosatsu** - See how the tool analyzes code
 3. **Verification** - Ensure the analysis tool works correctly
 4. **Development** - Test new features and edge cases
 
@@ -108,14 +108,14 @@ These examples serve multiple purposes:
 
 ## Integration with Main Project
 
-These examples are automatically used by the main CppGraphIndex test suite. The `tests/` directory in the project root uses these examples to verify correct operation during development and CI.
+These examples are automatically used by the main Dosatsu test suite. The `tests/` directory in the project root uses these examples to verify correct operation during development and CI.
 
 ## Requirements
 
 - **C++ Compiler**: clang++ with C++17 support
 - **Python**: 3.7+ with kuzu library
-- **CppGraphIndex**: Built from source (`python please.py build`)
+- **Dosatsu**: Built from source (`python please.py build`)
 
 ## License
 
-These examples are part of the CppGraphIndex project and follow the same license terms.
+These examples are part of the Dosatsu project and follow the same license terms.

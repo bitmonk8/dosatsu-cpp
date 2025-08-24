@@ -1,6 +1,6 @@
-# C++ Examples for CppGraphIndex
+# C++ Examples for Dosatsu
 
-This directory contains comprehensive C++ example files that demonstrate various language features and serve as test cases for the CppGraphIndex analysis tool.
+This directory contains comprehensive C++ example files that demonstrate various language features and serve as test cases for the Dosatsu analysis tool.
 
 ## Directory Structure
 
@@ -89,11 +89,11 @@ clang++ -std=c++17 -I. Examples/cpp/basic/inheritance.cpp -o inheritance_example
 clang++ @Examples/cpp/compilation/comprehensive_compile_commands.json
 ```
 
-### Analysis with CppGraphIndex
+### Analysis with Dosatsu
 
 ```bash
 # Analyze examples
-./artifacts/debug/bin/MakeIndex.exe Examples/cpp/compilation/comprehensive_compile_commands.json output_db
+./artifacts/debug/bin/Dosatsu.exe Examples/cpp/compilation/comprehensive_compile_commands.json output_db
 
 # Verify analysis
 python Examples/queries/run_queries.py
@@ -120,7 +120,7 @@ python Examples/queries/run_queries.py
 
 These examples are used by:
 
-1. **CppGraphIndex Analysis** - Verify correct parsing and indexing
+1. **Dosatsu Analysis** - Verify correct parsing and indexing
 2. **Regression Testing** - Ensure changes don't break existing functionality  
 3. **Feature Development** - Test new language feature support
 4. **Performance Benchmarking** - Measure analysis speed and memory usage
@@ -142,11 +142,11 @@ These examples are used by:
 3. Test compilation with standard flags
 4. Add to relevant compilation configurations
 5. Update this README if adding new categories
-6. Test with CppGraphIndex analysis tools
+6. Test with Dosatsu analysis tools
 
 ## Maintenance
 
 - **Regular Updates**: Keep examples current with C++ standards
 - **Compiler Testing**: Verify compatibility with major compilers
 - **Documentation**: Keep README files synchronized with actual content
-- **Analysis Verification**: Ensure examples work with latest CppGraphIndex features
+- **Analysis Verification**: Ensure examples work with latest Dosatsu features

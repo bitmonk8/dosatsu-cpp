@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test framework for CppGraphIndex - End-to-end testing using Python and Kuzu
+Test framework for Dosatsu - End-to-end testing using Python and Kuzu
 """
 
 import os
@@ -13,7 +13,7 @@ from typing import Optional, Dict, Any, List
 import kuzu
 
 class TestFramework:
-    """Base class for CppGraphIndex testing"""
+    """Base class for Dosatsu testing"""
     
     def __init__(self, project_root: str = None):
         if project_root is None:
@@ -23,31 +23,31 @@ class TestFramework:
         else:
             self.project_root = Path(project_root)
         
-        self.makeindex_path = self.project_root / "artifacts" / "debug" / "bin" / "MakeIndex.exe"
+        self.makeindex_path = self.project_root / "artifacts" / "debug" / "bin" / "Dosatsu.exe"
         self.test_data_path = self.project_root / "Examples"
         self.temp_db_path = None
         self.db = None
         self.conn = None
         
     def setup_test_database(self) -> str:
-        """Create a temporary database and run MakeIndex on the test files"""
+        """Create a temporary database and run Dosatsu on the test files"""
         # Create temporary directory for database
         self.temp_db_path = tempfile.mkdtemp(prefix="kuzu_test_")
         db_path = os.path.join(self.temp_db_path, "test_db")
         
-        # Verify MakeIndex exists
+        # Verify Dosatsu exists
         if not self.makeindex_path.exists():
-            raise FileNotFoundError(f"MakeIndex not found at {self.makeindex_path}. Run 'please build' first.")
+            raise FileNotFoundError(f"Dosatsu not found at {self.makeindex_path}. Run 'please build' first.")
         
-        # Run MakeIndex on the compilation database
+        # Run Dosatsu on the compilation database
         compile_commands_path = self.test_data_path / "comprehensive_no_std_compile_commands.json"
         if not compile_commands_path.exists():
             raise FileNotFoundError(f"Compilation database not found at {compile_commands_path}")
         
-        print(f"Running MakeIndex on {compile_commands_path}...")
+        print(f"Running Dosatsu on {compile_commands_path}...")
         print(f"Output database: {db_path}")
         
-        # Execute MakeIndex
+        # Execute Dosatsu
         cmd = [
             str(self.makeindex_path),
             str(compile_commands_path),
@@ -62,15 +62,15 @@ class TestFramework:
                                   timeout=300)  # 5 minute timeout
             
             if result.returncode != 0:
-                print(f"MakeIndex stdout: {result.stdout}")
-                print(f"MakeIndex stderr: {result.stderr}")
-                raise RuntimeError(f"MakeIndex failed with return code {result.returncode}")
+                print(f"Dosatsu stdout: {result.stdout}")
+                print(f"Dosatsu stderr: {result.stderr}")
+                raise RuntimeError(f"Dosatsu failed with return code {result.returncode}")
             
-            print("MakeIndex completed successfully")
+            print("Dosatsu completed successfully")
             print(f"stdout: {result.stdout}")
             
         except subprocess.TimeoutExpired:
-            raise RuntimeError("MakeIndex timed out after 5 minutes")
+            raise RuntimeError("Dosatsu timed out after 5 minutes")
         
         # Connect to the database
         self.db = kuzu.Database(db_path)

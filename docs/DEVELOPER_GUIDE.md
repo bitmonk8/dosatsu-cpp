@@ -1,6 +1,6 @@
-# CppGraphIndex Developer Guide
+# Dosatsu Developer Guide
 
-This guide provides comprehensive information for developers working on CppGraphIndex using the modern Python + CMake + Ninja build system.
+This guide provides comprehensive information for developers working on Dosatsu using the modern Python + CMake + Ninja build system.
 
 ## 📋 Table of Contents
 
@@ -40,8 +40,8 @@ please info
 
 ```bash
 # 1. Clone and navigate
-git clone https://github.com/your-org/CppGraphIndex.git
-cd CppGraphIndex
+git clone https://github.com/your-org/Dosatsu.git
+cd Dosatsu
 
 # 2. Environment setup (creates directories, validates tools)
 please setup
@@ -131,7 +131,7 @@ For quick iteration during development:
 ```bash
 # Quick build + test cycle
 please build --debug --parallel 8
-please test --target MakeIndex_SelfTest
+please test --target Dosatsu_SelfTest
 
 # Format check without auto-fix
 please format --check-only
@@ -241,9 +241,9 @@ please cache-mgmt --clean-deps
 
 The project uses **doctest** for C++ unit testing with multiple test configurations:
 
-1. **MakeIndex_SelfTest**: Main unit tests
-2. **MakeIndex_SelfTest_Verbose**: Detailed test output
-3. **MakeIndex_BasicRun**: Smoke test (basic functionality)
+1. **Dosatsu_SelfTest**: Main unit tests
+2. **Dosatsu_SelfTest_Verbose**: Detailed test output
+3. **Dosatsu_BasicRun**: Smoke test (basic functionality)
 
 ### Running Tests
 
@@ -526,7 +526,7 @@ please test --ci-mode --historical --report-format html
 
 # Quick validation for PR checks
 please format --check-only --files changed_files.cpp
-please build --debug --target MakeIndex
+please build --debug --target Dosatsu
 ```
 
 ## 🛠️ Troubleshooting
@@ -677,7 +677,7 @@ where cl                 # Should show MSVC compiler
 # Ensure artifacts/ directory is writable
 
 # Windows: Add build directory to antivirus exclusions
-# Path to exclude: C:\path\to\CppGraphIndex\artifacts
+# Path to exclude: C:\path\to\Dosatsu\artifacts
 ```
 
 ## 📚 Advanced Topics
@@ -813,4 +813,4 @@ Modify `.github/workflows/ci.yml` for additional:
 
 ---
 
-This developer guide provides comprehensive information for working effectively with the CppGraphIndex build system. For specific issues not covered here, please check the [Troubleshooting](#troubleshooting) section or create an issue on GitHub.
+This developer guide provides comprehensive information for working effectively with the Dosatsu build system. For specific issues not covered here, please check the [Troubleshooting](#troubleshooting) section or create an issue on GitHub.

@@ -12,9 +12,9 @@ if(POLICY CMP0116)
 endif()
 
 
-project(CppGraphIndex 
+project(Dosatsu 
     VERSION 1.0.0
-    DESCRIPTION "C++ Graph Index with LLVM Integration"
+    DESCRIPTION "C++ Code Analysis Tool with LLVM Integration"
     LANGUAGES CXX
 )
 
@@ -129,10 +129,10 @@ enable_testing()
 
 # Add subdirectories
 message(STATUS "Adding source directories...")
-if(EXISTS "${CMAKE_SOURCE_DIR}/MakeIndex")
-    add_subdirectory(MakeIndex)
+if(EXISTS "${CMAKE_SOURCE_DIR}/source")
+    add_subdirectory(source)
 else()
-    message(FATAL_ERROR "Source directory not found: ${CMAKE_SOURCE_DIR}/MakeIndex")
+    message(FATAL_ERROR "Source directory not found: ${CMAKE_SOURCE_DIR}/source")
 endif()
 
 # Tests will be added in Phase 4
@@ -148,7 +148,7 @@ endif()
 
 # Display configuration summary
 message(STATUS "=====================================")
-message(STATUS "CppGraphIndex Build Configuration")
+message(STATUS "Dosatsu Build Configuration")
 message(STATUS "=====================================")
 message(STATUS "Version: ${PROJECT_VERSION}")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")

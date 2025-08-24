@@ -1,6 +1,6 @@
-# CppGraphIndex Troubleshooting Guide
+# Dosatsu Troubleshooting Guide
 
-This guide helps resolve common issues with the CppGraphIndex build system and development environment.
+This guide helps resolve common issues with the Dosatsu build system and development environment.
 
 ## 📋 Quick Diagnostics
 
@@ -195,7 +195,7 @@ warning: LF will be replaced by CRLF
 
 **Error Message:**
 ```
-Unable to find executable: MakeIndex.exe
+Unable to find executable: Dosatsu.exe
 Errors while running CTest
 ```
 
@@ -208,7 +208,7 @@ Errors while running CTest
    please build --debug
    
    # Verify executable exists
-   ls artifacts/debug/bin/MakeIndex*
+   ls artifacts/debug/bin/Dosatsu*
    ```
 
 2. **Check Build Configuration:**
@@ -221,8 +221,8 @@ Errors while running CTest
 3. **Manual Test Execution:**
    ```bash
    # Run executable directly
-   artifacts/debug/bin/MakeIndex.exe --selftest  # Windows
-   ./artifacts/debug/bin/MakeIndex --selftest     # Linux/macOS
+   artifacts/debug/bin/Dosatsu.exe --selftest  # Windows
+   ./artifacts/debug/bin/Dosatsu --selftest     # Linux/macOS
    ```
 
 ### Issue: Test Failures
@@ -242,10 +242,10 @@ Errors while running CTest
 2. **Run Specific Tests:**
    ```bash
    # Run individual test
-   please test --target MakeIndex_SelfTest
+   please test --target Dosatsu_SelfTest
    
    # Run with maximum verbosity
-   artifacts/debug/bin/MakeIndex.exe --selftest --verbose
+   artifacts/debug/bin/Dosatsu.exe --selftest --verbose
    ```
 
 3. **Clean Rebuild:**
@@ -397,7 +397,7 @@ PermissionError: [Errno 13] Permission denied
 1. **Windows - Antivirus Interference:**
    ```bash
    # Add build directory to antivirus exclusions
-   # Path: C:\path\to\CppGraphIndex\artifacts
+   # Path: C:\path\to\Dosatsu\artifacts
    ```
 
 2. **Linux/macOS - File Permissions:**
@@ -413,7 +413,7 @@ PermissionError: [Errno 13] Permission denied
    ```bash
    # Close IDE and running processes
    # Windows: Use Process Explorer to find file locks
-   # Linux: lsof | grep CppGraphIndex
+   # Linux: lsof | grep Dosatsu
    ```
 
 ## 🔍 Advanced Diagnostics

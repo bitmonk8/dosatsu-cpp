@@ -1,6 +1,6 @@
 //===--- ASTDumpAction.h - AST Frontend Action for dumping ASTs ----------===//
 //
-// Part of the MakeIndex project
+// Part of the Dosatsu project
 //
 //===----------------------------------------------------------------------===//
 
@@ -22,18 +22,18 @@ namespace clang
 {
 
 /// AST Consumer that uses KuzuDump to output AST information
-class MakeIndexASTDumpConsumer : public ASTConsumer
+class DosatsuASTDumpConsumer : public ASTConsumer
 {
 public:
     /// Constructor for text output
     /// \param OS Output stream for dumping
     /// \param Context AST context for the current compilation unit
-    MakeIndexASTDumpConsumer(llvm::raw_ostream& OS, ASTContext& Context);
+    DosatsuASTDumpConsumer(llvm::raw_ostream& OS, ASTContext& Context);
 
     /// Constructor for database output
     /// \param databasePath Path to the Kuzu database
     /// \param Context AST context for the current compilation unit
-    MakeIndexASTDumpConsumer(const std::string& databasePath, ASTContext& Context);
+    DosatsuASTDumpConsumer(const std::string& databasePath, ASTContext& Context);
 
     /// Handle the translation unit once it's fully parsed
     /// \param Context The AST context for this translation unit
@@ -43,17 +43,17 @@ private:
     std::unique_ptr<KuzuDump> Dumper;
 };
 
-/// Frontend action that creates MakeIndexASTDumpConsumer instances
-class MakeIndexASTDumpAction : public ASTFrontendAction
+/// Frontend action that creates DosatsuASTDumpConsumer instances
+class DosatsuASTDumpAction : public ASTFrontendAction
 {
 public:
     /// Constructor for text output
     /// \param OS Output stream for dumping
-    MakeIndexASTDumpAction(llvm::raw_ostream& OS);
+    DosatsuASTDumpAction(llvm::raw_ostream& OS);
 
     /// Constructor for database output
     /// \param databasePath Path to the Kuzu database
-    MakeIndexASTDumpAction(std::string databasePath);
+    DosatsuASTDumpAction(std::string databasePath);
 
 protected:
     /// Create the AST consumer for this action

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Verification query modules for CppGraphIndex
+Verification query modules for Dosatsu
 
 Each module contains functions to verify that specific C++ language constructs
 are correctly captured in the generated database.

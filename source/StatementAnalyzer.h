@@ -1,6 +1,6 @@
 //===--- StatementAnalyzer.h - Statement and expression analysis --------===//
 //
-// Part of the MakeIndex project
+// Part of the Dosatsu project
 //
 //===----------------------------------------------------------------------===//
 

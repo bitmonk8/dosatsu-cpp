@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Query operations for CppGraphIndex verification
+Query operations for Dosatsu verification
 """
 
 from typing import List, Dict, Any

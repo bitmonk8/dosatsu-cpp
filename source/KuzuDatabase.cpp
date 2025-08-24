@@ -1,6 +1,6 @@
 //===--- KuzuDatabase.cpp - Database management for AST storage ----------===//
 //
-// Part of the MakeIndex project
+// Part of the Dosatsu project
 //
 //===----------------------------------------------------------------------===//
 

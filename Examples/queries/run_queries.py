@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Main verification runner for CppGraphIndex queries
+Main verification runner for Dosatsu queries
 """
 
 import sys
@@ -70,7 +70,7 @@ def print_verification_summary(results: List[VerificationResult]):
 
 def main():
     """Main verification runner using functional composition"""
-    print("=== CppGraphIndex Verification Suite ===")
+    print("=== Dosatsu Verification Suite ===")
     print("This will:")
     print("1. Build a Kuzu database from the example C++ files")
     print("2. Run comprehensive verification queries on the generated database")
@@ -100,7 +100,7 @@ def main():
         print()
         if success:
             print("*** All verification queries passed! ***")
-            print("The CppGraphIndex system is working correctly.")
+            print("The Dosatsu system is working correctly.")
         else:
             print("*** Some verification queries failed. ***")
             print("Check the output above for details.")

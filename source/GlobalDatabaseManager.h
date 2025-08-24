@@ -1,6 +1,6 @@
 //===--- GlobalDatabaseManager.h - Global database instance management ---===//
 //
-// Part of the MakeIndex project
+// Part of the Dosatsu project
 //
 //===----------------------------------------------------------------------===//
 

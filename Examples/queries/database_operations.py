@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Database operations for CppGraphIndex verification queries
+Database operations for Dosatsu verification queries
 """
 
 import os
@@ -20,17 +20,17 @@ def create_temp_database(project_root: Path) -> str:
 
 
 def run_makeindex(makeindex_path: Path, compile_commands: Path, db_path: str) -> bool:
-    """Run MakeIndex on compilation database"""
+    """Run Dosatsu on compilation database"""
     if not makeindex_path.exists():
-        raise FileNotFoundError(f"MakeIndex not found at {makeindex_path}. Run 'please build' first.")
+        raise FileNotFoundError(f"Dosatsu not found at {makeindex_path}. Run 'please build' first.")
     
     if not compile_commands.exists():
         raise FileNotFoundError(f"Compilation database not found at {compile_commands}")
     
-    print(f"Running MakeIndex on {compile_commands}...")
+    print(f"Running Dosatsu on {compile_commands}...")
     print(f"Output database: {db_path}")
     
-    # Execute MakeIndex
+    # Execute Dosatsu
     cmd = [
         str(makeindex_path),
         str(compile_commands),
@@ -45,16 +45,16 @@ def run_makeindex(makeindex_path: Path, compile_commands: Path, db_path: str) ->
                               timeout=300)  # 5 minute timeout
         
         if result.returncode != 0:
-            print(f"MakeIndex stdout: {result.stdout}")
-            print(f"MakeIndex stderr: {result.stderr}")
-            raise RuntimeError(f"MakeIndex failed with return code {result.returncode}")
+            print(f"Dosatsu stdout: {result.stdout}")
+            print(f"Dosatsu stderr: {result.stderr}")
+            raise RuntimeError(f"Dosatsu failed with return code {result.returncode}")
         
-        print("MakeIndex completed successfully")
+        print("Dosatsu completed successfully")
         print(f"stdout: {result.stdout}")
         return True
         
     except subprocess.TimeoutExpired:
-        raise RuntimeError("MakeIndex timed out after 5 minutes")
+        raise RuntimeError("Dosatsu timed out after 5 minutes")
 
 
 def connect_to_database(db_path: str) -> Tuple[kuzu.Database, kuzu.Connection]:
@@ -92,14 +92,14 @@ def get_project_paths(project_root: Path = None) -> Tuple[Path, Path, Path]:
     else:
         project_root = Path(project_root)
     
-    makeindex_path = project_root / "artifacts" / "debug" / "bin" / "MakeIndex.exe"
+    makeindex_path = project_root / "artifacts" / "debug" / "bin" / "Dosatsu.exe"
     example_data_path = project_root / "Examples" / "cpp"
     
     return project_root, makeindex_path, example_data_path
 
 
 def setup_example_database(project_root: Path = None) -> Tuple[str, kuzu.Database, kuzu.Connection]:
-    """Create a temporary database and run MakeIndex on the example files"""
+    """Create a temporary database and run Dosatsu on the example files"""
     project_root, makeindex_path, example_data_path = get_project_paths(project_root)
     
     # Create temporary database
@@ -108,7 +108,7 @@ def setup_example_database(project_root: Path = None) -> Tuple[str, kuzu.Databas
     # Use comprehensive no-std compilation database
     compile_commands_path = example_data_path / "compilation" / "comprehensive_no_std_compile_commands.json"
     
-    # Run MakeIndex
+    # Run Dosatsu
     run_makeindex(makeindex_path, compile_commands_path, db_path)
     
     # Connect to database

@@ -1,12 +1,12 @@
-# CppGraphIndex
+# Dosatsu
 
-CppGraphIndex is a tool that scans C++ projects using Clang and builds a graph database in Kuzu containing parts or all of the Abstract Syntax Tree (AST) of the project. The resulting database assists AI tools in navigating large C++ codebases by enabling natural language queries that are converted to Cypher queries, with results converted back to natural language.
+Dosatsu is a tool that scans C++ projects using Clang and builds a graph database in Kuzu containing parts or all of the Abstract Syntax Tree (AST) of the project. The resulting database assists AI tools in navigating large C++ codebases by enabling natural language queries that are converted to Cypher queries, with results converted back to natural language.
 
 ## 🚀 Features
 
 The project consists of two main components:
 
-- **MakeIndex**: Scans C++ projects and builds the graph database
+- **Dosatsu**: Scans C++ projects and builds the graph database
 - **MCP**: Implements Natural Language to Cypher query conversion and Result to Natural Language logic, exposed as an MCP (Model Context Protocol) service
 
 ## 📋 Requirements
@@ -21,7 +21,7 @@ The project consists of two main components:
 
 ### Supported Platforms and Toolchains
 
-CppGraphIndex supports the following platform and toolchain combinations:
+Dosatsu supports the following platform and toolchain combinations:
 
 - **Windows** with **MSVC** (Microsoft Visual C++)
 - **Linux** with **GCC** or **Clang**
@@ -43,8 +43,8 @@ All dependencies are automatically managed through the build system:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/CppGraphIndex.git
-cd CppGraphIndex
+git clone https://github.com/your-org/Dosatsu.git
+cd Dosatsu
 
 # Initial environment setup (creates artifact directories, validates tools)
 please setup
@@ -76,7 +76,7 @@ please test --verbose --report-format html
 
 ## 📚 Examples and Analysis
 
-CppGraphIndex includes comprehensive C++ examples and analysis tools to demonstrate its capabilities and verify correct operation.
+Dosatsu includes comprehensive C++ examples and analysis tools to demonstrate its capabilities and verify correct operation.
 
 ### C++ Examples
 
@@ -96,7 +96,7 @@ The `Examples/cpp/` directory contains well-documented C++ code demonstrating va
 
 ### Verification Query Tools
 
-The `Examples/queries/` directory provides Python tools for verifying CppGraphIndex output using a functional approach:
+The `Examples/queries/` directory provides Python tools for verifying Dosatsu output using a functional approach:
 
 ```bash
 # Easy way: Use the examples runner
@@ -121,7 +121,7 @@ python Examples/run_examples.py --index comprehensive_no_std_compile_commands.js
 python Examples/run_examples.py --verify                  # Run verification queries
 
 # Manual approach
-./artifacts/debug/bin/MakeIndex.exe Examples/cpp/compilation/comprehensive_no_std_compile_commands.json my_database
+./artifacts/debug/bin/Dosatsu.exe Examples/cpp/compilation/comprehensive_no_std_compile_commands.json my_database
 clang++ -std=c++17 Examples/cpp/basic/inheritance.cpp -o inheritance_example
 ```
 
@@ -129,7 +129,7 @@ See `Examples/README.md` for detailed documentation.
 
 ## 📊 Database Schema
 
-CppGraphIndex generates a comprehensive graph database that captures the complete structure of C++ codebases. The database schema is designed to support advanced querying capabilities for AI tools and code analysis.
+Dosatsu generates a comprehensive graph database that captures the complete structure of C++ codebases. The database schema is designed to support advanced querying capabilities for AI tools and code analysis.
 
 ### Schema Documentation
 
@@ -210,7 +210,7 @@ please compile-db [--copy-to-root]          # Manage compilation database
 ## 🏗️ Project Structure
 
 ```
-CppGraphIndex/
+Dosatsu/
 ├── please.py                   # 🎯 Main build orchestrator
 ├── please.bat                 # 🪟 Windows wrapper script
 ├── please                     # 🐧 Unix/Linux/macOS wrapper script
@@ -219,9 +219,9 @@ CppGraphIndex/
 ├── .clang-tidy                # Static analysis configuration
 ├── .gitignore                 # Updated for new artifact structure
 │
-├── MakeIndex/                 # 📁 Main source code
+├── Dosatsu/                 # 📁 Main source code
 │   ├── CMakeLists.txt         # Target-specific CMake config
-│   ├── MakeIndex.cpp          # Main application
+│   ├── Dosatsu.cpp          # Main application
 │   ├── KuzuDump.cpp           # Database operations
 │   ├── KuzuDump.h             # Database interface
 │   └── NoWarningScope_*.h     # Utility headers
@@ -265,7 +265,7 @@ please test
 
 # Advanced test options
 please test --verbose --parallel auto
-please test --target MakeIndex_SelfTest
+please test --target Dosatsu_SelfTest
 please test --ci-mode --historical
 please test --coverage --report-format html
 ```
@@ -471,7 +471,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ✅ **Completed**: Git integration and development workflows
 ✅ **Completed**: Performance optimization and caching
 
-🔄 **In Progress**: Core MakeIndex functionality expansion
+🔄 **In Progress**: Core Dosatsu functionality expansion
 📋 **Planned**: MCP service component
 
 ## 🤝 Contributing
@@ -511,9 +511,9 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## 📞 Support
 
-- **Issues**: Report bugs and request features on [GitHub Issues](https://github.com/your-org/CppGraphIndex/issues)
-- **Discussions**: General questions and discussions on [GitHub Discussions](https://github.com/your-org/CppGraphIndex/discussions)
-- **CI Status**: Check build status on [GitHub Actions](https://github.com/your-org/CppGraphIndex/actions)
+- **Issues**: Report bugs and request features on [GitHub Issues](https://github.com/your-org/Dosatsu/issues)
+- **Discussions**: General questions and discussions on [GitHub Discussions](https://github.com/your-org/Dosatsu/discussions)
+- **CI Status**: Check build status on [GitHub Actions](https://github.com/your-org/Dosatsu/actions)
 
 ---
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-CppGraphIndex Verification Queries
+Dosatsu Verification Queries
 
-This module provides functional tools for querying and verifying that CppGraphIndex
+This module provides functional tools for querying and verifying that Dosatsu
 correctly captures C++ language constructs in the generated database.
 """
 

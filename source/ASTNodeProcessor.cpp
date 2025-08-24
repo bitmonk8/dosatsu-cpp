@@ -1,6 +1,6 @@
 //===--- ASTNodeProcessor.cpp - Core AST node processing ----------------===//
 //
-// Part of the MakeIndex project
+// Part of the Dosatsu project
 //
 //===----------------------------------------------------------------------===//
 

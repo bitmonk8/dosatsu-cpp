@@ -1,31 +1,31 @@
 [
   {
-    "directory": "C:/UnitySrc/CppGraphIndex",
+    "directory": "C:/UnitySrc/Dosatsu",
     "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE Examples/cpp/basic/inheritance.cpp -o Examples/cpp/basic/inheritance",
     "file": "Examples/cpp/basic/inheritance.cpp"
   },
   {
-    "directory": "C:/UnitySrc/CppGraphIndex",
+    "directory": "C:/UnitySrc/Dosatsu",
     "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE Examples/cpp/basic/templates.cpp -o Examples/cpp/basic/templates",
     "file": "Examples/cpp/basic/templates.cpp"
   },
   {
-    "directory": "C:/UnitySrc/CppGraphIndex",
+    "directory": "C:/UnitySrc/Dosatsu",
     "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE Examples/cpp/basic/namespaces.cpp -o Examples/cpp/basic/namespaces",
     "file": "Examples/cpp/basic/namespaces.cpp"
   },
   {
-    "directory": "C:/UnitySrc/CppGraphIndex",
+    "directory": "C:/UnitySrc/Dosatsu",
     "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE Examples/cpp/basic/control_flow.cpp -o Examples/cpp/basic/control_flow",
     "file": "Examples/cpp/basic/control_flow.cpp"
   },
   {
-    "directory": "C:/UnitySrc/CppGraphIndex",
+    "directory": "C:/UnitySrc/Dosatsu",
     "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE Examples/cpp/basic/expressions.cpp -o Examples/cpp/basic/expressions",
     "file": "Examples/cpp/basic/expressions.cpp"
   },
   {
-    "directory": "C:/UnitySrc/CppGraphIndex",
+    "directory": "C:/UnitySrc/Dosatsu",
     "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE Examples/cpp/basic/preprocessor.cpp -o Examples/cpp/basic/preprocessor",
     "file": "Examples/cpp/basic/preprocessor.cpp"
   }

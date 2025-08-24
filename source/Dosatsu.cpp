@@ -22,28 +22,28 @@
 #include <vector>
 
 // Command line options
-static llvm::cl::OptionCategory MakeIndexCategory("MakeIndex Options");
+static llvm::cl::OptionCategory DosatsuCategory("Dosatsu Options");
 
 static llvm::cl::opt<std::string> CompileCommandsPath(llvm::cl::Positional,
                                                       llvm::cl::desc("<compile_commands.json>"),
                                                       llvm::cl::Required,
-                                                      llvm::cl::cat(MakeIndexCategory));
+                                                      llvm::cl::cat(DosatsuCategory));
 
 static llvm::cl::opt<std::string> OutputFile("output",
                                              llvm::cl::desc("Output file"),
                                              llvm::cl::value_desc("filename"),
-                                             llvm::cl::cat(MakeIndexCategory));
+                                             llvm::cl::cat(DosatsuCategory));
 
 static llvm::cl::opt<std::string>
     FilterPattern("filter",
-                  llvm::cl::desc("Filter files by pattern (e.g., \"*MakeIndex*\", default: process all files)"),
+                  llvm::cl::desc("Filter files by pattern (e.g., \"*Dosatsu*\", default: process all files)"),
                   llvm::cl::value_desc("pattern"),
-                  llvm::cl::cat(MakeIndexCategory));
+                  llvm::cl::cat(DosatsuCategory));
 
 static llvm::cl::opt<std::string> DatabasePath("output-db",
                                                llvm::cl::desc("Output to Kuzu graph database instead of text file"),
                                                llvm::cl::value_desc("database_path"),
-                                               llvm::cl::cat(MakeIndexCategory));
+                                               llvm::cl::cat(DosatsuCategory));
 
 auto RealMain(int argc, char** argv) -> int
 {
@@ -51,13 +51,13 @@ auto RealMain(int argc, char** argv) -> int
     llvm::cl::SetVersionPrinter(
         [](llvm::raw_ostream& OS)
         {
-            OS << "MakeIndex 1.0.0 - AST Dump Tool\n";
+            OS << "Dosatsu 1.0.0 - C++ Code Analysis Tool\n";
             OS << "Built with LLVM/Clang support\n";
         });
 
     llvm::cl::ParseCommandLineOptions(argc,
                                       argv,
-                                      "MakeIndex - C++ AST Dump Tool\n\n"
+                                      "Dosatsu - C++ Code Analysis Tool\n\n"
                                       "This tool reads compile_commands.json files and generates AST dumps\n"
                                       "for the specified source files using Clang's AST parsing capabilities.\n");
 
@@ -82,7 +82,7 @@ auto RealMain(int argc, char** argv) -> int
     }
 
     // Display parsed options for debugging
-    llvm::outs() << "MakeIndex starting with options:\n";
+    llvm::outs() << "Dosatsu starting with options:\n";
     llvm::outs() << "  Compile commands: " << CompileCommandsPath << "\n";
     if (useDatabaseOutput)
         llvm::outs() << "  Database output: " << DatabasePath << "\n";
@@ -162,7 +162,7 @@ auto RealMain(int argc, char** argv) -> int
         clang::tooling::ClangTool Tool(*database, sourceFiles);
 
         // Create a custom factory for our AST dump action
-        class MakeIndexASTDumpActionFactory : public clang::tooling::FrontendActionFactory
+        class DosatsuASTDumpActionFactory : public clang::tooling::FrontendActionFactory
         {
         private:
             llvm::raw_ostream* OS;
@@ -171,10 +171,10 @@ auto RealMain(int argc, char** argv) -> int
 
         public:
             // Text output constructor
-            MakeIndexASTDumpActionFactory(llvm::raw_ostream& OS) : OS(&OS), usingDatabase(false) {}
+            DosatsuASTDumpActionFactory(llvm::raw_ostream& OS) : OS(&OS), usingDatabase(false) {}
 
             // Database output constructor
-            MakeIndexASTDumpActionFactory(std::string databasePath)
+            DosatsuASTDumpActionFactory(std::string databasePath)
                 : OS(nullptr), databasePath(std::move(databasePath)), usingDatabase(true)
             {
             }
@@ -182,16 +182,16 @@ auto RealMain(int argc, char** argv) -> int
             auto create() -> std::unique_ptr<clang::FrontendAction> override
             {
                 if (usingDatabase)
-                    return std::make_unique<clang::MakeIndexASTDumpAction>(databasePath);
-                return std::make_unique<clang::MakeIndexASTDumpAction>(*OS);
+                    return std::make_unique<clang::DosatsuASTDumpAction>(databasePath);
+                return std::make_unique<clang::DosatsuASTDumpAction>(*OS);
             }
         };
 
-        std::unique_ptr<MakeIndexASTDumpActionFactory> ActionFactory;
+        std::unique_ptr<DosatsuASTDumpActionFactory> ActionFactory;
         if (useDatabaseOutput)
-            ActionFactory = std::make_unique<MakeIndexASTDumpActionFactory>(DatabasePath);
+            ActionFactory = std::make_unique<DosatsuASTDumpActionFactory>(DatabasePath);
         else
-            ActionFactory = std::make_unique<MakeIndexASTDumpActionFactory>(*OutputFileStream);
+            ActionFactory = std::make_unique<DosatsuASTDumpActionFactory>(*OutputFileStream);
 
         // Run the tool
         int Result = Tool.run(ActionFactory.get());

@@ -1,8 +1,8 @@
-# MakeIndex executable target
+# Dosatsu executable target
 
 # Define the target
-add_executable(MakeIndex
-    MakeIndex.cpp
+add_executable(Dosatsu
+    Dosatsu.cpp
     KuzuDump.cpp
     KuzuDump.h
     CompilationDatabaseLoader.cpp
@@ -33,7 +33,7 @@ add_executable(MakeIndex
     NoWarningScope_Leave.h
 )
 
-target_link_directories(MakeIndex PRIVATE ${LLVM_BIN_DIR}/lib)
+target_link_directories(Dosatsu PRIVATE ${LLVM_BIN_DIR}/lib)
 
 # Copy KuzuDB DLL to output directory on Windows
 if(WIN32)
@@ -41,10 +41,10 @@ if(WIN32)
     set(KUZU_DLL_NAME "kuzu_shared.dll")
     
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_custom_command(TARGET MakeIndex POST_BUILD
+        add_custom_command(TARGET Dosatsu POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${CMAKE_SOURCE_DIR}/third_party/kuzu/lib/msvc/debug/${KUZU_DLL_NAME}"
-                "$<TARGET_FILE_DIR:MakeIndex>"
+                "$<TARGET_FILE_DIR:Dosatsu>"
             COMMENT "Copying KuzuDB DLL to executable directory"
         )
         
@@ -53,10 +53,10 @@ if(WIN32)
             message(WARNING "KuzuDB DLL not found at: ${CMAKE_SOURCE_DIR}/third_party/kuzu/lib/msvc/debug/${KUZU_DLL_NAME}")
         endif()
     else()
-        add_custom_command(TARGET MakeIndex POST_BUILD
+        add_custom_command(TARGET Dosatsu POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${CMAKE_SOURCE_DIR}/third_party/kuzu/lib/msvc/release/${KUZU_DLL_NAME}"
-                "$<TARGET_FILE_DIR:MakeIndex>"
+                "$<TARGET_FILE_DIR:Dosatsu>"
             COMMENT "Copying KuzuDB DLL to executable directory"
         )
 
@@ -69,29 +69,29 @@ endif()
 
 
 # Set target properties
-set_target_properties(MakeIndex PROPERTIES
+set_target_properties(Dosatsu PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
 )
 
 # Include directories
-target_include_directories(MakeIndex PRIVATE
+target_include_directories(Dosatsu PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/third_party/include
     ${LLVM_HEADERS_DIR}
 )
 
-target_link_libraries(MakeIndex PRIVATE kuzu::kuzu)
+target_link_libraries(Dosatsu PRIVATE kuzu::kuzu)
 
 # Platform-specific compiler flags
 if(WIN32 AND MSVC)
-    target_compile_options(MakeIndex PRIVATE
+    target_compile_options(Dosatsu PRIVATE
         /wd4146  # Suppress unsigned minus warning from LLVM
     )
 endif()
 
-target_link_libraries(MakeIndex PRIVATE
+target_link_libraries(Dosatsu PRIVATE
     clangFrontend
     clangTooling
     clangDriver
@@ -145,7 +145,7 @@ target_link_libraries(MakeIndex PRIVATE
 )
 
 if(WIN32)
-    target_link_libraries(MakeIndex PRIVATE
+    target_link_libraries(Dosatsu PRIVATE
         version.lib
         ntdll.lib
         ole32.lib
@@ -153,7 +153,7 @@ if(WIN32)
     )
 endif()
 
-message(STATUS "Configured MakeIndex executable target")
+message(STATUS "Configured Dosatsu executable target")
 
 # Test configuration with doctest framework
 # Enable testing support
@@ -162,37 +162,37 @@ enable_testing()
 
 if(BUILD_TESTING)
     # Main self-test using doctest framework
-    add_test(NAME MakeIndex_SelfTest
-        COMMAND MakeIndex --selftest
+    add_test(NAME Dosatsu_SelfTest
+        COMMAND Dosatsu --selftest
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     )
     
     # Configure test properties
-    set_tests_properties(MakeIndex_SelfTest PROPERTIES
+    set_tests_properties(Dosatsu_SelfTest PROPERTIES
         TIMEOUT 60
         LABELS "unit;selftest"
         ENVIRONMENT "DOCTEST_CONFIG_NO_COLORS=1"
     )
     
     # Additional test configurations for different verbosity levels
-    add_test(NAME MakeIndex_SelfTest_Verbose
-        COMMAND MakeIndex --selftest --verbose
+    add_test(NAME Dosatsu_SelfTest_Verbose
+        COMMAND Dosatsu --selftest --verbose
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     )
     
-    set_tests_properties(MakeIndex_SelfTest_Verbose PROPERTIES
+    set_tests_properties(Dosatsu_SelfTest_Verbose PROPERTIES
         TIMEOUT 60
         LABELS "unit;selftest;verbose"
         ENVIRONMENT "DOCTEST_CONFIG_NO_COLORS=1"
     )
     
     # Basic functionality test (no doctest, just ensure binary runs)
-    add_test(NAME MakeIndex_BasicRun
-        COMMAND MakeIndex --help
+    add_test(NAME Dosatsu_BasicRun
+        COMMAND Dosatsu --help
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     )
     
-    set_tests_properties(MakeIndex_BasicRun PROPERTIES
+    set_tests_properties(Dosatsu_BasicRun PROPERTIES
         TIMEOUT 10
         LABELS "smoke;basic"
     )

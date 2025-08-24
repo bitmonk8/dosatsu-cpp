@@ -1,6 +1,6 @@
 //===--- TemplateAnalyzer.h - Template processing and analysis ----------===//
 //
-// Part of the MakeIndex project
+// Part of the Dosatsu project
 //
 //===----------------------------------------------------------------------===//
 

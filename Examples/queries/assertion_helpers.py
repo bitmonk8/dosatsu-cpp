@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Assertion helpers for CppGraphIndex verification queries
+Assertion helpers for Dosatsu verification queries
 """
 
 import kuzu

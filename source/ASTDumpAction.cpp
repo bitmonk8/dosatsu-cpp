@@ -1,6 +1,6 @@
 //===--- ASTDumpAction.cpp - AST Frontend Action for dumping ASTs --------===//
 //
-// Part of the MakeIndex project
+// Part of the Dosatsu project
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,38 +14,38 @@
 
 using namespace clang;
 
-MakeIndexASTDumpConsumer::MakeIndexASTDumpConsumer(llvm::raw_ostream& OS, ASTContext& Context)
+DosatsuASTDumpConsumer::DosatsuASTDumpConsumer(llvm::raw_ostream& OS, ASTContext& Context)
 {
     // Create the KuzuDump instance with the provided context (no colors)
     Dumper = std::make_unique<KuzuDump>(OS, Context, false);
 }
 
-MakeIndexASTDumpConsumer::MakeIndexASTDumpConsumer(const std::string& databasePath, ASTContext& Context)
+DosatsuASTDumpConsumer::DosatsuASTDumpConsumer(const std::string& databasePath, ASTContext& Context)
 {
     // Create the KuzuDump instance for database output
     Dumper = std::make_unique<KuzuDump>(databasePath, Context, false);
 }
 
-void MakeIndexASTDumpConsumer::HandleTranslationUnit(ASTContext& Context)
+void DosatsuASTDumpConsumer::HandleTranslationUnit(ASTContext& Context)
 {
     // Process the entire translation unit starting from the translation unit declaration
     Dumper->Visit(Context.getTranslationUnitDecl());
 }
 
-// MakeIndexASTDumpAction implementations
-MakeIndexASTDumpAction::MakeIndexASTDumpAction(llvm::raw_ostream& OS) : OS(&OS)
+// DosatsuASTDumpAction implementations
+DosatsuASTDumpAction::DosatsuASTDumpAction(llvm::raw_ostream& OS) : OS(&OS)
 {
 }
 
-MakeIndexASTDumpAction::MakeIndexASTDumpAction(std::string databasePath)
+DosatsuASTDumpAction::DosatsuASTDumpAction(std::string databasePath)
     : OS(nullptr), databasePath(std::move(databasePath)), usingDatabase(true)
 {
 }
 
-auto MakeIndexASTDumpAction::CreateASTConsumer(CompilerInstance& CI, StringRef /*InFile*/)
+auto DosatsuASTDumpAction::CreateASTConsumer(CompilerInstance& CI, StringRef /*InFile*/)
     -> std::unique_ptr<ASTConsumer>
 {
     if (usingDatabase)
-        return std::make_unique<MakeIndexASTDumpConsumer>(databasePath, CI.getASTContext());
-    return std::make_unique<MakeIndexASTDumpConsumer>(*OS, CI.getASTContext());
+        return std::make_unique<DosatsuASTDumpConsumer>(databasePath, CI.getASTContext());
+    return std::make_unique<DosatsuASTDumpConsumer>(*OS, CI.getASTContext());
 }

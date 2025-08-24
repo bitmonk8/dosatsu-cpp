@@ -130,7 +130,7 @@ def validate_project_structure():
     # Check for source files (either in src/ or root level)
     source_locations = [
         'src',
-        'MakeIndex'  # Current structure has source in MakeIndex/
+        'source'  # Current structure has source in source/
     ]
     
     source_found = False
@@ -141,7 +141,7 @@ def validate_project_structure():
             break
     
     if not source_found:
-        print("❌ No source directory found (checked: src/, MakeIndex/)")
+        print("❌ No source directory found (checked: src/, source/)")
         all_good = False
     
     all_good = True

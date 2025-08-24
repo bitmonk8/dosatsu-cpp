@@ -1,41 +1,41 @@
 [
   {
-    "directory": "C:/UnitySrc/CppGraphIndex/Examples/cpp/comprehensive",
+    "directory": "C:/UnitySrc/Dosatsu/Examples/cpp/comprehensive",
     "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE -DDEBUG -DENABLE_OPTIMIZATION=1 -DADVANCED_MODE -DFEATURE_A -DFEATURE_B -DFEATURE_A_VERSION=2 -DFEATURE_B_VERSION=3 -DENABLE_LOGGING -DVERBOSE_LOGGING -c advanced_features.cpp -o advanced_features.o",
     "file": "advanced_features.cpp"
   },
   {
-    "directory": "C:/UnitySrc/CppGraphIndex/Examples/cpp/comprehensive",
+    "directory": "C:/UnitySrc/Dosatsu/Examples/cpp/comprehensive",
     "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE -DDEBUG -DENABLE_OPTIMIZATION=1 -DADVANCED_MODE -c preprocessor_advanced.cpp -o preprocessor_advanced.o",
     "file": "preprocessor_advanced.cpp"
   },
   {
-    "directory": "C:/UnitySrc/CppGraphIndex/Examples/cpp/comprehensive",
+    "directory": "C:/UnitySrc/Dosatsu/Examples/cpp/comprehensive",
     "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE -c modern_cpp_features.cpp -o modern_cpp_features.o",
     "file": "modern_cpp_features.cpp"
   },
   {
-    "directory": "C:/UnitySrc/CppGraphIndex/Examples/cpp/comprehensive",
+    "directory": "C:/UnitySrc/Dosatsu/Examples/cpp/comprehensive",
     "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE -c control_flow_complex.cpp -o control_flow_complex.o",
     "file": "control_flow_complex.cpp"
   },
   {
-    "directory": "C:/UnitySrc/CppGraphIndex/Examples/cpp/comprehensive",
+    "directory": "C:/UnitySrc/Dosatsu/Examples/cpp/comprehensive",
     "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE -c complete_example.cpp -o complete_example.o",
     "file": "complete_example.cpp"
   },
   {
-    "directory": "C:/UnitySrc/CppGraphIndex/Examples/cpp/comprehensive",
+    "directory": "C:/UnitySrc/Dosatsu/Examples/cpp/comprehensive",
     "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE -c standard_example.cpp -o standard_example.o",
     "file": "standard_example.cpp"
   },
   {
-    "directory": "C:/UnitySrc/CppGraphIndex/Examples/cpp/comprehensive",
+    "directory": "C:/UnitySrc/Dosatsu/Examples/cpp/comprehensive",
     "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE -c no_std_example.cpp -o no_std_example.o",
     "file": "no_std_example.cpp"
   },
   {
-    "directory": "C:/UnitySrc/CppGraphIndex/Examples/cpp/comprehensive",
+    "directory": "C:/UnitySrc/Dosatsu/Examples/cpp/comprehensive",
     "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE -c clean_example.cpp -o clean_example.o",
     "file": "clean_example.cpp"
   }

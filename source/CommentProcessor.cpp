@@ -1,6 +1,6 @@
 //===--- CommentProcessor.cpp - Comment and documentation processing ----===//
 //
-// Part of the MakeIndex project
+// Part of the Dosatsu project
 //
 //===----------------------------------------------------------------------===//
 
