@@ -127,6 +127,28 @@ clang++ -std=c++17 Examples/cpp/basic/inheritance.cpp -o inheritance_example
 
 See `Examples/README.md` for detailed documentation.
 
+## 📊 Database Schema
+
+CppGraphIndex generates a comprehensive graph database that captures the complete structure of C++ codebases. The database schema is designed to support advanced querying capabilities for AI tools and code analysis.
+
+### Schema Documentation
+
+For detailed information about the database structure, node types, relationships, and query examples, see **[SCHEMA.md](SCHEMA.md)**. This comprehensive document covers:
+
+- **Node Types**: ASTNode, Declaration, Type, Statement, Expression, and specialized nodes
+- **Relationships**: Inheritance, template specialization, control flow, and semantic connections  
+- **Query Examples**: Ready-to-use Cypher queries for common code analysis tasks
+- **C++ Mappings**: How C++ language constructs map to database entities
+
+### Key Schema Features
+
+The database schema supports querying for:
+- **Code Navigation**: Find declarations, definitions, usages, and dependencies
+- **Architecture Query**: Understand inheritance hierarchies and relationships
+- **Template Query**: Track template instantiations and specializations
+- **Control Flow**: Analyze function control flow graphs and execution paths
+- **Documentation**: Access comments and documentation associated with code elements
+
 ## 🔧 Build System Commands
 
 The `please` script provides a unified interface for all development operations:

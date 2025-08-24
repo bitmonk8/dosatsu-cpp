@@ -3,7 +3,7 @@
  * @brief Complete schema coverage example for all database tables and relationships
  * 
  * This example is specifically designed to exercise every table and relationship
- * defined in the DB_SCHEMA.md to ensure complete coverage:
+ * defined in the SCHEMA.md to ensure complete coverage:
  * 
  * Node Tables Covered:
  * - ASTNode (base for all)
