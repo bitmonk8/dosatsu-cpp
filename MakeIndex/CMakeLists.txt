@@ -43,26 +43,26 @@ if(WIN32)
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         add_custom_command(TARGET MakeIndex POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/debug/${KUZU_DLL_NAME}"
+                "${CMAKE_SOURCE_DIR}/third_party/kuzu/lib/msvc/debug/${KUZU_DLL_NAME}"
                 "$<TARGET_FILE_DIR:MakeIndex>"
             COMMENT "Copying KuzuDB DLL to executable directory"
         )
         
         # Verify the DLL exists before copying
-        if(NOT EXISTS "${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/debug/${KUZU_DLL_NAME}")
-            message(WARNING "KuzuDB DLL not found at: ${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/debug/${KUZU_DLL_NAME}")
+        if(NOT EXISTS "${CMAKE_SOURCE_DIR}/third_party/kuzu/lib/msvc/debug/${KUZU_DLL_NAME}")
+            message(WARNING "KuzuDB DLL not found at: ${CMAKE_SOURCE_DIR}/third_party/kuzu/lib/msvc/debug/${KUZU_DLL_NAME}")
         endif()
     else()
         add_custom_command(TARGET MakeIndex POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/release/${KUZU_DLL_NAME}"
+                "${CMAKE_SOURCE_DIR}/third_party/kuzu/lib/msvc/release/${KUZU_DLL_NAME}"
                 "$<TARGET_FILE_DIR:MakeIndex>"
             COMMENT "Copying KuzuDB DLL to executable directory"
         )
 
         # Verify the DLL exists before copying
-        if(NOT EXISTS "${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/release/${KUZU_DLL_NAME}")
-            message(WARNING "KuzuDB DLL not found at: ${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/release/${KUZU_DLL_NAME}")
+        if(NOT EXISTS "${CMAKE_SOURCE_DIR}/third_party/kuzu/lib/msvc/release/${KUZU_DLL_NAME}")
+            message(WARNING "KuzuDB DLL not found at: ${CMAKE_SOURCE_DIR}/third_party/kuzu/lib/msvc/release/${KUZU_DLL_NAME}")
         endif()
     endif()
 endif()
@@ -78,7 +78,7 @@ set_target_properties(MakeIndex PROPERTIES
 # Include directories
 target_include_directories(MakeIndex PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/3rdParty/include
+    ${CMAKE_SOURCE_DIR}/third_party/include
     ${LLVM_HEADERS_DIR}
 )
 

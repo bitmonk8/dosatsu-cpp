@@ -224,7 +224,7 @@ CppGraphIndex/
 │   ├── lint/                  # Linting results
 │   └── format/                # Formatting logs
 │
-├── 3rdParty/                  # 📚 Included dependencies
+├── third_party/               # 📚 Included dependencies
 │   └── include/doctest/       # Testing framework
 │
 └── .github/workflows/         # 🔄 CI/CD pipeline

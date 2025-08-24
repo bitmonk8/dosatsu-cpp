@@ -4,12 +4,12 @@ include(FetchContent)
 
 message(STATUS "Configuring external dependencies...")
 
-set(LLVM_HEADERS_ARCHIVE "${CMAKE_SOURCE_DIR}/3rdParty/llvm-clang-20.1.8-headers.zip")
+set(LLVM_HEADERS_ARCHIVE "${CMAKE_SOURCE_DIR}/third_party/llvm-clang-20.1.8-headers.zip")
 set(LLVM_HEADERS_DIR "${ARTIFACTS_BASE_DIR}/llvm-include")
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-set(LLVM_BIN_ARCHIVE "${CMAKE_SOURCE_DIR}/3rdParty/llvm-clang-20.1.8-windows-debug.zip")
+set(LLVM_BIN_ARCHIVE "${CMAKE_SOURCE_DIR}/third_party/llvm-clang-20.1.8-windows-debug.zip")
 else()
-set(LLVM_BIN_ARCHIVE "${CMAKE_SOURCE_DIR}/3rdParty/llvm-clang-20.1.8-windows-release.zip")
+set(LLVM_BIN_ARCHIVE "${CMAKE_SOURCE_DIR}/third_party/llvm-clang-20.1.8-windows-release.zip")
 endif()
 set(LLVM_BIN_DIR "${ARTIFACTS_BASE_DIR}/${CMAKE_BUILD_TYPE}/llvm-bin")
     
@@ -40,21 +40,21 @@ add_library(kuzu::kuzu SHARED IMPORTED)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 set_target_properties(kuzu::kuzu PROPERTIES
-    IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/debug/${KUZU_LIB_NAME}"
-    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/3rdParty/kuzu/include/"
+    IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/third_party/kuzu/lib/msvc/debug/${KUZU_LIB_NAME}"
+    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/third_party/kuzu/include/"
 )
 
 set_target_properties(kuzu::kuzu PROPERTIES
-    IMPORTED_IMPLIB "${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/debug/${KUZU_LIB_NAME}"
+    IMPORTED_IMPLIB "${CMAKE_SOURCE_DIR}/third_party/kuzu/lib/msvc/debug/${KUZU_LIB_NAME}"
 )
 else()
 set_target_properties(kuzu::kuzu PROPERTIES
-    IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/release/${KUZU_LIB_NAME}"
-    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/3rdParty/kuzu/include/"
+    IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/third_party/kuzu/lib/msvc/release/${KUZU_LIB_NAME}"
+    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/third_party/kuzu/include/"
 )
 
 set_target_properties(kuzu::kuzu PROPERTIES
-    IMPORTED_IMPLIB "${CMAKE_SOURCE_DIR}/3rdParty/kuzu/lib/msvc/release/${KUZU_LIB_NAME}"
+    IMPORTED_IMPLIB "${CMAKE_SOURCE_DIR}/third_party/kuzu/lib/msvc/release/${KUZU_LIB_NAME}"
 )
 endif()
 
