@@ -644,8 +644,8 @@ exit 0
                 else:
                     files_to_format.append(self.project_root / file_path)
         else:
-            # Find all source files in Dosatsu directory
-            source_dirs = [self.project_root / "Dosatsu"]
+            # Find all source files in source directory
+            source_dirs = [self.project_root / "source"]
             file_patterns = ["*.h", "*.cpp", "*.hpp", "*.cxx"]
             files_to_format = []
             
@@ -757,8 +757,8 @@ exit 0
             else:
                 files_to_lint = [self.project_root / target_file]
         else:
-            # Find all source files in Dosatsu directory (only .cpp files for linting)
-            source_dirs = [self.project_root / "Dosatsu"]
+            # Find all source files in source directory (only .cpp files for linting)
+            source_dirs = [self.project_root / "source"]
             file_patterns = ["*.cpp"]  # Only lint .cpp files to avoid header duplication
             files_to_lint = []
             

@@ -1,4 +1,4 @@
-# Dosatsu Developer Guide
+# Dosatsu C++ Developer Guide
 
 This guide provides comprehensive information for developers working on Dosatsu using the modern Python + CMake + Ninja build system.
 

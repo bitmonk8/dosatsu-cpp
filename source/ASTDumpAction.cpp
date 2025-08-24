@@ -42,8 +42,7 @@ DosatsuASTDumpAction::DosatsuASTDumpAction(std::string databasePath)
 {
 }
 
-auto DosatsuASTDumpAction::CreateASTConsumer(CompilerInstance& CI, StringRef /*InFile*/)
-    -> std::unique_ptr<ASTConsumer>
+auto DosatsuASTDumpAction::CreateASTConsumer(CompilerInstance& CI, StringRef /*InFile*/) -> std::unique_ptr<ASTConsumer>
 {
     if (usingDatabase)
         return std::make_unique<DosatsuASTDumpConsumer>(databasePath, CI.getASTContext());

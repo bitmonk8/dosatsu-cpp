@@ -19,10 +19,10 @@ def create_temp_database(project_root: Path) -> str:
     return db_path
 
 
-def run_makeindex(makeindex_path: Path, compile_commands: Path, db_path: str) -> bool:
+def run_dosatsu(dosatsu_path: Path, compile_commands: Path, db_path: str) -> bool:
     """Run Dosatsu on compilation database"""
-    if not makeindex_path.exists():
-        raise FileNotFoundError(f"Dosatsu not found at {makeindex_path}. Run 'please build' first.")
+    if not dosatsu_path.exists():
+        raise FileNotFoundError(f"Dosatsu not found at {dosatsu_path}. Run 'please build' first.")
     
     if not compile_commands.exists():
         raise FileNotFoundError(f"Compilation database not found at {compile_commands}")
@@ -32,7 +32,7 @@ def run_makeindex(makeindex_path: Path, compile_commands: Path, db_path: str) ->
     
     # Execute Dosatsu
     cmd = [
-        str(makeindex_path),
+        str(dosatsu_path),
         str(compile_commands),
         "--output-db", db_path
     ]
@@ -41,7 +41,7 @@ def run_makeindex(makeindex_path: Path, compile_commands: Path, db_path: str) ->
         result = subprocess.run(cmd, 
                               capture_output=True, 
                               text=True, 
-                              cwd=str(makeindex_path.parent.parent.parent),  # project root
+                              cwd=str(dosatsu_path.parent.parent.parent),  # project root
                               timeout=300)  # 5 minute timeout
         
         if result.returncode != 0:
@@ -84,7 +84,7 @@ def cleanup_database(temp_path: str, db: kuzu.Database, conn: kuzu.Connection):
 
 
 def get_project_paths(project_root: Path = None) -> Tuple[Path, Path, Path]:
-    """Get standard project paths (project_root, makeindex_path, example_data_path)"""
+    """Get standard project paths (project_root, dosatsu_path, example_data_path)"""
     if project_root is None:
         # Auto-detect project root - go up from Examples/queries to project root
         current_dir = Path(__file__).parent.absolute()
@@ -92,15 +92,15 @@ def get_project_paths(project_root: Path = None) -> Tuple[Path, Path, Path]:
     else:
         project_root = Path(project_root)
     
-    makeindex_path = project_root / "artifacts" / "debug" / "bin" / "Dosatsu.exe"
+    dosatsu_path = project_root / "artifacts" / "debug" / "bin" / "dosatsu_cpp.exe"
     example_data_path = project_root / "Examples" / "cpp"
     
-    return project_root, makeindex_path, example_data_path
+    return project_root, dosatsu_path, example_data_path
 
 
 def setup_example_database(project_root: Path = None) -> Tuple[str, kuzu.Database, kuzu.Connection]:
     """Create a temporary database and run Dosatsu on the example files"""
-    project_root, makeindex_path, example_data_path = get_project_paths(project_root)
+    project_root, dosatsu_path, example_data_path = get_project_paths(project_root)
     
     # Create temporary database
     db_path = create_temp_database(project_root)
@@ -109,7 +109,7 @@ def setup_example_database(project_root: Path = None) -> Tuple[str, kuzu.Databas
     compile_commands_path = example_data_path / "compilation" / "comprehensive_no_std_compile_commands.json"
     
     # Run Dosatsu
-    run_makeindex(makeindex_path, compile_commands_path, db_path)
+    run_dosatsu(dosatsu_path, compile_commands_path, db_path)
     
     # Connect to database
     db, conn = connect_to_database(db_path)

@@ -1,4 +1,4 @@
-# Dosatsu Examples
+# Dosatsu C++ Examples
 
 This directory contains comprehensive examples and analysis tools for the Dosatsu project, demonstrating C++ language features and providing tools to verify correct analysis.
 
@@ -58,7 +58,7 @@ Examples/
 
 2. **Analyze with Dosatsu:**
    ```bash
-   ./artifacts/debug/bin/Dosatsu.exe Examples/cpp/compilation/comprehensive_compile_commands.json my_database
+   ./artifacts/debug/bin/dosatsu_cpp.exe Examples/cpp/compilation/comprehensive_compile_commands.json my_database
    ```
 
 ## C++ Examples

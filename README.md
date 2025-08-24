@@ -1,13 +1,15 @@
-# Dosatsu
+# Dosatsu C++
 
-Dosatsu is a tool that scans C++ projects using Clang and builds a graph database in Kuzu containing parts or all of the Abstract Syntax Tree (AST) of the project. The resulting database assists AI tools in navigating large C++ codebases by enabling natural language queries that are converted to Cypher queries, with results converted back to natural language.
+Dosatsu C++ is a tool that scans C++ projects using Clang and builds a graph database in Kuzu containing parts or all of the Abstract Syntax Tree (AST) of the project. The resulting database assists AI tools in navigating large C++ codebases by providing structured access to code analysis data.
 
 ## 🚀 Features
 
-The project consists of two main components:
+Dosatsu scans C++ projects and builds comprehensive graph databases containing:
 
-- **Dosatsu**: Scans C++ projects and builds the graph database
-- **MCP**: Implements Natural Language to Cypher query conversion and Result to Natural Language logic, exposed as an MCP (Model Context Protocol) service
+- **AST Analysis**: Complete Abstract Syntax Tree representation
+- **Code Structure**: Classes, functions, templates, and their relationships  
+- **Dependency Mapping**: Include relationships and symbol dependencies
+- **Type Information**: Detailed type analysis and template instantiations
 
 ## 📋 Requirements
 
@@ -121,7 +123,7 @@ python Examples/run_examples.py --index comprehensive_no_std_compile_commands.js
 python Examples/run_examples.py --verify                  # Run verification queries
 
 # Manual approach
-./artifacts/debug/bin/Dosatsu.exe Examples/cpp/compilation/comprehensive_no_std_compile_commands.json my_database
+./artifacts/debug/bin/dosatsu_cpp.exe Examples/cpp/compilation/comprehensive_no_std_compile_commands.json my_database
 clang++ -std=c++17 Examples/cpp/basic/inheritance.cpp -o inheritance_example
 ```
 
@@ -219,9 +221,9 @@ Dosatsu/
 ├── .clang-tidy                # Static analysis configuration
 ├── .gitignore                 # Updated for new artifact structure
 │
-├── Dosatsu/                 # 📁 Main source code
+├── source/                    # 📁 Main source code
 │   ├── CMakeLists.txt         # Target-specific CMake config
-│   ├── Dosatsu.cpp          # Main application
+│   ├── Dosatsu.cpp            # Main application
 │   ├── KuzuDump.cpp           # Database operations
 │   ├── KuzuDump.h             # Database interface
 │   └── NoWarningScope_*.h     # Utility headers
@@ -472,7 +474,6 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ✅ **Completed**: Performance optimization and caching
 
 🔄 **In Progress**: Core Dosatsu functionality expansion
-📋 **Planned**: MCP service component
 
 ## 🤝 Contributing
 

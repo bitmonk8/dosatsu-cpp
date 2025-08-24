@@ -195,7 +195,7 @@ warning: LF will be replaced by CRLF
 
 **Error Message:**
 ```
-Unable to find executable: Dosatsu.exe
+Unable to find executable: dosatsu_cpp.exe
 Errors while running CTest
 ```
 
@@ -221,7 +221,7 @@ Errors while running CTest
 3. **Manual Test Execution:**
    ```bash
    # Run executable directly
-   artifacts/debug/bin/Dosatsu.exe --selftest  # Windows
+   artifacts/debug/bin/dosatsu_cpp.exe --selftest  # Windows
    ./artifacts/debug/bin/Dosatsu --selftest     # Linux/macOS
    ```
 
@@ -245,7 +245,7 @@ Errors while running CTest
    please test --target Dosatsu_SelfTest
    
    # Run with maximum verbosity
-   artifacts/debug/bin/Dosatsu.exe --selftest --verbose
+   artifacts/debug/bin/dosatsu_cpp.exe --selftest --verbose
    ```
 
 3. **Clean Rebuild:**

@@ -100,7 +100,7 @@ def compile_example(example_path, output_dir=None):
         print(f"[ERROR] Compilation error: {e}")
         return False
 
-def run_makeindex_indexing(compile_commands_path, output_db_path=None):
+def run_dosatsu_indexing(compile_commands_path, output_db_path=None):
     """Run Dosatsu indexing on examples."""
     project_root = get_project_root()
     
@@ -110,9 +110,9 @@ def run_makeindex_indexing(compile_commands_path, output_db_path=None):
         timestamp = int(time.time())
         output_db_path = project_root / "artifacts" / "examples" / f"example_database_{timestamp}"
     
-    makeindex_path = project_root / "artifacts" / "debug" / "bin" / "Dosatsu.exe"
+    dosatsu_path = project_root / "artifacts" / "debug" / "bin" / "dosatsu_cpp.exe"
     
-    if not makeindex_path.exists():
+    if not dosatsu_path.exists():
         print("[ERROR] Dosatsu not found. Please run 'python please.py build' first.")
         return False
     
@@ -126,7 +126,7 @@ def run_makeindex_indexing(compile_commands_path, output_db_path=None):
     
     # Run Dosatsu
     cmd = [
-        str(makeindex_path),
+        str(dosatsu_path),
         str(compile_commands_path),
         "--output-db", str(output_db_path)
     ]
@@ -216,7 +216,7 @@ Examples:
         success &= compile_example(args.compile, args.output_dir)
     
     if args.index:
-        success &= run_makeindex_indexing(args.index, args.db_output)
+        success &= run_dosatsu_indexing(args.index, args.db_output)
     
     if args.verify:
         success &= run_verification()
@@ -226,7 +226,7 @@ Examples:
         
         # Step 1: Index examples
         print("Step 1: Indexing examples...")
-        success &= run_makeindex_indexing("comprehensive_no_std_compile_commands.json")
+        success &= run_dosatsu_indexing("comprehensive_no_std_compile_commands.json")
         
         if success:
             print("\nStep 2: Running verification queries...")

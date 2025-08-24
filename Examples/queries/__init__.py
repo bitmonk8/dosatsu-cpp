@@ -8,7 +8,7 @@ correctly captures C++ language constructs in the generated database.
 
 from .database_operations import (
     create_temp_database,
-    run_makeindex,
+    run_dosatsu,
     connect_to_database,
     cleanup_database,
     setup_example_database,
@@ -38,7 +38,7 @@ from .verification_result import (
 __all__ = [
     # Database operations
     'create_temp_database',
-    'run_makeindex', 
+    'run_dosatsu', 
     'connect_to_database',
     'cleanup_database',
     'setup_example_database',

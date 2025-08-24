@@ -1,7 +1,7 @@
-# Dosatsu executable target
+# dosatsu_cpp executable target
 
 # Define the target
-add_executable(Dosatsu
+add_executable(dosatsu_cpp
     Dosatsu.cpp
     KuzuDump.cpp
     KuzuDump.h
@@ -33,7 +33,7 @@ add_executable(Dosatsu
     NoWarningScope_Leave.h
 )
 
-target_link_directories(Dosatsu PRIVATE ${LLVM_BIN_DIR}/lib)
+target_link_directories(dosatsu_cpp PRIVATE ${LLVM_BIN_DIR}/lib)
 
 # Copy KuzuDB DLL to output directory on Windows
 if(WIN32)
@@ -41,10 +41,10 @@ if(WIN32)
     set(KUZU_DLL_NAME "kuzu_shared.dll")
     
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_custom_command(TARGET Dosatsu POST_BUILD
+        add_custom_command(TARGET dosatsu_cpp POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${CMAKE_SOURCE_DIR}/third_party/kuzu/lib/msvc/debug/${KUZU_DLL_NAME}"
-                "$<TARGET_FILE_DIR:Dosatsu>"
+                "$<TARGET_FILE_DIR:dosatsu_cpp>"
             COMMENT "Copying KuzuDB DLL to executable directory"
         )
         
@@ -53,10 +53,10 @@ if(WIN32)
             message(WARNING "KuzuDB DLL not found at: ${CMAKE_SOURCE_DIR}/third_party/kuzu/lib/msvc/debug/${KUZU_DLL_NAME}")
         endif()
     else()
-        add_custom_command(TARGET Dosatsu POST_BUILD
+        add_custom_command(TARGET dosatsu_cpp POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${CMAKE_SOURCE_DIR}/third_party/kuzu/lib/msvc/release/${KUZU_DLL_NAME}"
-                "$<TARGET_FILE_DIR:Dosatsu>"
+                "$<TARGET_FILE_DIR:dosatsu_cpp>"
             COMMENT "Copying KuzuDB DLL to executable directory"
         )
 
@@ -69,29 +69,29 @@ endif()
 
 
 # Set target properties
-set_target_properties(Dosatsu PROPERTIES
+set_target_properties(dosatsu_cpp PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
 )
 
 # Include directories
-target_include_directories(Dosatsu PRIVATE
+target_include_directories(dosatsu_cpp PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/third_party/include
     ${LLVM_HEADERS_DIR}
 )
 
-target_link_libraries(Dosatsu PRIVATE kuzu::kuzu)
+target_link_libraries(dosatsu_cpp PRIVATE kuzu::kuzu)
 
 # Platform-specific compiler flags
 if(WIN32 AND MSVC)
-    target_compile_options(Dosatsu PRIVATE
+    target_compile_options(dosatsu_cpp PRIVATE
         /wd4146  # Suppress unsigned minus warning from LLVM
     )
 endif()
 
-target_link_libraries(Dosatsu PRIVATE
+target_link_libraries(dosatsu_cpp PRIVATE
     clangFrontend
     clangTooling
     clangDriver
@@ -145,7 +145,7 @@ target_link_libraries(Dosatsu PRIVATE
 )
 
 if(WIN32)
-    target_link_libraries(Dosatsu PRIVATE
+    target_link_libraries(dosatsu_cpp PRIVATE
         version.lib
         ntdll.lib
         ole32.lib
@@ -153,7 +153,7 @@ if(WIN32)
     )
 endif()
 
-message(STATUS "Configured Dosatsu executable target")
+message(STATUS "Configured dosatsu_cpp executable target")
 
 # Test configuration with doctest framework
 # Enable testing support
@@ -163,7 +163,7 @@ enable_testing()
 if(BUILD_TESTING)
     # Main self-test using doctest framework
     add_test(NAME Dosatsu_SelfTest
-        COMMAND Dosatsu --selftest
+        COMMAND dosatsu_cpp --selftest
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     )
     
@@ -176,7 +176,7 @@ if(BUILD_TESTING)
     
     # Additional test configurations for different verbosity levels
     add_test(NAME Dosatsu_SelfTest_Verbose
-        COMMAND Dosatsu --selftest --verbose
+        COMMAND dosatsu_cpp --selftest --verbose
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     )
     
@@ -188,7 +188,7 @@ if(BUILD_TESTING)
     
     # Basic functionality test (no doctest, just ensure binary runs)
     add_test(NAME Dosatsu_BasicRun
-        COMMAND Dosatsu --help
+        COMMAND dosatsu_cpp --help
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     )
     

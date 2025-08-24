@@ -93,7 +93,7 @@ clang++ @Examples/cpp/compilation/comprehensive_compile_commands.json
 
 ```bash
 # Analyze examples
-./artifacts/debug/bin/Dosatsu.exe Examples/cpp/compilation/comprehensive_compile_commands.json output_db
+./artifacts/debug/bin/dosatsu_cpp.exe Examples/cpp/compilation/comprehensive_compile_commands.json output_db
 
 # Verify analysis
 python Examples/queries/run_queries.py

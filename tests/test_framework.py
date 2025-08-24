@@ -23,7 +23,7 @@ class TestFramework:
         else:
             self.project_root = Path(project_root)
         
-        self.makeindex_path = self.project_root / "artifacts" / "debug" / "bin" / "Dosatsu.exe"
+        self.dosatsu_path = self.project_root / "artifacts" / "debug" / "bin" / "dosatsu_cpp.exe"
         self.test_data_path = self.project_root / "Examples"
         self.temp_db_path = None
         self.db = None
@@ -36,8 +36,8 @@ class TestFramework:
         db_path = os.path.join(self.temp_db_path, "test_db")
         
         # Verify Dosatsu exists
-        if not self.makeindex_path.exists():
-            raise FileNotFoundError(f"Dosatsu not found at {self.makeindex_path}. Run 'please build' first.")
+        if not self.dosatsu_path.exists():
+            raise FileNotFoundError(f"Dosatsu not found at {self.dosatsu_path}. Run 'please build' first.")
         
         # Run Dosatsu on the compilation database
         compile_commands_path = self.test_data_path / "comprehensive_no_std_compile_commands.json"
@@ -49,7 +49,7 @@ class TestFramework:
         
         # Execute Dosatsu
         cmd = [
-            str(self.makeindex_path),
+            str(self.dosatsu_path),
             str(compile_commands_path),
             "--output-db", db_path
         ]
