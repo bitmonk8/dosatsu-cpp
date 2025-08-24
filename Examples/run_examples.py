@@ -2,8 +2,8 @@
 """
 CppGraphIndex Examples Runner
 
-This script provides an easy way to run and analyze the C++ examples included with CppGraphIndex.
-It can compile examples, run CppGraphIndex analysis on them, and verify the results.
+This script provides an easy way to run and process the C++ examples included with CppGraphIndex.
+It can compile examples, run CppGraphIndex indexing on them, and verify the results.
 """
 
 import sys
@@ -100,8 +100,8 @@ def compile_example(example_path, output_dir=None):
         print(f"[ERROR] Compilation error: {e}")
         return False
 
-def run_makeindex_analysis(compile_commands_path, output_db_path=None):
-    """Run MakeIndex analysis on examples."""
+def run_makeindex_indexing(compile_commands_path, output_db_path=None):
+    """Run MakeIndex indexing on examples."""
     project_root = get_project_root()
     
     if output_db_path is None:
@@ -131,37 +131,37 @@ def run_makeindex_analysis(compile_commands_path, output_db_path=None):
         "--output-db", str(output_db_path)
     ]
     
-    print(f"Running CppGraphIndex analysis...")
+    print(f"Running CppGraphIndex indexing...")
     print(f"   Input: {compile_commands_path.name}")
     print(f"   Output: {output_db_path}")
     
     try:
         result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True)
         if result.returncode == 0:
-            print("[SUCCESS] Analysis completed successfully!")
+            print("[SUCCESS] Indexing completed successfully!")
             print(f"   Database created at: {output_db_path}")
             return True
         else:
-            print(f"[ERROR] Analysis failed:")
+            print(f"[ERROR] Indexing failed:")
             print(f"   Error: {result.stderr}")
             return False
     except Exception as e:
-        print(f"[ERROR] Analysis error: {e}")
+        print(f"[ERROR] Indexing error: {e}")
         return False
 
 def run_verification():
-    """Run the analysis verification suite."""
+    """Run the verification query suite."""
     examples_root = get_examples_root()
-    analysis_script = examples_root / "analysis" / "run_analysis.py"
+    verification_script = examples_root / "queries" / "run_queries.py"
     
-    if not analysis_script.exists():
-        print("[ERROR] Analysis verification script not found.")
+    if not verification_script.exists():
+        print("[ERROR] Verification query script not found.")
         return False
     
-    print("Running analysis verification suite...")
+    print("Running verification query suite...")
     
     try:
-        result = subprocess.run([sys.executable, str(analysis_script)], 
+        result = subprocess.run([sys.executable, str(verification_script)], 
                               cwd=get_project_root(), 
                               capture_output=False)
         return result.returncode == 0
@@ -177,7 +177,7 @@ def main():
 Examples:
   python run_examples.py --list                    # List all available examples
   python run_examples.py --compile basic/inheritance.cpp  # Compile single example
-  python run_examples.py --analyze comprehensive_compile_commands.json  # Analyze examples
+  python run_examples.py --index comprehensive_compile_commands.json  # Index examples
   python run_examples.py --verify                  # Run verification suite
   python run_examples.py --all                     # Run complete workflow
         """
@@ -187,20 +187,20 @@ Examples:
                        help="List all available examples")
     parser.add_argument("--compile", metavar="EXAMPLE",
                        help="Compile a specific C++ example")
-    parser.add_argument("--analyze", metavar="COMPILE_DB",
-                       help="Run CppGraphIndex analysis on examples")
+    parser.add_argument("--index", metavar="COMPILE_DB",
+                       help="Run CppGraphIndex indexing on examples")
     parser.add_argument("--verify", action="store_true",
-                       help="Run analysis verification suite")
+                       help="Run verification query suite")
     parser.add_argument("--all", action="store_true",
-                       help="Run complete workflow: analyze + verify")
+                       help="Run complete workflow: index + verify")
     parser.add_argument("--output-dir", metavar="DIR",
                        help="Output directory for compiled examples")
     parser.add_argument("--db-output", metavar="PATH",
-                       help="Output path for analysis database")
+                       help="Output path for index database")
     
     args = parser.parse_args()
     
-    if not any([args.list, args.compile, args.analyze, args.verify, args.all]):
+    if not any([args.list, args.compile, args.index, args.verify, args.all]):
         parser.print_help()
         return 1
     
@@ -215,8 +215,8 @@ Examples:
     if args.compile:
         success &= compile_example(args.compile, args.output_dir)
     
-    if args.analyze:
-        success &= run_makeindex_analysis(args.analyze, args.db_output)
+    if args.index:
+        success &= run_makeindex_indexing(args.index, args.db_output)
     
     if args.verify:
         success &= run_verification()
@@ -224,12 +224,12 @@ Examples:
     if args.all:
         print("\nRunning complete examples workflow...\n")
         
-        # Step 1: Analyze examples
-        print("Step 1: Analyzing examples...")
-        success &= run_makeindex_analysis("comprehensive_no_std_compile_commands.json")
+        # Step 1: Index examples
+        print("Step 1: Indexing examples...")
+        success &= run_makeindex_indexing("comprehensive_no_std_compile_commands.json")
         
         if success:
-            print("\nStep 2: Verifying analysis...")
+            print("\nStep 2: Running verification queries...")
             success &= run_verification()
     
     print("\n" + "=" * 50)

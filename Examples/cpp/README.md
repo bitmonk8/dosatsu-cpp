@@ -96,7 +96,7 @@ clang++ @Examples/cpp/compilation/comprehensive_compile_commands.json
 ./artifacts/debug/bin/MakeIndex.exe Examples/cpp/compilation/comprehensive_compile_commands.json output_db
 
 # Verify analysis
-python Examples/analysis/run_analysis.py
+python Examples/queries/run_queries.py
 ```
 
 ## Educational Progression

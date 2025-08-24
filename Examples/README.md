@@ -12,11 +12,14 @@ Examples/
 │   ├── basic/                  # Focused examples of specific features
 │   ├── comprehensive/          # Complex multi-feature examples
 │   └── compilation/            # Compilation configuration files
-└── analysis/                   # Python analysis and verification tools
-    ├── README.md               # Analysis tools documentation
-    ├── run_analysis.py         # Main analysis runner
-    ├── framework.py            # Analysis framework
-    └── analyzers/              # Individual analysis modules
+└── queries/                    # Python query and verification tools
+    ├── README.md               # Query tools documentation
+    ├── run_queries.py          # Main verification runner
+    ├── database_operations.py  # Database setup functions
+    ├── query_operations.py     # Query execution functions
+    ├── assertion_helpers.py    # Query assertion utilities
+    ├── verification_result.py  # Result data structures
+    └── verifiers/              # Individual verification modules
 ```
 
 ## Quick Start
@@ -33,17 +36,17 @@ Examples/
    # List all available examples
    python Examples/run_examples.py --list
    
-   # Run complete workflow (analyze + verify)
+   # Run complete workflow (index + verify)
    python Examples/run_examples.py --all
    
    # Run specific operations
-   python Examples/run_examples.py --analyze comprehensive_no_std_compile_commands.json
+   python Examples/run_examples.py --index comprehensive_no_std_compile_commands.json
    python Examples/run_examples.py --verify
    ```
 
-3. **Or run analysis directly:**
+3. **Or run verification queries directly:**
    ```bash
-   python Examples/analysis/run_analysis.py
+   python Examples/queries/run_queries.py
    ```
 
 ### Using Individual Examples
@@ -68,13 +71,15 @@ The `cpp/` directory contains well-documented C++ examples organized by complexi
 
 Each example includes comprehensive documentation and demonstrates real-world usage patterns.
 
-## Analysis Tools
+## Verification Query Tools
 
-The `analysis/` directory contains Python tools for verifying that CppGraphIndex correctly analyzes C++ code:
+The `queries/` directory contains Python tools for verifying that CppGraphIndex correctly analyzes C++ code using a functional approach:
 
-- **Framework** - Database setup and query utilities
-- **Analyzers** - Verification modules for specific language features
-- **Runner** - Orchestrates the complete analysis process
+- **Database Operations** - Database setup and management functions
+- **Query Operations** - Cypher query execution and result processing
+- **Assertion Helpers** - Common verification patterns and utilities
+- **Verifiers** - Functional verification modules for specific language features
+- **Runner** - Orchestrates the complete verification process
 
 ## Educational Value
 
@@ -94,12 +99,12 @@ These examples serve multiple purposes:
 3. Include in relevant compilation configurations
 4. Update README files as needed
 
-### Analysis Modules
+### Verification Modules
 
-1. Create new analyzer in `analysis/analyzers/`
-2. Inherit from `BaseAnalyzer` class
-3. Implement analysis logic using the framework
-4. Add to the analyzer list in `framework.py`
+1. Create new verifier function in `queries/verifiers/`
+2. Return `VerificationResult` with pass/fail status and details
+3. Use functional approach with database connection parameter
+4. Add to the verifier list in `run_queries.py`
 
 ## Integration with Main Project
 

@@ -94,19 +94,19 @@ The `Examples/cpp/` directory contains well-documented C++ code demonstrating va
   - `complete_example.cpp` - Integration of all major C++ features
   - `no_std_example.cpp` - Examples without standard library dependencies
 
-### Analysis Tools
+### Verification Query Tools
 
-The `Examples/analysis/` directory provides Python tools for verifying CppGraphIndex output:
+The `Examples/queries/` directory provides Python tools for verifying CppGraphIndex output using a functional approach:
 
 ```bash
 # Easy way: Use the examples runner
 python Examples/run_examples.py --all
 
-# Or run analysis verification directly
-python Examples/analysis/run_analysis.py
+# Or run verification queries directly
+python Examples/queries/run_queries.py
 ```
 
-The analysis suite:
+The verification suite:
 1. Builds a Kuzu database from the C++ examples
 2. Runs verification queries to ensure correct parsing
 3. Validates that all major C++ constructs are properly captured
@@ -117,8 +117,8 @@ The analysis suite:
 ```bash
 # Easy way: Use the examples runner
 python Examples/run_examples.py --list                    # List all examples
-python Examples/run_examples.py --analyze comprehensive_no_std_compile_commands.json  # Analyze examples
-python Examples/run_examples.py --verify                  # Run verification
+python Examples/run_examples.py --index comprehensive_no_std_compile_commands.json  # Index examples
+python Examples/run_examples.py --verify                  # Run verification queries
 
 # Manual approach
 ./artifacts/debug/bin/MakeIndex.exe Examples/cpp/compilation/comprehensive_no_std_compile_commands.json my_database
