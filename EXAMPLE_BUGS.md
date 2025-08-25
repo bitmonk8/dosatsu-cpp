@@ -10,11 +10,7 @@ This document describes known issues in the Dosatsu examples system that require
 python Examples\run_examples.py --index comprehensive_compile_commands.json
 ```
 
-### **Bug #2 (AST Assertion Failure)**  
-```bash
-# Single command to reproduce:
-python Examples\run_examples.py --index schema_coverage_compile_commands.json
-```
+
 
 ---
 
@@ -108,98 +104,7 @@ Use the "no_std" variants of compilation databases:
 
 ---
 
-## Bug #2: AST Processing Assertion Failure
 
-### **Status**: Known Issue  
-### **Severity**: High
-### **Affected Files**: `schema_coverage_complete.cpp`
-
-### **Description**
-The `schema_coverage_compile_commands.json` compilation database triggers an assertion failure in Clang's AST processing code when processing complex C++ constructs.
-
-### **Error Message**
-```
-Assertion failed: !isNull() && "Cannot retrieve a NULL type pointer", 
-file C:\UnitySrc\CppGraphIndex\artifacts\llvm-include\clang/AST/Type.h, line 945
-```
-
-### **Affected Compilation Database**
-- `schema_coverage_compile_commands.json`
-
-### **Affected File**
-- `Examples/cpp/comprehensive/schema_coverage_complete.cpp`
-
-### **Error Context**
-The assertion occurs during AST type processing, likely when the Dosatsu indexer encounters a complex template or type construct that results in a NULL type pointer being accessed.
-
-### **Impact**
-- Complete failure of indexing process
-- Prevents testing of the most comprehensive schema coverage example
-- May indicate deeper issues with complex C++ construct handling
-
-### **Precise Reproduction Steps**
-
-#### **Option 1: Using run_examples.py**
-```bash
-# This will reproduce the assertion immediately:
-python Examples\run_examples.py --index schema_coverage_compile_commands.json
-```
-
-#### **Option 2: Direct Dosatsu execution**
-```bash
-# Create a test compilation database for the problematic file:
-cat > test_bug2.json << EOF
-[
-  {
-    "directory": ".",
-    "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE -c Examples/cpp/comprehensive/schema_coverage_complete.cpp -o Examples/cpp/comprehensive/schema_coverage_complete.o",
-    "file": "Examples/cpp/comprehensive/schema_coverage_complete.cpp"
-  }
-]
-EOF
-
-# Run Dosatsu directly:
-artifacts\debug\bin\dosatsu_cpp.exe test_bug2.json --output-db test_bug2.db
-```
-
-Expected error:
-```
-Assertion failed: !isNull() && "Cannot retrieve a NULL type pointer", 
-file C:\UnitySrc\CppGraphIndex\artifacts\llvm-include\clang/AST/Type.h, line 945
-```
-
-#### **Option 3: Isolate the problem** 
-```bash
-# The assertion happens during AST processing, so the bug reproduces immediately
-# when Dosatsu tries to process schema_coverage_complete.cpp
-artifacts\debug\bin\dosatsu_cpp.exe Examples\cpp\compilation\schema_coverage_compile_commands.json --output-db test.db
-```
-
-### **Investigation Needed**
-1. **Isolate the problematic construct**: Systematically remove portions of `schema_coverage_complete.cpp` to identify which specific C++ construct triggers the assertion
-2. **Type analysis**: The error occurs in `Type.h` line 945, suggesting issues with:
-   - Template instantiation
-   - Complex inheritance hierarchies  
-   - Advanced template metaprogramming constructs
-   - Dependent types or SFINAE constructs
-
-### **Temporary Workaround**
-Use alternative comprehensive examples:
-- `comprehensive_no_std_compile_commands.json` ✅ Works
-- `clean_example.cpp` ✅ Works after template fix
-
-### **Potential Root Causes**
-1. **Template complexity**: The file contains advanced template metaprogramming that may trigger edge cases
-2. **Clang version compatibility**: Assertion may be specific to Clang 20.1.7
-3. **Dosatsu AST handling**: The indexer may not properly handle certain type constructs before passing to Clang
-
-### **Recommended Investigation Steps**
-1. Create minimal reproduction by simplifying `schema_coverage_complete.cpp`
-2. Test with different Clang versions
-3. Add defensive null checks in Dosatsu's type processing code
-4. Enable additional Clang debugging output to identify the exact construct causing the issue
-
----
 
 ## Testing Status Summary
 
@@ -218,17 +123,16 @@ Use alternative comprehensive examples:
 - ✅ `multi_file_compile_commands.json` (after path fix)
 - ✅ `comprehensive_no_std_compile_commands.json`
 - ✅ `advanced_no_std_compile_commands.json`
+- ✅ `schema_coverage_compile_commands.json`
 
 ### Problematic Compilation Databases
 - ❌ `comprehensive_compile_commands.json` (Bug #1)
 - ❌ `comprehensive_advanced_compile_commands.json` (Bug #1)
-- ❌ `schema_coverage_compile_commands.json` (Bug #2)
 
 ---
 
 ## Resolution Priority
 
-1. **High Priority**: Bug #2 (AST assertion) - Complete system failure
-2. **Medium Priority**: Bug #1 (Standard library) - Limits example coverage
+1. **Medium Priority**: Bug #1 (Standard library) - Limits example coverage
 
-Both issues should be addressed to provide complete examples functionality, but Bug #2 represents a more serious system stability issue.
+This issue should be addressed to provide complete examples functionality.

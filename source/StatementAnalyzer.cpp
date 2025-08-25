@@ -215,6 +215,11 @@ auto StatementAnalyzer::isStatementConstexpr(const clang::Stmt* stmt) -> bool
         if (expr->isValueDependent() || expr->isTypeDependent())
             return false;
 
+        // Check if the expression has a valid type before evaluating
+        QualType exprType = expr->getType();
+        if (exprType.isNull())
+            return false;
+
         // Try to evaluate as constant expression
         Expr::EvalResult result;
         return expr->EvaluateAsConstantExpr(result, *astContext);
@@ -299,6 +304,11 @@ auto StatementAnalyzer::isExpressionConstexpr(const clang::Expr* expr) -> bool
     if (expr->isValueDependent() || expr->isTypeDependent())
         return false;
 
+    // Check if the expression has a valid type before evaluating
+    QualType exprType = expr->getType();
+    if (exprType.isNull())
+        return false;
+
     // Try to evaluate as constant expression
     Expr::EvalResult result;
     return expr->EvaluateAsConstantExpr(result, *astContext);
@@ -311,6 +321,11 @@ auto StatementAnalyzer::extractEvaluationResult(const clang::Expr* expr) -> std:
 
     if (expr->isValueDependent() || expr->isTypeDependent())
         return "dependent";
+
+    // Check if the expression has a valid type before evaluating
+    QualType exprType = expr->getType();
+    if (exprType.isNull())
+        return "invalid_type";
 
     Expr::EvalResult result;
     if (expr->EvaluateAsConstantExpr(result, *astContext))
