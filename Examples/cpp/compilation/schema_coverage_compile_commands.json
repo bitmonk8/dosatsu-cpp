@@ -1,7 +1,7 @@
 [
   {
-    "directory": "C:/UnitySrc/Dosatsu/Examples/cpp/comprehensive",
-    "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE -c schema_coverage_complete.cpp -o schema_coverage_complete.o",
-    "file": "schema_coverage_complete.cpp"
+    "directory": ".",
+    "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE -c Examples/cpp/comprehensive/schema_coverage_complete.cpp -o Examples/cpp/comprehensive/schema_coverage_complete.o",
+    "file": "Examples/cpp/comprehensive/schema_coverage_complete.cpp"
   }
 ]

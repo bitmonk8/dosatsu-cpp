@@ -474,7 +474,8 @@ namespace TemplateDemo {
         const T& operator[](int index) const { return data[index]; }
     };
     
-    extern template class Container<int>;
+    // Explicit instantiation for Container<int>
+    template class Container<int>;
 }
 
 namespace Colors {

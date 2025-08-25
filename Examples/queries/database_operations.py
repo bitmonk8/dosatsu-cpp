@@ -7,6 +7,7 @@ import os
 import subprocess
 import tempfile
 import shutil
+import json
 from pathlib import Path
 from typing import Tuple
 import kuzu
@@ -17,6 +18,43 @@ def create_temp_database(project_root: Path) -> str:
     temp_db_path = tempfile.mkdtemp(prefix="kuzu_test_")
     db_path = os.path.join(temp_db_path, "test_db")
     return db_path
+
+
+def fix_compilation_database_paths(compile_db_path: Path, project_root: Path) -> str:
+    """Fix compilation database paths to be absolute and correct for the current project location."""
+    
+    with open(compile_db_path, 'r') as f:
+        compile_db = json.load(f)
+    
+    # Fix paths in the compilation database
+    # Now all compilation databases use "directory": "." consistently
+    for entry in compile_db:
+        # Fix directory path - always convert "." to absolute project root
+        entry['directory'] = str(project_root)
+        
+        # Fix file path to be absolute
+        file_path = entry.get('file', '')
+        if not Path(file_path).is_absolute():
+            entry['file'] = str(project_root / file_path)
+        
+        # Fix command to use absolute paths
+        command = entry.get('command', '')
+        if 'Examples/' in command:
+            # Replace relative paths in command with absolute paths
+            # Use forward slashes for consistency with clang
+            examples_abs_path = str(project_root / 'Examples').replace('\\', '/')
+            command = command.replace('Examples/', examples_abs_path + '/')
+            entry['command'] = command
+    
+    # Create a temporary file with the fixed compilation database
+    temp_fd, temp_path = tempfile.mkstemp(suffix='.json', prefix='compile_commands_')
+    try:
+        with os.fdopen(temp_fd, 'w') as f:
+            json.dump(compile_db, f, indent=2)
+        return temp_path
+    except:
+        os.unlink(temp_path)
+        raise
 
 
 def run_dosatsu(dosatsu_path: Path, compile_commands: Path, db_path: str) -> bool:
@@ -30,10 +68,19 @@ def run_dosatsu(dosatsu_path: Path, compile_commands: Path, db_path: str) -> boo
     print(f"Running Dosatsu on {compile_commands}...")
     print(f"Output database: {db_path}")
     
+    # Get project root (ensure it's absolute)
+    project_root = dosatsu_path.parent.parent.parent.parent.absolute()
+    
+    # Fix the compilation database paths to be absolute and correct
+    try:
+        fixed_compile_db_path = fix_compilation_database_paths(compile_commands, project_root)
+    except Exception as e:
+        raise RuntimeError(f"Failed to fix compilation database paths: {e}")
+    
     # Execute Dosatsu
     cmd = [
         str(dosatsu_path),
-        str(compile_commands),
+        fixed_compile_db_path,
         "--output-db", db_path
     ]
     
@@ -41,7 +88,7 @@ def run_dosatsu(dosatsu_path: Path, compile_commands: Path, db_path: str) -> boo
         result = subprocess.run(cmd, 
                               capture_output=True, 
                               text=True, 
-                              cwd=str(dosatsu_path.parent.parent.parent),  # project root
+                              cwd=str(project_root),
                               timeout=300)  # 5 minute timeout
         
         if result.returncode != 0:
@@ -55,6 +102,13 @@ def run_dosatsu(dosatsu_path: Path, compile_commands: Path, db_path: str) -> boo
         
     except subprocess.TimeoutExpired:
         raise RuntimeError("Dosatsu timed out after 5 minutes")
+    finally:
+        # Clean up the temporary file
+        try:
+            if 'fixed_compile_db_path' in locals():
+                os.unlink(fixed_compile_db_path)
+        except:
+            pass
 
 
 def connect_to_database(db_path: str) -> Tuple[kuzu.Database, kuzu.Connection]:

@@ -1,12 +1,12 @@
 [
   {
-    "directory": "C:/UnitySrc/Dosatsu",
-    "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE Examples/example_simple_no_includes.cpp -o Examples/test_simple_no_includes",
-    "file": "Examples/example_simple_no_includes.cpp"
+    "directory": ".",
+    "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE Examples/cpp/basic/simple_no_includes.cpp -o Examples/test_simple_no_includes",
+    "file": "Examples/cpp/basic/simple_no_includes.cpp"
   },
   {
-    "directory": "C:/UnitySrc/Dosatsu",
-    "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE Examples/example_inheritance.cpp -o Examples/test_inheritance",
-    "file": "Examples/example_inheritance.cpp"
+    "directory": ".",
+    "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE Examples/cpp/basic/inheritance_no_std.cpp -o Examples/test_inheritance",
+    "file": "Examples/cpp/basic/inheritance_no_std.cpp"
   }
 ]

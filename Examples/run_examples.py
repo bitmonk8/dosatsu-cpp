@@ -10,6 +10,8 @@ import sys
 import os
 import argparse
 import subprocess
+import json
+import tempfile
 from pathlib import Path
 
 def get_project_root():
@@ -19,6 +21,43 @@ def get_project_root():
 def get_examples_root():
     """Get the examples root directory."""
     return Path(__file__).parent.absolute()
+
+def fix_compilation_database_paths(compile_db_path):
+    """Fix compilation database paths to be absolute and correct for the current project location."""
+    project_root = get_project_root().absolute()
+    
+    with open(compile_db_path, 'r') as f:
+        compile_db = json.load(f)
+    
+    # Fix paths in the compilation database
+    # Now all compilation databases use "directory": "." consistently
+    for entry in compile_db:
+        # Fix directory path - always convert "." to absolute project root
+        entry['directory'] = str(project_root)
+        
+        # Fix file path to be absolute
+        file_path = entry.get('file', '')
+        if not Path(file_path).is_absolute():
+            entry['file'] = str(project_root / file_path)
+        
+        # Fix command to use absolute paths
+        command = entry.get('command', '')
+        if 'Examples/' in command:
+            # Replace relative paths in command with absolute paths
+            # Use forward slashes for consistency with clang
+            examples_abs_path = str(project_root / 'Examples').replace('\\', '/')
+            command = command.replace('Examples/', examples_abs_path + '/')
+            entry['command'] = command
+    
+    # Create a temporary file with the fixed compilation database
+    temp_fd, temp_path = tempfile.mkstemp(suffix='.json', prefix='compile_commands_')
+    try:
+        with os.fdopen(temp_fd, 'w') as f:
+            json.dump(compile_db, f, indent=2)
+        return temp_path
+    except:
+        os.unlink(temp_path)
+        raise
 
 def list_available_examples():
     """List all available C++ examples."""
@@ -50,6 +89,26 @@ def list_available_examples():
             print(f"   - {json_file.stem}.json")
         print()
 
+def has_main_function(file_path):
+    """Check if a C++ file has a main function."""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            # Look for main function patterns
+            import re
+            # Match various main function signatures
+            main_patterns = [
+                r'\bint\s+main\s*\(',
+                r'\bauto\s+main\s*\(',
+                r'\bvoid\s+main\s*\('
+            ]
+            for pattern in main_patterns:
+                if re.search(pattern, content):
+                    return True
+            return False
+    except Exception:
+        return False
+
 def compile_example(example_path, output_dir=None):
     """Compile a single C++ example."""
     project_root = get_project_root()
@@ -69,19 +128,37 @@ def compile_example(example_path, output_dir=None):
         return False
     
     output_name = example_path.stem
-    output_path = output_dir / f"{output_name}.exe"
     
-    # Compile command
-    cmd = [
-        "clang++",
-        "-std=c++17",
-        "-I.", 
-        "-DEXAMPLE_MODE",
-        str(example_path),
-        "-o", str(output_path)
-    ]
+    # Check if file has main function
+    has_main = has_main_function(example_path)
     
-    print(f"Compiling {example_path.name}...")
+    if has_main:
+        # Compile as executable
+        output_path = output_dir / f"{output_name}.exe"
+        cmd = [
+            "clang++",
+            "-std=c++17",
+            "-I.", 
+            "-DEXAMPLE_MODE",
+            str(example_path),
+            "-o", str(output_path)
+        ]
+        compile_type = "executable"
+    else:
+        # Compile as object file for syntax checking
+        output_path = output_dir / f"{output_name}.o"
+        cmd = [
+            "clang++",
+            "-std=c++17",
+            "-I.", 
+            "-DEXAMPLE_MODE",
+            "-c",  # Compile only, don't link
+            str(example_path),
+            "-o", str(output_path)
+        ]
+        compile_type = "object file"
+    
+    print(f"Compiling {example_path.name} as {compile_type}...")
     print(f"   Command: {' '.join(cmd)}")
     
     try:
@@ -105,7 +182,6 @@ def run_dosatsu_indexing(compile_commands_path, output_db_path=None):
     project_root = get_project_root()
     
     if output_db_path is None:
-        import tempfile
         import time
         timestamp = int(time.time())
         output_db_path = project_root / "artifacts" / "examples" / f"example_database_{timestamp}"
@@ -124,10 +200,17 @@ def run_dosatsu_indexing(compile_commands_path, output_db_path=None):
         print(f"[ERROR] Compilation database not found: {compile_commands_path}")
         return False
     
+    # Fix the compilation database paths to be absolute and correct
+    try:
+        fixed_compile_db_path = fix_compilation_database_paths(compile_commands_path)
+    except Exception as e:
+        print(f"[ERROR] Failed to fix compilation database paths: {e}")
+        return False
+    
     # Run Dosatsu
     cmd = [
         str(dosatsu_path),
-        str(compile_commands_path),
+        fixed_compile_db_path,
         "--output-db", str(output_db_path)
     ]
     
@@ -148,6 +231,13 @@ def run_dosatsu_indexing(compile_commands_path, output_db_path=None):
     except Exception as e:
         print(f"[ERROR] Indexing error: {e}")
         return False
+    finally:
+        # Clean up the temporary file
+        try:
+            if 'fixed_compile_db_path' in locals():
+                os.unlink(fixed_compile_db_path)
+        except:
+            pass
 
 def run_verification():
     """Run the verification query suite."""
