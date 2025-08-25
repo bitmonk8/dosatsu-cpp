@@ -217,29 +217,31 @@ auto RealMain(int argc, char** argv) -> int
 
 #pragma comment(lib, "dbghelp.lib")
 
-void PrintStackTrace()
+void PrintStackTrace(CONTEXT* context = nullptr)
 {
     HANDLE process = GetCurrentProcess();
     HANDLE thread = GetCurrentThread();
 
-    SymInitialize(process, nullptr, TRUE);
-
-    CONTEXT context;
-    RtlCaptureContext(&context);
+    CONTEXT tmpContext;
+    if (context == nullptr)
+    {
+        RtlCaptureContext(&tmpContext);
+        context = &tmpContext;
+    }
 
     STACKFRAME64 frame;
     memset(&frame, 0, sizeof(frame));
 
 #ifdef _M_X64
     DWORD machineType = IMAGE_FILE_MACHINE_AMD64;
-    frame.AddrPC.Offset = context.Rip;
-    frame.AddrFrame.Offset = context.Rbp;
-    frame.AddrStack.Offset = context.Rsp;
+    frame.AddrPC.Offset = context->Rip;
+    frame.AddrFrame.Offset = context->Rbp;
+    frame.AddrStack.Offset = context->Rsp;
 #else
     DWORD machineType = IMAGE_FILE_MACHINE_I386;
-    frame.AddrPC.Offset = context.Eip;
-    frame.AddrFrame.Offset = context.Ebp;
-    frame.AddrStack.Offset = context.Esp;
+    frame.AddrPC.Offset = context->Eip;
+    frame.AddrFrame.Offset = context->Ebp;
+    frame.AddrStack.Offset = context->Esp;
 #endif
 
     frame.AddrPC.Mode = AddrModeFlat;
@@ -247,94 +249,125 @@ void PrintStackTrace()
     frame.AddrStack.Mode = AddrModeFlat;
 
     auto* symbol = (SYMBOL_INFO*)calloc(sizeof(SYMBOL_INFO) + (256 * sizeof(char)), 1);
+    if (symbol == nullptr)
+    {
+        std::cerr << "Failed to allocate symbol buffer" << std::endl;
+        return;
+    }
+
     symbol->MaxNameLen = 255;
     symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
 
     IMAGEHLP_LINE64 line;
-    DWORD displacement;
+    memset(&line, 0, sizeof(line));
+    line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
 
-    std::cout << "Stack trace:" << std::endl;
+    std::cerr << "Stack trace:" << std::endl;
+    std::cerr.flush();
 
     while (StackWalk64(machineType,
                        process,
                        thread,
                        &frame,
-                       &context,
+                       context,
                        nullptr,
                        SymFunctionTableAccess64,
                        SymGetModuleBase64,
                        nullptr) != 0)
     {
         if (SymFromAddr(process, frame.AddrPC.Offset, nullptr, symbol) != 0)
+        {
+            DWORD displacement = 0;
             if (SymGetLineFromAddr64(process, frame.AddrPC.Offset, &displacement, &line) != 0)
-                std::cout << symbol->Name << " - " << line.FileName << ":" << line.LineNumber << std::endl;
+                std::cerr << symbol->Name << " - " << line.FileName << ":" << line.LineNumber << std::endl;
             else
-                std::cout << symbol->Name << " - address: 0x" << std::hex << symbol->Address << std::dec << std::endl;
+                std::cerr << symbol->Name << " - address: 0x" << std::hex << symbol->Address << std::dec << std::endl;
+        }
         else
-            std::cout << "<unknown function> - address: 0x" << std::hex << frame.AddrPC.Offset << std::dec << std::endl;
+        {
+            std::cerr << "<unknown function> - address: 0x" << std::hex << frame.AddrPC.Offset << std::dec << std::endl;
+        }
     }
 
     free(symbol);
-
-    SymCleanup(process);
 }
 
-// Custom assert handler
-auto CustomAssertHandler(int reportType, char* message, int* /*returnValue*/) -> int
+auto CustomAssertHandler(int reportType, char* message, int* returnValue) -> int
 {
     if (reportType == _CRT_ASSERT)
-    {
-        // Print the assertion message to console
         std::cerr << "ASSERTION FAILED: " << message << std::endl;
+    else if (reportType == _CRT_ERROR)
+        std::cerr << "ERROR: " << message << std::endl;
+    else if (reportType == _CRT_WARN)
+        std::cerr << "WARNING: " << message << std::endl;
+    else
+        std::cerr << "UNKNOWN ERROR: (" << reportType << ") " << message << std::endl;
 
-        PrintStackTrace();
+    PrintStackTrace();
+    std::cerr.flush();
+    if (returnValue != nullptr)
+        *returnValue = 1;
 
-        // Terminate the application
-        std::abort();
-    }
-
-    // Return TRUE to indicate we handled the assertion
     return TRUE;
+}
+
+WINAPI auto UnhandledExceptionHandler(EXCEPTION_POINTERS* pExceptionInfo) -> LONG
+{
+    // Get stderr handle
+    HANDLE hStderr = GetStdHandle(STD_ERROR_HANDLE);
+
+    // Write crash message to stderr
+    const char* crashMsg = "\n=== APPLICATION CRASH ===\n";
+    DWORD bytesWritten;
+    WriteFile(hStderr, crashMsg, (DWORD)strlen(crashMsg), &bytesWritten, nullptr);
+
+    // Print exception information
+    char exceptionBuffer[256];
+    sprintf_s(exceptionBuffer,
+              "Exception Code: 0x%08X\nException Address: 0x%p\n",
+              pExceptionInfo->ExceptionRecord->ExceptionCode,
+              pExceptionInfo->ExceptionRecord->ExceptionAddress);
+    WriteFile(hStderr, exceptionBuffer, (DWORD)strlen(exceptionBuffer), &bytesWritten, nullptr);
+
+    // Capture and print stack trace
+    PrintStackTrace(pExceptionInfo->ContextRecord);
+
+    // Terminate the application
+    return EXCEPTION_EXECUTE_HANDLER;
 }
 
 auto main(int argc, char** argv) -> int
 {
+    SymInitialize(GetCurrentProcess(), nullptr, TRUE);
+
+    SetUnhandledExceptionFilter(UnhandledExceptionHandler);
     _set_error_mode(_OUT_TO_STDERR);
+    _CrtSetReportHook2(_CRT_RPTHOOK_INSTALL, CustomAssertHandler);
 
-    // Set custom report mode for assertions
-    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_DEBUG);
+    std::vector<std::string> args(argv + 1, argv + argc);
 
-    // Install custom assert handler
-    _CrtSetReportHook(CustomAssertHandler);
+    auto it = std::ranges::find(args, "--selftest");
+    bool runTests = it != args.end();
 
-    try
+    if (runTests)
     {
-        std::vector<std::string> args(argv + 1, argv + argc);
+        args.erase(it);
 
-        auto it = std::ranges::find(args, "--selftest");
-        bool runTests = it != args.end();
+        std::vector<const char*> docTestArgv;
+        docTestArgv.push_back(argv[0]);
+        for (auto& s : args)
+            docTestArgv.push_back(s.c_str());
 
-        if (runTests)
-        {
-            args.erase(it);
-
-            std::vector<const char*> docTestArgv;
-            docTestArgv.push_back(argv[0]);
-            for (auto& s : args)
-                docTestArgv.push_back(s.c_str());
-
-            doctest::Context ctx;
-            ctx.applyCommandLine(static_cast<int>(docTestArgv.size()), docTestArgv.data());
-            return ctx.run();
-        }
-
-        return RealMain(argc, argv);
+        doctest::Context ctx;
+        ctx.applyCommandLine(static_cast<int>(docTestArgv.size()), docTestArgv.data());
+        return ctx.run();
     }
-    catch (...)
-    {
-        std::cerr << "An unexpected error occurred in main function" << std::endl;
-        return 1;
-    }
+
+    auto r = RealMain(argc, argv);
+
+    SymCleanup(GetCurrentProcess());
+
+    return r;
 }
 
 // This is just a small dummy test to make sure we actualy have a test and can verify that the testing system works
