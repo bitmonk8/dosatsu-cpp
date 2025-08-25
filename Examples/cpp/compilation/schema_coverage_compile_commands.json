@@ -1,7 +1,0 @@
-[
-  {
-    "directory": ".",
-    "command": "clang++ -std=c++17 -I. -DEXAMPLE_MODE -c Examples/cpp/comprehensive/schema_coverage_complete.cpp -o Examples/cpp/comprehensive/schema_coverage_complete.o",
-    "file": "Examples/cpp/comprehensive/schema_coverage_complete.cpp"
-  }
-]

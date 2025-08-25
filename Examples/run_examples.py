@@ -12,7 +12,10 @@ import argparse
 import subprocess
 import json
 import tempfile
+import shutil
+import time
 from pathlib import Path
+from datetime import datetime
 
 def get_project_root():
     """Get the project root directory."""
@@ -21,6 +24,327 @@ def get_project_root():
 def get_examples_root():
     """Get the examples root directory."""
     return Path(__file__).parent.absolute()
+
+def get_compilation_database_path(compile_db_name):
+    """Get compilation database path, generating CMake version for all databases."""
+    project_root = get_project_root()
+    
+    # Map ALL compilation databases to their CMake-generated equivalents
+    cmake_database_mapping = {
+        # Standard library databases (auto-generate CMake versions)
+        'comprehensive_compile_commands.json': 'comprehensive',
+        'comprehensive_advanced_compile_commands.json': 'comprehensive',
+        
+        # Legacy database names - redirect to existing CMake categories
+        'simple_compile_commands.json': 'basic',          # Use basic category for simple examples
+        'single_file_compile_commands.json': 'basic',     # Use basic category for single files
+        'multi_file_compile_commands.json': 'basic',      # Use basic category for multi-file
+        'schema_coverage_compile_commands.json': 'comprehensive',  # Use comprehensive for schema
+        'two_file_compile_commands.json': 'basic',        # Use basic category for two-file examples
+        
+        # No-std databases - now using CMake generation for unified approach!
+        'comprehensive_no_std_compile_commands.json': 'nostd',
+        'advanced_no_std_compile_commands.json': 'nostd',
+        'two_file_no_std_compile_commands.json': 'nostd',
+    }
+    
+    if compile_db_name in cmake_database_mapping:
+        category = cmake_database_mapping[compile_db_name]
+        if category is not None:
+            # Generate CMake database
+            cmake_db_path = ensure_cmake_compilation_database(category)
+            return cmake_db_path
+    
+    # For no-std databases and any other databases, use original path
+    return project_root / "Examples" / "cpp" / "compilation" / compile_db_name
+
+def ensure_cmake_compilation_database(example_category):
+    """Ensure CMake compilation database exists, creating if necessary."""
+    project_root = get_project_root()
+    cmake_db_path = project_root / "artifacts" / "examples" / f"{example_category}_cmake_compile_commands.json"
+    
+    # Check if database exists and is recent
+    if cmake_db_path.exists() and is_cmake_db_current(example_category):
+        return cmake_db_path
+    
+    # Generate new CMake compilation database
+    print(f"Generating CMake compilation database for {example_category} examples...")
+    return generate_cmake_compilation_database(example_category)
+
+def is_cmake_db_current(example_category):
+    """Check if CMake compilation database is current (not stale)."""
+    project_root = get_project_root()
+    cmake_db_path = project_root / "artifacts" / "examples" / f"{example_category}_cmake_compile_commands.json"
+    
+    if not cmake_db_path.exists():
+        return False
+    
+    # Check if source files are newer than the database
+    # For simple and schema categories, check multiple source directories
+    db_mtime = cmake_db_path.stat().st_mtime
+    
+    if example_category == "simple":
+        cpp_dir = project_root / "Examples" / "cpp" / "basic"
+        if cpp_dir.exists():
+            for file_name in ["simple_no_includes.cpp", "simple2.cpp"]:
+                cpp_file = cpp_dir / file_name
+                if cpp_file.exists() and cpp_file.stat().st_mtime > db_mtime:
+                    return False
+    elif example_category == "schema":
+        cpp_dir = project_root / "Examples" / "cpp" / "comprehensive"
+        if cpp_dir.exists():
+            for file_name in ["schema_coverage_complete.cpp"]:
+                cpp_file = cpp_dir / file_name
+                if cpp_file.exists() and cpp_file.stat().st_mtime > db_mtime:
+                    return False
+    elif example_category == "nostd":
+        # Check no-std files from both basic and comprehensive directories
+        basic_dir = project_root / "Examples" / "cpp" / "basic"
+        comprehensive_dir = project_root / "Examples" / "cpp" / "comprehensive"
+        
+        # Check basic directory files
+        if basic_dir.exists():
+            for file_name in ["simple_no_includes.cpp", "inheritance_no_std.cpp"]:
+                cpp_file = basic_dir / file_name
+                if cpp_file.exists() and cpp_file.stat().st_mtime > db_mtime:
+                    return False
+        
+        # Check comprehensive directory files
+        if comprehensive_dir.exists():
+            for file_name in ["no_std_example.cpp", "advanced_features_no_std.cpp"]:
+                cpp_file = comprehensive_dir / file_name
+                if cpp_file.exists() and cpp_file.stat().st_mtime > db_mtime:
+                    return False
+    elif example_category in ["basic", "comprehensive"]:
+        # For basic and comprehensive categories, check the entire directory
+        cpp_dir = project_root / "Examples" / "cpp" / example_category
+        if cpp_dir.exists():
+            for cpp_file in cpp_dir.glob("*.cpp"):
+                if cpp_file.stat().st_mtime > db_mtime:
+                    return False
+    
+    # Also check if CMake project files are newer (since we copy files)
+    cmake_project_dir = project_root / "Examples" / "cmake_projects" / f"{example_category}_examples"
+    cmake_file = cmake_project_dir / "CMakeLists.txt"
+    if cmake_file.exists() and cmake_file.stat().st_mtime > db_mtime:
+        return False
+    
+    return True
+
+def create_cmake_project(example_category):
+    """Create CMake project structure for given example category."""
+    project_root = get_project_root()
+    cmake_project_dir = project_root / "Examples" / "cmake_projects" / f"{example_category}_examples"
+    cmake_project_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create CMakeLists.txt content
+    cmake_content = generate_cmake_content(example_category)
+    cmake_file = cmake_project_dir / "CMakeLists.txt"
+    cmake_file.write_text(cmake_content)
+    
+    # Copy source files to CMake project directory
+    src_dir = cmake_project_dir / "src"
+    
+    # Determine source directory based on category
+    if src_dir.exists():
+        shutil.rmtree(src_dir)
+    
+    if example_category == "simple":
+        # Copy simple files from basic directory
+        src_dir.mkdir(parents=True, exist_ok=True)
+        basic_dir = project_root / "Examples" / "cpp" / "basic"
+        for file_name in ["simple_no_includes.cpp", "simple2.cpp"]:
+            src_file = basic_dir / file_name
+            if src_file.exists():
+                shutil.copy2(src_file, src_dir / file_name)
+    elif example_category == "schema":
+        # Copy schema files from comprehensive directory
+        src_dir.mkdir(parents=True, exist_ok=True)
+        comprehensive_dir = project_root / "Examples" / "cpp" / "comprehensive"
+        for file_name in ["schema_coverage_complete.cpp"]:
+            src_file = comprehensive_dir / file_name
+            if src_file.exists():
+                shutil.copy2(src_file, src_dir / file_name)
+    elif example_category == "nostd":
+        # Copy no-std files from both basic and comprehensive directories
+        src_dir.mkdir(parents=True, exist_ok=True)
+        basic_dir = project_root / "Examples" / "cpp" / "basic"
+        comprehensive_dir = project_root / "Examples" / "cpp" / "comprehensive"
+        
+        # Files from basic directory
+        for file_name in ["simple_no_includes.cpp", "inheritance_no_std.cpp"]:
+            src_file = basic_dir / file_name
+            if src_file.exists():
+                shutil.copy2(src_file, src_dir / file_name)
+        
+        # Files from comprehensive directory  
+        for file_name in ["no_std_example.cpp", "advanced_features_no_std.cpp"]:
+            src_file = comprehensive_dir / file_name
+            if src_file.exists():
+                shutil.copy2(src_file, src_dir / file_name)
+    else:
+        # For basic and comprehensive categories, copy entire directory
+        src_target = project_root / "Examples" / "cpp" / example_category
+        if src_target.exists():
+            shutil.copytree(src_target, src_dir)
+        else:
+            # Create empty directory if source doesn't exist
+            src_dir.mkdir(parents=True, exist_ok=True)
+
+def generate_cmake_compilation_database(example_category):
+    """Generate compilation database using CMake for given example category."""
+    project_root = get_project_root()
+    cmake_project_dir = project_root / "Examples" / "cmake_projects" / f"{example_category}_examples"
+    build_dir = project_root / "artifacts" / "examples" / example_category
+    build_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Ensure CMake project exists
+    create_cmake_project(example_category)
+    
+    # Configure CMake project using Ninja generator
+    configure_cmd = [
+        "cmake",
+        "-S", str(cmake_project_dir),
+        "-B", str(build_dir),
+        "-G", "Ninja",
+        "-DCMAKE_BUILD_TYPE=Debug",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+    ]
+    
+    print(f"   Configuring CMake project: {' '.join(configure_cmd)}")
+    result = subprocess.run(configure_cmd, check=True, cwd=project_root, capture_output=True, text=True)
+    
+    # Copy generated compile_commands.json
+    src_db = build_dir / "compile_commands.json"
+    dst_db = project_root / "artifacts" / "examples" / f"{example_category}_cmake_compile_commands.json"
+    dst_db.parent.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
+    
+    if not src_db.exists():
+        raise RuntimeError(f"CMake did not generate compile_commands.json at {src_db}")
+    
+    shutil.copy2(src_db, dst_db)
+    print(f"   Generated: {dst_db.name}")
+    
+    return dst_db
+
+def generate_cmake_content(example_category):
+    """Generate CMakeLists.txt content for example category."""
+    if example_category == "basic":
+        example_files = [
+            "inheritance.cpp",
+            "templates.cpp", 
+            "namespaces.cpp",
+            "control_flow.cpp",
+            "expressions.cpp",
+            "preprocessor.cpp"
+        ]
+        advanced_definitions = ""
+    elif example_category == "comprehensive":
+        example_files = [
+            "advanced_features.cpp",
+            "complete_example.cpp",
+            "modern_cpp_features.cpp",
+            "control_flow_complex.cpp",
+            "standard_example.cpp",
+            "clean_example.cpp"
+        ]
+        advanced_definitions = """
+# Add advanced definitions for specific files
+if(TARGET advanced_features)
+    target_compile_definitions(advanced_features PRIVATE 
+        DEBUG 
+        ENABLE_OPTIMIZATION=1 
+        ADVANCED_MODE 
+        FEATURE_A 
+        FEATURE_B 
+        FEATURE_A_VERSION=2 
+        FEATURE_B_VERSION=3 
+        ENABLE_LOGGING 
+        VERBOSE_LOGGING
+    )
+endif()
+
+if(TARGET preprocessor_advanced)
+    target_compile_definitions(preprocessor_advanced PRIVATE 
+        DEBUG 
+        ENABLE_OPTIMIZATION=1 
+        ADVANCED_MODE
+    )
+endif()"""
+    elif example_category == "simple":
+        example_files = [
+            "simple_no_includes.cpp",
+            "simple2.cpp"
+        ]
+        advanced_definitions = ""
+    elif example_category == "schema":
+        example_files = [
+            "schema_coverage_complete.cpp"
+        ]
+        advanced_definitions = ""
+    elif example_category == "nostd":
+        example_files = [
+            "no_std_example.cpp",
+            "advanced_features_no_std.cpp",
+            "simple_no_includes.cpp",
+            "inheritance_no_std.cpp"
+        ]
+        advanced_definitions = """
+# Add advanced definitions for specific files
+if(TARGET advanced_features_no_std)
+    target_compile_definitions(advanced_features_no_std PRIVATE 
+        DEBUG 
+        ENABLE_OPTIMIZATION=1 
+        ADVANCED_MODE
+    )
+endif()"""
+    else:
+        # Fallback - no files defined for this category
+        example_files = []
+        advanced_definitions = ""
+    
+    files_list = '\n    '.join(example_files)
+    
+    return f"""cmake_minimum_required(VERSION 3.24)
+project(Dosatsu{example_category.title()}Examples 
+    VERSION 1.0.0
+    DESCRIPTION "Dosatsu {example_category.title()} C++ Examples"
+    LANGUAGES CXX
+)
+
+# Match main project configuration
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Windows MSVC settings (aligned with main CMakeLists.txt)
+if(WIN32 AND MSVC)
+    add_compile_options(/W4 /EHsc)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
+endif()
+
+# Example files
+set(EXAMPLE_FILES
+    {files_list}
+)
+
+# Create targets for each source file
+foreach(SOURCE ${{EXAMPLE_FILES}})
+    get_filename_component(TARGET_NAME ${{SOURCE}} NAME_WE)
+    add_executable(${{TARGET_NAME}} "src/${{SOURCE}}")
+    set_target_properties(${{TARGET_NAME}} PROPERTIES
+        EXCLUDE_FROM_ALL TRUE
+    )
+    # Add example mode definition
+    target_compile_definitions(${{TARGET_NAME}} PRIVATE EXAMPLE_MODE)
+endforeach(){advanced_definitions}
+
+# Special target to build all examples
+add_custom_target(build_all_{example_category}_examples
+    DEPENDS ${{EXAMPLE_FILES}}
+)
+"""
 
 def fix_compilation_database_paths(compile_db_path):
     """Fix compilation database paths to be absolute and correct for the current project location."""
@@ -177,6 +501,61 @@ def compile_example(example_path, output_dir=None):
         print(f"[ERROR] Compilation error: {e}")
         return False
 
+def create_log_file_path():
+    """Create a timestamped log file path for dosatsu output."""
+    project_root = get_project_root()
+    log_dir = project_root / "artifacts" / "examples" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = log_dir / f"dosatsu_output_{timestamp}.log"
+    return log_file
+
+def handle_dosatsu_output(stdout_output, stderr_output, log_file):
+    """Handle dosatsu output - show on console if short, otherwise redirect to file."""
+    # Combine stdout and stderr for analysis
+    full_output = ""
+    if stdout_output:
+        full_output += "=== STDOUT ===\n" + stdout_output + "\n"
+    if stderr_output:
+        full_output += "=== STDERR ===\n" + stderr_output + "\n"
+    
+    # Count lines in output
+    output_lines = full_output.count('\n') if full_output else 0
+    
+    # Write full output to log file always
+    try:
+        with open(log_file, 'w', encoding='utf-8') as f:
+            f.write(f"Dosatsu execution log - {datetime.now().isoformat()}\n")
+            f.write("=" * 60 + "\n\n")
+            f.write(full_output)
+        log_written = True
+    except Exception as e:
+        print(f"[WARNING] Failed to write log file {log_file}: {e}")
+        log_written = False
+    
+    # Determine how to present output
+    if output_lines <= 20 and output_lines > 0:
+        # Short output - show on console
+        if stdout_output:
+            print("   dosatsu-cpp output:")
+            for line in stdout_output.strip().split('\n'):
+                print(f"     {line}")
+        if stderr_output:
+            print("   dosatsu-cpp errors:")
+            for line in stderr_output.strip().split('\n'):
+                print(f"     {line}")
+        if log_written:
+            print(f"   Full output also saved to: {log_file}")
+    else:
+        # Long output or no output - just refer to log file
+        if output_lines > 20:
+            print(f"   dosatsu-cpp output ({output_lines} lines) saved to: {log_file}")
+        elif log_written:
+            print(f"   dosatsu-cpp execution log saved to: {log_file}")
+    
+    return log_written
+
 def run_dosatsu_indexing(compile_commands_path, output_db_path=None):
     """Run Dosatsu indexing on examples."""
     project_root = get_project_root()
@@ -192,9 +571,11 @@ def run_dosatsu_indexing(compile_commands_path, output_db_path=None):
         print("[ERROR] Dosatsu not found. Please run 'python please.py build' first.")
         return False
     
-    compile_commands_path = Path(compile_commands_path)
-    if not compile_commands_path.is_absolute():
-        compile_commands_path = get_examples_root() / "cpp" / "compilation" / compile_commands_path
+    # Use the new path resolution function that handles CMake generation
+    if isinstance(compile_commands_path, str):
+        compile_commands_path = get_compilation_database_path(compile_commands_path)
+    else:
+        compile_commands_path = Path(compile_commands_path)
     
     if not compile_commands_path.exists():
         print(f"[ERROR] Compilation database not found: {compile_commands_path}")
@@ -206,6 +587,9 @@ def run_dosatsu_indexing(compile_commands_path, output_db_path=None):
     except Exception as e:
         print(f"[ERROR] Failed to fix compilation database paths: {e}")
         return False
+    
+    # Create log file for output
+    log_file = create_log_file_path()
     
     # Run Dosatsu
     cmd = [
@@ -220,13 +604,18 @@ def run_dosatsu_indexing(compile_commands_path, output_db_path=None):
     
     try:
         result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True)
+        
+        # Handle output redirection
+        handle_dosatsu_output(result.stdout, result.stderr, log_file)
+        
         if result.returncode == 0:
             print("[SUCCESS] Indexing completed successfully!")
             print(f"   Database created at: {output_db_path}")
             return True
         else:
-            print(f"[ERROR] Indexing failed:")
-            print(f"   Error: {result.stderr}")
+            print(f"[ERROR] Indexing failed (return code: {result.returncode})")
+            if not result.stderr and not result.stdout:
+                print(f"   No output captured. Check log file: {log_file}")
             return False
     except Exception as e:
         print(f"[ERROR] Indexing error: {e}")
@@ -267,9 +656,11 @@ def main():
 Examples:
   python run_examples.py --list                    # List all available examples
   python run_examples.py --compile basic/inheritance.cpp  # Compile single example
-  python run_examples.py --index comprehensive_compile_commands.json  # Index examples
+  python run_examples.py --index comprehensive_compile_commands.json  # Index examples (auto-generates CMake DB)
   python run_examples.py --verify                  # Run verification suite
   python run_examples.py --all                     # Run complete workflow
+  python run_examples.py --generate-cmake comprehensive   # Generate CMake DB for comprehensive examples
+  python run_examples.py --force-regenerate-cmake  # Force regenerate all CMake databases
         """
     )
     
@@ -287,10 +678,14 @@ Examples:
                        help="Output directory for compiled examples")
     parser.add_argument("--db-output", metavar="PATH",
                        help="Output path for index database")
+    parser.add_argument("--force-regenerate-cmake", action="store_true",
+                       help="Force regenerate all CMake compilation databases")
+    parser.add_argument("--generate-cmake", metavar="CATEGORY",
+                       help="Generate CMake compilation database for specific category (basic, comprehensive)")
     
     args = parser.parse_args()
     
-    if not any([args.list, args.compile, args.index, args.verify, args.all]):
+    if not any([args.list, args.compile, args.index, args.verify, args.all, args.force_regenerate_cmake, args.generate_cmake]):
         parser.print_help()
         return 1
     
@@ -310,6 +705,33 @@ Examples:
     
     if args.verify:
         success &= run_verification()
+    
+    if args.force_regenerate_cmake:
+        print("Force regenerating all CMake compilation databases...")
+        for category in ['basic', 'comprehensive']:
+            # Remove existing cmake database to force regeneration
+            cmake_db_path = get_project_root() / "Examples" / "cpp" / "compilation" / f"{category}_cmake_compile_commands.json"
+            if cmake_db_path.exists():
+                cmake_db_path.unlink()
+                print(f"   Removed existing database: {cmake_db_path.name}")
+            
+            # Generate new database
+            try:
+                new_db_path = generate_cmake_compilation_database(category)
+                print(f"   Successfully generated: {new_db_path.name}")
+            except Exception as e:
+                print(f"   [ERROR] Failed to generate {category} database: {e}")
+                success = False
+    
+    if args.generate_cmake:
+        category = args.generate_cmake
+        print(f"Generating CMake compilation database for {category} examples...")
+        try:
+            new_db_path = generate_cmake_compilation_database(category)
+            print(f"   Successfully generated: {new_db_path}")
+        except Exception as e:
+            print(f"   [ERROR] Failed to generate {category} database: {e}")
+            success = False
     
     if args.all:
         print("\nRunning complete examples workflow...\n")

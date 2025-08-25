@@ -68,8 +68,8 @@ auto ASTNodeProcessor::createASTNode(const clang::Decl* decl) -> int64_t
         auto [filename, startLine, startColumn] = extractSourceLocationDetailed(decl->getLocation());
         auto [endFilename, endLine, endColumn] = extractSourceLocationDetailed(decl->getSourceRange().getEnd());
 
-        // Use start location's filename for source_file
-        std::string sourceFile = filename;
+        // Use start location's filename for source_file with proper escaping for Kuzu queries
+        std::string sourceFile = KuzuDatabase::escapeString(filename);
 
         // Create base AST node query using string concatenation
         std::string query =
@@ -130,8 +130,8 @@ auto ASTNodeProcessor::createASTNode(const clang::Stmt* stmt) -> int64_t
         auto [filename, startLine, startColumn] = extractSourceLocationDetailed(stmt->getBeginLoc());
         auto [endFilename, endLine, endColumn] = extractSourceLocationDetailed(stmt->getEndLoc());
 
-        // Use start location's filename for source_file
-        std::string sourceFile = filename;
+        // Use start location's filename for source_file with proper escaping for Kuzu queries
+        std::string sourceFile = KuzuDatabase::escapeString(filename);
 
         // Create base AST node query using string concatenation
         std::string query = "CREATE (n:ASTNode {node_id: " + std::to_string(nodeId) + ", node_type: '" + nodeType +
@@ -284,7 +284,7 @@ auto ASTNodeProcessor::extractSourceLocationDetailed(const clang::SourceLocation
         int64_t line = presumedLoc.getLine();
         int64_t column = presumedLoc.getColumn();
 
-        // Clean up filename for database storage (escape single quotes)
+        // Clean up filename for database storage (escape single quotes only)
         std::ranges::replace(filename, '\'', '_');
 
         return std::make_tuple(filename, line, column);

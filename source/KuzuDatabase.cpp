@@ -14,6 +14,7 @@
 
 #include <filesystem>
 #include <stdexcept>
+#include <algorithm>
 
 using namespace clang;
 
@@ -474,4 +475,27 @@ void KuzuDatabase::createSchema()
     {
         throw std::runtime_error("Failed to create database schema: " + std::string(e.what()));
     }
+}
+
+auto KuzuDatabase::escapeString(const std::string& str) -> std::string
+{
+    std::string escaped = str;
+    
+    // Escape backslashes first (for Windows paths)
+    std::string::size_type pos = 0;
+    while ((pos = escaped.find('\\', pos)) != std::string::npos)
+    {
+        escaped.replace(pos, 1, "\\\\");
+        pos += 2;  // Move past the escaped backslash
+    }
+    
+    // Escape single quotes
+    pos = 0;
+    while ((pos = escaped.find('\'', pos)) != std::string::npos)
+    {
+        escaped.replace(pos, 1, "\\'");
+        pos += 2;  // Move past the escaped quote
+    }
+    
+    return escaped;
 }

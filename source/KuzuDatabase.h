@@ -67,6 +67,11 @@ public:
     /// \return A unique node ID for this database instance
     auto getNextNodeId() -> int64_t { return nextNodeId++; }
 
+    /// Escape string for safe use in Kuzu queries
+    /// \param str The string to escape
+    /// \return Escaped string safe for Kuzu query usage
+    static auto escapeString(const std::string& str) -> std::string;
+
 private:
     /// Create the complete database schema
     void createSchema();
