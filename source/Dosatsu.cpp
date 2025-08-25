@@ -311,7 +311,7 @@ auto CustomAssertHandler(int reportType, char* message, int* returnValue) -> int
     return TRUE;
 }
 
-WINAPI auto UnhandledExceptionHandler(EXCEPTION_POINTERS* pExceptionInfo) -> LONG
+auto WINAPI UnhandledExceptionHandler(EXCEPTION_POINTERS* pExceptionInfo) -> LONG
 {
     // Get stderr handle
     HANDLE hStderr = GetStdHandle(STD_ERROR_HANDLE);
