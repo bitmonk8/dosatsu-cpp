@@ -114,8 +114,6 @@ auto TypeAnalyzer::extractTypeName(clang::QualType qualType) -> std::string
         return "unknown";
 
     std::string typeName = qualType.getAsString();
-    // Replace any problematic characters for database storage
-    std::ranges::replace(typeName, '\'', '_');
     return typeName;
 }
 

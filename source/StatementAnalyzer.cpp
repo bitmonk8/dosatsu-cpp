@@ -48,13 +48,15 @@ void StatementAnalyzer::createStatementNode(int64_t nodeId, const clang::Stmt* s
         std::string conditionText = extractConditionText(stmt);
         bool isConstexpr = isStatementConstexpr(stmt);
 
-        // Escape string for safe database storage
+        // Escape strings for safe database storage
+        std::string escapedStatementKind = KuzuDatabase::escapeString(statementKind);
+        std::string escapedControlFlowType = KuzuDatabase::escapeString(controlFlowType);
         conditionText = KuzuDatabase::escapeString(conditionText);
 
         std::string query = "CREATE (s:Statement {node_id: " + std::to_string(nodeId) + ", statement_kind: '" +
-                            statementKind + "', has_side_effects: " + (hasSideEffects ? "true" : "false") +
+                            escapedStatementKind + "', has_side_effects: " + (hasSideEffects ? "true" : "false") +
                             ", is_compound: " + (isCompound ? "true" : "false") + ", control_flow_type: '" +
-                            controlFlowType + "', condition_text: '" + conditionText +
+                            escapedControlFlowType + "', condition_text: '" + conditionText +
                             "', is_constexpr: " + (isConstexpr ? "true" : "false") + "})";
 
         database.addToBatch(query);
@@ -88,15 +90,19 @@ void StatementAnalyzer::createExpressionNode(int64_t nodeId, const clang::Expr* 
         std::string evaluationResult = extractEvaluationResult(expr);
         std::string implicitCastKind = extractImplicitCastKind(expr);
 
-        // Escape single quotes for database storage
-        std::ranges::replace(literalValue, '\'', '_');
-        std::ranges::replace(evaluationResult, '\'', '_');
+        // Use proper escaping for database storage
+        std::string escapedExpressionKind = KuzuDatabase::escapeString(expressionKind);
+        std::string escapedValueCategory = KuzuDatabase::escapeString(valueCategory);
+        literalValue = KuzuDatabase::escapeString(literalValue);
+        std::string escapedOperatorKind = KuzuDatabase::escapeString(operatorKind);
+        evaluationResult = KuzuDatabase::escapeString(evaluationResult);
+        std::string escapedImplicitCastKind = KuzuDatabase::escapeString(implicitCastKind);
 
         std::string query = "CREATE (e:Expression {node_id: " + std::to_string(nodeId) + ", expression_kind: '" +
-                            expressionKind + "', value_category: '" + valueCategory + "', literal_value: '" +
-                            literalValue + "', operator_kind: '" + operatorKind +
+                            escapedExpressionKind + "', value_category: '" + escapedValueCategory +
+                            "', literal_value: '" + literalValue + "', operator_kind: '" + escapedOperatorKind +
                             "', is_constexpr: " + (isConstexpr ? "true" : "false") + ", evaluation_result: '" +
-                            evaluationResult + "', implicit_cast_kind: '" + implicitCastKind + "'})";
+                            evaluationResult + "', implicit_cast_kind: '" + escapedImplicitCastKind + "'})";
 
         database.addToBatch(query);
 

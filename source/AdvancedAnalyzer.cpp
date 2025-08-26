@@ -199,14 +199,10 @@ void AdvancedAnalyzer::createMacroDefinitionNode(int64_t nodeId,
             parameterNames += parameters[i];
         }
 
-        // Escape single quotes for database storage
-        std::string cleanMacroName = macroName;
-        std::string cleanParameterNames = parameterNames;
-        std::string cleanReplacementText = replacementText;
-
-        std::ranges::replace(cleanMacroName, '\'', '_');
-        std::ranges::replace(cleanParameterNames, '\'', '_');
-        std::ranges::replace(cleanReplacementText, '\'', '_');
+        // Use proper escaping for database storage
+        std::string cleanMacroName = KuzuDatabase::escapeString(macroName);
+        std::string cleanParameterNames = KuzuDatabase::escapeString(parameterNames);
+        std::string cleanReplacementText = KuzuDatabase::escapeString(replacementText);
 
         // Limit text length for database storage
         if (cleanReplacementText.length() > 1000)
@@ -398,12 +394,13 @@ void AdvancedAnalyzer::createCFGEdgeRelation(int64_t fromBlockId,
 
     try
     {
+        std::string escapedEdgeType = KuzuDatabase::escapeString(edgeType);
         std::string cleanCondition = KuzuDatabase::escapeString(condition);
 
         std::string query = "MATCH (from:CFGBlock {node_id: " + std::to_string(fromBlockId) + "}), " +
                             "(to:CFGBlock {node_id: " + std::to_string(toBlockId) + "}) " +
-                            "CREATE (from)-[:CFG_EDGE {edge_type: '" + edgeType + "', condition: '" + cleanCondition +
-                            "'}]->(to)";
+                            "CREATE (from)-[:CFG_EDGE {edge_type: '" + escapedEdgeType + "', condition: '" +
+                            cleanCondition + "'}]->(to)";
 
         database.addToBatch(query);
     }

@@ -87,13 +87,10 @@ void CommentProcessor::createCommentNode(int64_t nodeId,
     try
     {
         // Escape single quotes and clean up text for database storage
-        std::string cleanCommentText = commentText;
-        std::string cleanBriefText = briefText;
-        std::string cleanDetailedText = detailedText;
-
-        std::ranges::replace(cleanCommentText, '\'', '_');
-        std::ranges::replace(cleanBriefText, '\'', '_');
-        std::ranges::replace(cleanDetailedText, '\'', '_');
+        std::string cleanCommentText = KuzuDatabase::escapeString(commentText);
+        std::string cleanBriefText = KuzuDatabase::escapeString(briefText);
+        std::string cleanDetailedText = KuzuDatabase::escapeString(detailedText);
+        std::string escapedCommentKind = KuzuDatabase::escapeString(commentKind);
 
         // Limit text length for database storage
         if (cleanCommentText.length() > 1000)
@@ -104,7 +101,7 @@ void CommentProcessor::createCommentNode(int64_t nodeId,
             cleanDetailedText = cleanDetailedText.substr(0, 2000) + "...";
 
         std::string query = "CREATE (c:Comment {node_id: " + std::to_string(nodeId) + ", comment_text: '" +
-                            cleanCommentText + "', comment_kind: '" + commentKind +
+                            cleanCommentText + "', comment_kind: '" + escapedCommentKind +
                             "', is_documentation: " + (isDocumentationComment ? "true" : "false") + ", brief_text: '" +
                             cleanBriefText + "', detailed_text: '" + cleanDetailedText + "'})";
 

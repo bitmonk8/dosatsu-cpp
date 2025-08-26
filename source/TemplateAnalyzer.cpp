@@ -160,8 +160,9 @@ void TemplateAnalyzer::createTemplateParameterNode(int64_t nodeId, const clang::
         defaultArgumentText = KuzuDatabase::escapeString(defaultArgumentText);
 
         // Use the provided node ID for the TemplateParameter table
+        std::string escapedParameterKind = KuzuDatabase::escapeString(parameterKind);
         std::string query = "CREATE (tp:TemplateParameter {node_id: " + std::to_string(nodeId) + ", parameter_kind: '" +
-                            parameterKind + "', parameter_name: '" + parameterName +
+                            escapedParameterKind + "', parameter_name: '" + parameterName +
                             "', has_default_argument: " + (hasDefaultArgument ? "true" : "false") +
                             ", default_argument_text: '" + defaultArgumentText +
                             "', is_parameter_pack: " + (isParameterPack ? "true" : "false") + "})";
@@ -181,9 +182,10 @@ void TemplateAnalyzer::createTemplateRelation(int64_t specializationId, int64_t 
 
     try
     {
+        std::string escapedKind = KuzuDatabase::escapeString(kind);
         std::string query = "MATCH (spec:ASTNode {node_id: " + std::to_string(specializationId) + "}), " +
                             "(tmpl:Declaration {node_id: " + std::to_string(templateId) + "}) " +
-                            "CREATE (spec)-[:TEMPLATE_RELATION {relation_kind: '" + kind +
+                            "CREATE (spec)-[:TEMPLATE_RELATION {relation_kind: '" + escapedKind +
                             "', specialization_type: 'explicit'}]->(tmpl)";
 
         database.addToBatch(query);
@@ -205,15 +207,14 @@ void TemplateAnalyzer::createSpecializesRelation(int64_t specializationId,
 
     try
     {
-        // Escape single quotes in the template arguments and context
-        std::string escapedArgs = templateArguments;
-        std::string escapedContext = instantiationContext;
-        std::ranges::replace(escapedArgs, '\'', '_');
-        std::ranges::replace(escapedContext, '\'', '_');
+        // Use proper escaping for database storage
+        std::string escapedSpecializationKind = KuzuDatabase::escapeString(specializationKind);
+        std::string escapedArgs = KuzuDatabase::escapeString(templateArguments);
+        std::string escapedContext = KuzuDatabase::escapeString(instantiationContext);
 
         std::string query = "MATCH (spec:Declaration {node_id: " + std::to_string(specializationId) + "}), " +
                             "(tmpl:Declaration {node_id: " + std::to_string(templateId) + "}) " +
-                            "CREATE (spec)-[:SPECIALIZES {specialization_kind: '" + specializationKind +
+                            "CREATE (spec)-[:SPECIALIZES {specialization_kind: '" + escapedSpecializationKind +
                             "', template_arguments: '" + escapedArgs + "', instantiation_context: '" + escapedContext +
                             "'}]->(tmpl)";
 
@@ -250,17 +251,20 @@ void TemplateAnalyzer::createTemplateMetaprogrammingNode(int64_t nodeId,
                 specializedTemplateId = nodeProcessor.getNodeId(classTemplateSpecDecl->getSpecializedTemplate());
         }
 
-        // Escape single quotes for database storage
-        std::ranges::replace(templateArguments, '\'', '_');
-        std::ranges::replace(dependentTypes, '\'', '_');
-        std::ranges::replace(substitutionFailureReason, '\'', '_');
+        // Use proper escaping for database storage
+        std::string escapedTemplateKind = KuzuDatabase::escapeString(templateKind);
+        templateArguments = KuzuDatabase::escapeString(templateArguments);
+        std::string escapedMetaprogramResult = KuzuDatabase::escapeString(metaprogramResult);
+        dependentTypes = KuzuDatabase::escapeString(dependentTypes);
+        substitutionFailureReason = KuzuDatabase::escapeString(substitutionFailureReason);
 
-        std::string query =
-            "CREATE (tm:TemplateMetaprogramming {node_id: " + std::to_string(nodeId) + ", template_kind: '" +
-            templateKind + "', instantiation_depth: " + std::to_string(instantiationDepth) + ", template_arguments: '" +
-            templateArguments + "', specialized_template_id: " + std::to_string(specializedTemplateId) +
-            ", metaprogram_result: '" + metaprogramResult + "', dependent_types: '" + dependentTypes +
-            "', substitution_failure_reason: '" + substitutionFailureReason + "'})";
+        std::string query = "CREATE (tm:TemplateMetaprogramming {node_id: " + std::to_string(nodeId) +
+                            ", template_kind: '" + escapedTemplateKind +
+                            "', instantiation_depth: " + std::to_string(instantiationDepth) +
+                            ", template_arguments: '" + templateArguments +
+                            "', specialized_template_id: " + std::to_string(specializedTemplateId) +
+                            ", metaprogram_result: '" + escapedMetaprogramResult + "', dependent_types: '" +
+                            dependentTypes + "', substitution_failure_reason: '" + substitutionFailureReason + "'})";
 
         database.addToBatch(query);
     }

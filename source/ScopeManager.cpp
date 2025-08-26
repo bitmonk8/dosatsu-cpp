@@ -98,9 +98,10 @@ void ScopeManager::createScopeRelation(int64_t nodeId, int64_t scopeId, const st
 
     try
     {
+        std::string escapedScopeKind = KuzuDatabase::escapeString(scopeKind);
         std::string query = "MATCH (n:ASTNode {node_id: " + std::to_string(nodeId) +
                             "}), (s:Declaration {node_id: " + std::to_string(scopeId) +
-                            "}) CREATE (n)-[:IN_SCOPE {scope_kind: '" + scopeKind + "'}]->(s)";
+                            "}) CREATE (n)-[:IN_SCOPE {scope_kind: '" + escapedScopeKind + "'}]->(s)";
 
         database.addToBatch(query);
     }

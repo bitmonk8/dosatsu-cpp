@@ -39,11 +39,11 @@ void DeclarationAnalyzer::createDeclarationNode(int64_t nodeId, const clang::Nam
 
     try
     {
-        std::string name = decl->getNameAsString();
+        std::string name = KuzuDatabase::escapeString(decl->getNameAsString());
         std::string qualifiedName = extractQualifiedName(decl);
-        std::string accessSpec = extractAccessSpecifier(decl);
-        std::string storageClass = extractStorageClass(decl);
-        std::string namespaceContext = extractNamespaceContext(decl);
+        std::string accessSpec = KuzuDatabase::escapeString(extractAccessSpecifier(decl));
+        std::string storageClass = KuzuDatabase::escapeString(extractStorageClass(decl));
+        std::string namespaceContext = KuzuDatabase::escapeString(extractNamespaceContext(decl));
         bool isDef = isDefinition(decl);
 
         // Create Declaration node with extracted properties
@@ -92,13 +92,15 @@ void DeclarationAnalyzer::createUsingDeclarationNode(int64_t nodeId, const clang
 
         introducesName = decl->getNameAsString();
 
-        // Escape single quotes in strings for database storage
-        std::ranges::replace(targetName, '\'', '_');
-        std::ranges::replace(introducesName, '\'', '_');
+        // Use proper escaping for database storage
+        targetName = KuzuDatabase::escapeString(targetName);
+        introducesName = KuzuDatabase::escapeString(introducesName);
+        std::string escapedUsingKind = KuzuDatabase::escapeString(usingKind);
+        std::string escapedScopeImpact = KuzuDatabase::escapeString(scopeImpact);
 
         std::string query = "CREATE (u:UsingDeclaration {node_id: " + std::to_string(nodeId) + ", using_kind: '" +
-                            usingKind + "', target_name: '" + targetName + "', introduces_name: '" + introducesName +
-                            "', scope_impact: '" + scopeImpact + "'})";
+                            escapedUsingKind + "', target_name: '" + targetName + "', introduces_name: '" +
+                            introducesName + "', scope_impact: '" + escapedScopeImpact + "'})";
 
         database.addToBatch(query);
     }
@@ -127,12 +129,15 @@ void DeclarationAnalyzer::createUsingDirectiveNode(int64_t nodeId, const clang::
             introducesName = "*";  // Directive brings in all names from namespace
         }
 
-        // Escape single quotes in strings for database storage
-        std::ranges::replace(targetName, '\'', '_');
+        // Use proper escaping for database storage
+        targetName = KuzuDatabase::escapeString(targetName);
+        introducesName = KuzuDatabase::escapeString(introducesName);
+        std::string escapedUsingKind = KuzuDatabase::escapeString(usingKind);
+        std::string escapedScopeImpact = KuzuDatabase::escapeString(scopeImpact);
 
         std::string query = "CREATE (u:UsingDeclaration {node_id: " + std::to_string(nodeId) + ", using_kind: '" +
-                            usingKind + "', target_name: '" + targetName + "', introduces_name: '" + introducesName +
-                            "', scope_impact: '" + scopeImpact + "'})";
+                            escapedUsingKind + "', target_name: '" + targetName + "', introduces_name: '" +
+                            introducesName + "', scope_impact: '" + escapedScopeImpact + "'})";
 
         database.addToBatch(query);
     }
@@ -158,13 +163,15 @@ void DeclarationAnalyzer::createNamespaceAliasNode(int64_t nodeId, const clang::
         if (const auto* aliasedNS = decl->getNamespace())
             targetName = aliasedNS->getQualifiedNameAsString();
 
-        // Escape single quotes in strings for database storage
-        std::ranges::replace(targetName, '\'', '_');
-        std::ranges::replace(introducesName, '\'', '_');
+        // Use proper escaping for database storage
+        targetName = KuzuDatabase::escapeString(targetName);
+        introducesName = KuzuDatabase::escapeString(introducesName);
+        std::string escapedUsingKind = KuzuDatabase::escapeString(usingKind);
+        std::string escapedScopeImpact = KuzuDatabase::escapeString(scopeImpact);
 
         std::string query = "CREATE (u:UsingDeclaration {node_id: " + std::to_string(nodeId) + ", using_kind: '" +
-                            usingKind + "', target_name: '" + targetName + "', introduces_name: '" + introducesName +
-                            "', scope_impact: '" + scopeImpact + "'})";
+                            escapedUsingKind + "', target_name: '" + targetName + "', introduces_name: '" +
+                            introducesName + "', scope_impact: '" + escapedScopeImpact + "'})";
 
         database.addToBatch(query);
     }
@@ -181,9 +188,11 @@ void DeclarationAnalyzer::createReferenceRelation(int64_t fromId, int64_t toId, 
 
     try
     {
+        std::string escapedKind = KuzuDatabase::escapeString(kind);
         std::string query = "MATCH (from:ASTNode {node_id: " + std::to_string(fromId) + "}), " +
                             "(to:Declaration {node_id: " + std::to_string(toId) + "}) " +
-                            "CREATE (from)-[:REFERENCES {reference_kind: '" + kind + "', is_direct: true}]->(to)";
+                            "CREATE (from)-[:REFERENCES {reference_kind: '" + escapedKind +
+                            "', is_direct: true}]->(to)";
 
         database.addToBatch(query);
     }
