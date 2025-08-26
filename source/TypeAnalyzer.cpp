@@ -64,6 +64,10 @@ auto TypeAnalyzer::createTypeNode(clang::QualType qualType) -> int64_t
         std::string qualifiers = extractTypeQualifiers(qualType);
         bool isBuiltIn = isBuiltInType(qualType);
 
+        // Escape strings for safe database storage
+        typeName = KuzuDatabase::escapeString(typeName);
+        typeCategory = KuzuDatabase::escapeString(typeCategory);
+
         std::string query = "CREATE (t:Type {node_id: " + std::to_string(typeNodeId) + ", type_name: '" + typeName +
                             "', canonical_type: '" + typeCategory +
                             "', size_bytes: -1, is_const: " + (qualType.isConstQualified() ? "true" : "false") +

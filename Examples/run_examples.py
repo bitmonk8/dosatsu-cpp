@@ -55,9 +55,18 @@ def get_compilation_database_path(compile_db_name):
             cmake_db_path = ensure_cmake_compilation_database(category)
             return cmake_db_path
     
-    # For databases not in mapping, this is likely an error - CMake should handle all cases now
-    # Log a warning but still try to use artifacts location for consistency
-    print(f"Warning: Database '{compile_db_name}' not found in CMake mapping, trying artifacts location")
+    # For databases not in mapping, try to auto-generate based on filename
+    # Extract category name from database filename (e.g., "simple_cmake_compile_commands.json" -> "simple")
+    if compile_db_name.endswith('_cmake_compile_commands.json'):
+        category = compile_db_name[:-len('_cmake_compile_commands.json')]
+        # Check if this category exists as a directory
+        category_dir = project_root / "Examples" / "cpp" / category
+        if category_dir.exists():
+            # Auto-generate the database for this individual workflow
+            cmake_db_path = ensure_cmake_compilation_database(category)
+            return cmake_db_path
+    
+    # If we can't auto-generate, return the expected path (will fail later with clear error)
     return project_root / "artifacts" / "examples" / compile_db_name
 
 def ensure_cmake_compilation_database(example_category):
@@ -70,7 +79,7 @@ def ensure_cmake_compilation_database(example_category):
         return cmake_db_path
     
     # Generate new CMake compilation database
-    print(f"Generating CMake compilation database for {example_category} examples...")
+    # print(f"Generating CMake compilation database for {example_category} examples...")  # Reduced verbosity
     return generate_cmake_compilation_database(example_category)
 
 def is_cmake_db_current(example_category):
@@ -86,9 +95,9 @@ def is_cmake_db_current(example_category):
     db_mtime = cmake_db_path.stat().st_mtime
     
     if example_category == "simple":
-        cpp_dir = project_root / "Examples" / "cpp" / "basic"
+        cpp_dir = project_root / "Examples" / "cpp" / "simple"
         if cpp_dir.exists():
-            for file_name in ["simple_no_includes.cpp", "simple2.cpp"]:
+            for file_name in ["simple.cpp"]:
                 cpp_file = cpp_dir / file_name
                 if cpp_file.exists() and cpp_file.stat().st_mtime > db_mtime:
                     return False
@@ -104,19 +113,16 @@ def is_cmake_db_current(example_category):
         basic_dir = project_root / "Examples" / "cpp" / "basic"
         comprehensive_dir = project_root / "Examples" / "cpp" / "comprehensive"
         
-        # Check basic directory files
-        if basic_dir.exists():
-            for file_name in ["simple_no_includes.cpp", "inheritance_no_std.cpp"]:
-                cpp_file = basic_dir / file_name
+        # Check simple directory files
+        simple_dir = project_root / "Examples" / "cpp" / "simple"
+        if simple_dir.exists():
+            for file_name in ["simple.cpp"]:
+                cpp_file = simple_dir / file_name
                 if cpp_file.exists() and cpp_file.stat().st_mtime > db_mtime:
                     return False
         
-        # Check comprehensive directory files
-        if comprehensive_dir.exists():
-            for file_name in ["no_std_example.cpp", "advanced_features_no_std.cpp"]:
-                cpp_file = comprehensive_dir / file_name
-                if cpp_file.exists() and cpp_file.stat().st_mtime > db_mtime:
-                    return False
+        # Check comprehensive directory files (removed references to missing files)
+        # The comprehensive directory no longer exists as a separate entity
     elif example_category in ["basic", "comprehensive"]:
         # For basic and comprehensive categories, check the entire directory
         cpp_dir = project_root / "Examples" / "cpp" / example_category
@@ -147,7 +153,7 @@ def create_cmake_project(example_category):
     if not cmake_file.exists():
         raise RuntimeError(f"CMakeLists.txt not found in: {cmake_project_dir}")
     
-    print(f"   Using consolidated CMake project: {cmake_project_dir}")
+    # print(f"   Using consolidated CMake project: {cmake_project_dir}")  # Reduced verbosity
 
 def generate_cmake_compilation_database(example_category):
     """Generate compilation database using CMake for given example category."""
@@ -169,7 +175,7 @@ def generate_cmake_compilation_database(example_category):
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
     ]
     
-    print(f"   Configuring CMake project: {' '.join(configure_cmd)}")
+    # print(f"   Configuring CMake project: {' '.join(configure_cmd)}")  # Reduced verbosity
     result = subprocess.run(configure_cmd, check=True, cwd=project_root, capture_output=True, text=True)
     
     # Copy generated compile_commands.json
@@ -181,33 +187,73 @@ def generate_cmake_compilation_database(example_category):
         raise RuntimeError(f"CMake did not generate compile_commands.json at {src_db}")
     
     shutil.copy2(src_db, dst_db)
-    print(f"   Generated: {dst_db.name}")
+    # print(f"   Generated: {dst_db.name}")  # Reduced verbosity
     
     return dst_db
 
 def generate_cmake_content(example_category):
     """Generate CMakeLists.txt content for example category."""
-    if example_category == "basic":
-        example_files = [
-            "inheritance.cpp",
-            "templates.cpp", 
-            "namespaces.cpp",
-            "control_flow.cpp",
-            "expressions.cpp",
-            "preprocessor.cpp"
-        ]
-        advanced_definitions = ""
-    elif example_category == "comprehensive":
-        example_files = [
-            "advanced_features.cpp",
-            "complete_example.cpp",
-            "modern_cpp_features.cpp",
-            "control_flow_complex.cpp",
-            "standard_example.cpp",
-            "clean_example.cpp"
-        ]
-        advanced_definitions = """
-# Add advanced definitions for specific files
+    # Individual file workflows - each file is its own category
+    category_definitions = {
+        # Individual file workflows (named after the file)
+        "simple": {
+            "files": ["simple.cpp"],
+            "advanced_definitions": ""
+        },
+        "clean_code": {
+            "files": ["clean_code.cpp"],
+            "advanced_definitions": ""
+        },
+        "standard": {
+            "files": ["standard.cpp"],
+            "advanced_definitions": ""
+        },
+
+        "control_flow_complex": {
+            "files": ["control_flow_complex.cpp"],
+            "advanced_definitions": ""
+        },
+        "expressions": {
+            "files": ["expressions.cpp"],
+            "advanced_definitions": ""
+        },
+        "templates": {
+            "files": ["templates.cpp"],
+            "advanced_definitions": ""
+        },
+        "namespaces": {
+            "files": ["namespaces.cpp"],
+            "advanced_definitions": ""
+        },
+
+        "preprocessor_advanced": {
+            "files": ["preprocessor_advanced.cpp"],
+            "advanced_definitions": """
+# Add advanced definitions for preprocessor examples
+if(TARGET preprocessor_advanced)
+    target_compile_definitions(preprocessor_advanced PRIVATE 
+        DEBUG 
+        ENABLE_OPTIMIZATION=1 
+        ADVANCED_MODE
+    )
+endif()"""
+        },
+        "complete": {
+            "files": ["complete.cpp"],
+            "advanced_definitions": ""
+        },
+        "schema_coverage_complete": {
+            "files": ["schema_coverage_complete.cpp"],
+            "advanced_definitions": ""
+        },
+        "inheritance": {
+            "files": ["inheritance.cpp"],
+            "advanced_definitions": ""
+        },
+        "advanced_features": {
+            "files": ["advanced_features.cpp"],
+            "advanced_definitions": """
+# Add advanced definitions for memory management examples
 if(TARGET advanced_features)
     target_compile_definitions(advanced_features PRIVATE 
         DEBUG 
@@ -220,42 +266,111 @@ if(TARGET advanced_features)
         ENABLE_LOGGING 
         VERBOSE_LOGGING
     )
-endif()
-
-if(TARGET preprocessor_advanced)
-    target_compile_definitions(preprocessor_advanced PRIVATE 
+endif()"""
+        },
+        "modern_cpp_features": {
+            "files": ["modern_cpp_features.cpp"],
+            "advanced_definitions": ""
+        },
+        
+        # Legacy grouped categories for backwards compatibility
+        "minimal": {
+            "files": [
+                "simple.cpp",
+                "clean_code.cpp",
+                "standard.cpp"
+            ],
+            "advanced_definitions": ""
+        },
+        "core_features": {
+            "files": [
+                "inheritance.cpp"
+            ],
+            "advanced_definitions": ""
+        },
+        "control_flow_group": {
+            "files": [
+                "control_flow_complex.cpp",
+                "expressions.cpp"
+            ],
+            "advanced_definitions": ""
+        },
+        "preprocessor_group": {
+            "files": [
+                "preprocessor_advanced.cpp"
+            ],
+            "advanced_definitions": ""
+        },
+        "std_containers": {
+            "files": [
+                "complete.cpp",
+                "schema_coverage_complete.cpp"
+            ],
+            "advanced_definitions": ""
+        },
+        "std_memory": {
+            "files": [
+                "advanced_features.cpp"
+            ],
+            "advanced_definitions": ""
+        },
+        "modern_cpp": {
+            "files": [
+                "modern_cpp_features.cpp"
+            ],
+            "advanced_definitions": ""
+        },
+        "std_algorithms": {
+            "files": [],
+            "advanced_definitions": ""
+        },
+        # Legacy categories for backwards compatibility
+        "basic": {
+            "files": [
+                "inheritance.cpp",
+                "templates.cpp", 
+                "namespaces.cpp",
+                "expressions.cpp"
+            ],
+            "advanced_definitions": ""
+        },
+        "comprehensive": {
+            "files": [
+                "advanced_features.cpp",
+                "complete.cpp",
+                "modern_cpp_features.cpp",
+                "control_flow_complex.cpp",
+                "standard.cpp",
+                "clean_code.cpp"
+            ],
+            "advanced_definitions": """
+# Add advanced definitions for comprehensive examples
+if(TARGET advanced_features)
+    target_compile_definitions(advanced_features PRIVATE 
         DEBUG 
         ENABLE_OPTIMIZATION=1 
-        ADVANCED_MODE
+        ADVANCED_MODE 
+        FEATURE_A 
+        FEATURE_B 
+        FEATURE_A_VERSION=2 
+        FEATURE_B_VERSION=3 
+        ENABLE_LOGGING 
+        VERBOSE_LOGGING
     )
 endif()"""
-    elif example_category == "simple":
-        example_files = [
-            "simple_no_includes.cpp",
-            "simple2.cpp"
-        ]
-        advanced_definitions = ""
-    elif example_category == "schema":
-        example_files = [
-            "schema_coverage_complete.cpp"
-        ]
-        advanced_definitions = ""
-    elif example_category == "nostd":
-        example_files = [
-            "no_std_example.cpp",
-            "advanced_features_no_std.cpp",
-            "simple_no_includes.cpp",
-            "inheritance_no_std.cpp"
-        ]
-        advanced_definitions = """
-# Add advanced definitions for specific files
-if(TARGET advanced_features_no_std)
-    target_compile_definitions(advanced_features_no_std PRIVATE 
-        DEBUG 
-        ENABLE_OPTIMIZATION=1 
-        ADVANCED_MODE
-    )
-endif()"""
+        },
+        "nostd": {
+            "files": [
+                "simple.cpp"
+            ],
+            "advanced_definitions": ""
+        }
+    }
+    
+    if example_category in category_definitions:
+        category_def = category_definitions[example_category]
+        example_files = category_def["files"]
+        advanced_definitions = category_def["advanced_definitions"]
     else:
         # Fallback - no files defined for this category
         example_files = []
@@ -347,29 +462,18 @@ def list_available_examples():
     
     print("=== Available C++ Examples ===\n")
     
-    # Basic examples
-    basic_dir = examples_root / "cpp" / "basic"
-    if basic_dir.exists():
-        print("Basic Examples (cpp/basic/):")
-        for cpp_file in sorted(basic_dir.glob("*.cpp")):
-            print(f"   - {cpp_file.stem}.cpp")
+    # Individual examples (all examples are now organized as individual categories)
+    cpp_root = examples_root / "cpp"
+    if cpp_root.exists():
+        print("Available Examples:")
+        for example_dir in sorted(cpp_root.iterdir()):
+            if example_dir.is_dir() and not example_dir.name.startswith('.'):
+                cpp_files = list(example_dir.glob("*.cpp"))
+                if cpp_files:
+                    print(f"   - {example_dir.name}/ ({len(cpp_files)} file{'s' if len(cpp_files) > 1 else ''})")
         print()
     
-    # Comprehensive examples  
-    comprehensive_dir = examples_root / "cpp" / "comprehensive"
-    if comprehensive_dir.exists():
-        print("Comprehensive Examples (cpp/comprehensive/):")
-        for cpp_file in sorted(comprehensive_dir.glob("*.cpp")):
-            print(f"   - {cpp_file.stem}.cpp")
-        print()
-    
-    # Compilation configurations
-    compilation_dir = examples_root / "cpp" / "compilation"
-    if compilation_dir.exists():
-        print("Compilation Configurations (cpp/compilation/):")
-        for json_file in sorted(compilation_dir.glob("*.json")):
-            print(f"   - {json_file.stem}.json")
-        print()
+    # Note: Compilation configurations are now auto-generated via CMake
 
 def has_main_function(file_path):
     """Check if a C++ file has a main function."""
@@ -470,16 +574,13 @@ def create_log_file_path():
     return log_file
 
 def handle_dosatsu_output(stdout_output, stderr_output, log_file):
-    """Handle dosatsu output - show on console if short, otherwise redirect to file."""
+    """Handle dosatsu output - minimal console output, details to log file."""
     # Combine stdout and stderr for analysis
     full_output = ""
     if stdout_output:
         full_output += "=== STDOUT ===\n" + stdout_output + "\n"
     if stderr_output:
         full_output += "=== STDERR ===\n" + stderr_output + "\n"
-    
-    # Count lines in output
-    output_lines = full_output.count('\n') if full_output else 0
     
     # Write full output to log file always
     try:
@@ -492,25 +593,16 @@ def handle_dosatsu_output(stdout_output, stderr_output, log_file):
         print(f"[WARNING] Failed to write log file {log_file}: {e}")
         log_written = False
     
-    # Determine how to present output
-    if output_lines <= 20 and output_lines > 0:
-        # Short output - show on console
-        if stdout_output:
-            print("   dosatsu-cpp output:")
-            for line in stdout_output.strip().split('\n'):
-                print(f"     {line}")
-        if stderr_output:
-            print("   dosatsu-cpp errors:")
-            for line in stderr_output.strip().split('\n'):
-                print(f"     {line}")
+    # Only show errors on console, or very brief success indication
+    if stderr_output and stderr_output.strip():
+        print("   Errors detected:")
+        for line in stderr_output.strip().split('\n')[:3]:  # Show first 3 error lines only
+            print(f"     {line}")
+        if len(stderr_output.strip().split('\n')) > 3:
+            print(f"     ... and {len(stderr_output.strip().split('\n')) - 3} more error lines")
         if log_written:
-            print(f"   Full output also saved to: {log_file}")
-    else:
-        # Long output or no output - just refer to log file
-        if output_lines > 20:
-            print(f"   dosatsu-cpp output ({output_lines} lines) saved to: {log_file}")
-        elif log_written:
-            print(f"   dosatsu-cpp execution log saved to: {log_file}")
+            print(f"   Full output: {log_file}")
+    # For successful runs, don't clutter output
     
     return log_written
 
@@ -556,9 +648,7 @@ def run_dosatsu_indexing(compile_commands_path, output_db_path=None):
         "--output-db", str(output_db_path)
     ]
     
-    print(f"Running Dosatsu indexing...")
-    print(f"   Input: {compile_commands_path.name}")
-    print(f"   Output: {output_db_path}")
+    print(f"Indexing {compile_commands_path.name}...")
     
     try:
         result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True)
@@ -567,8 +657,7 @@ def run_dosatsu_indexing(compile_commands_path, output_db_path=None):
         handle_dosatsu_output(result.stdout, result.stderr, log_file)
         
         if result.returncode == 0:
-            print("[SUCCESS] Indexing completed successfully!")
-            print(f"   Database created at: {output_db_path}")
+            print("   Indexing completed")
             return True
         else:
             print(f"[ERROR] Indexing failed (return code: {result.returncode})")
@@ -595,7 +684,7 @@ def run_verification():
         print("[ERROR] Verification query script not found.")
         return False
     
-    print("Running verification query suite...")
+    print("Verifying...")
     
     try:
         result = subprocess.run([sys.executable, str(verification_script)], 
@@ -606,6 +695,34 @@ def run_verification():
         print(f"[ERROR] Verification error: {e}")
         return False
 
+
+def run_verification_with_db(compile_db_path):
+    """Run verification with a specific compilation database."""
+    try:
+        # Convert relative path to absolute path if needed
+        project_root = get_project_root()
+        if not Path(compile_db_path).is_absolute():
+            compile_db_path = project_root / "artifacts" / "examples" / compile_db_path
+        
+        # Set environment variable to tell the verification system which DB to use
+        original_compile_db = os.environ.get('DOSATSU_COMPILE_DB')
+        os.environ['DOSATSU_COMPILE_DB'] = str(compile_db_path)
+        
+        # Run normal verification
+        result = run_verification()
+        
+        # Restore original environment
+        if original_compile_db is not None:
+            os.environ['DOSATSU_COMPILE_DB'] = original_compile_db
+        elif 'DOSATSU_COMPILE_DB' in os.environ:
+            del os.environ['DOSATSU_COMPILE_DB']
+            
+        return result
+        
+    except Exception as e:
+        print(f"[ERROR] Failed to run verification with DB {compile_db_path}: {e}")
+        return False
+
 def main():
     parser = argparse.ArgumentParser(
         description="Dosatsu Examples Runner",
@@ -613,11 +730,11 @@ def main():
         epilog="""
 Examples:
   python run_examples.py --list                    # List all available examples
-  python run_examples.py --compile basic/inheritance.cpp  # Compile single example
+  python run_examples.py --compile inheritance/inheritance.cpp  # Compile single example
   python run_examples.py --index comprehensive_compile_commands.json  # Index examples (auto-generates CMake DB)
   python run_examples.py --verify                  # Run verification suite
-  python run_examples.py --all                     # Run complete workflow
-  python run_examples.py --generate-cmake comprehensive   # Generate CMake DB for comprehensive examples
+  python run_examples.py --all                     # Run complete workflow on ALL individual files (13 workflows)
+  python run_examples.py --generate-cmake simple   # Generate CMake DB for simple example
   python run_examples.py --force-regenerate-cmake  # Force regenerate all CMake databases
         """
     )
@@ -631,7 +748,7 @@ Examples:
     parser.add_argument("--verify", action="store_true",
                        help="Run verification query suite")
     parser.add_argument("--all", action="store_true",
-                       help="Run complete workflow: index + verify")
+                       help="Run complete workflow on ALL individual file workflows (13 separate workflows, one per file)")
     parser.add_argument("--output-dir", metavar="DIR",
                        help="Output directory for compiled examples")
     parser.add_argument("--db-output", metavar="PATH",
@@ -639,7 +756,7 @@ Examples:
     parser.add_argument("--force-regenerate-cmake", action="store_true",
                        help="Force regenerate all CMake compilation databases")
     parser.add_argument("--generate-cmake", metavar="CATEGORY",
-                       help="Generate CMake compilation database for specific category (basic, comprehensive)")
+                       help="Generate CMake compilation database for specific file workflow (e.g., simple, templates, inheritance, etc.)")
     
     args = parser.parse_args()
     
@@ -647,8 +764,9 @@ Examples:
         parser.print_help()
         return 1
     
-    print("Dosatsu Examples Runner")
-    print("=" * 50)
+    # Reduce verbosity - minimal header
+    # print("Dosatsu Examples Runner")
+    # print("=" * 50)
     
     success = True
     
@@ -666,7 +784,14 @@ Examples:
     
     if args.force_regenerate_cmake:
         print("Force regenerating all CMake compilation databases...")
-        for category in ['basic', 'comprehensive', 'nostd']:
+        individual_categories = [
+            'simple', 'clean_code', 'standard',
+            'control_flow_complex', 'expressions', 'templates', 'namespaces', 
+            'preprocessor_advanced', 'complete', 'schema_coverage_complete',
+            'inheritance', 'advanced_features', 'modern_cpp_features'
+        ]
+        # Only regenerate individual categories that have actual directories
+        for category in individual_categories:
             # Remove existing cmake database to force regeneration
             cmake_db_path = get_project_root() / "artifacts" / "examples" / f"{category}_cmake_compile_commands.json"
             if cmake_db_path.exists():
@@ -692,21 +817,47 @@ Examples:
             success = False
     
     if args.all:
-        print("\nRunning complete examples workflow...\n")
+        print("Running complete workflow on all categories...")
         
-        # Step 1: Index examples
-        print("Step 1: Indexing examples...")
-        success &= run_dosatsu_indexing("comprehensive_no_std_compile_commands.json")
+        # Process each individual file workflow separately
+        categories = [
+            # Individual file workflows (one file per workflow)
+            ("simple", "simple_cmake_compile_commands.json"),
+            ("clean_code", "clean_code_cmake_compile_commands.json"),
+            ("standard", "standard_cmake_compile_commands.json"),
+
+            ("control_flow_complex", "control_flow_complex_cmake_compile_commands.json"),
+            ("expressions", "expressions_cmake_compile_commands.json"),
+            ("templates", "templates_cmake_compile_commands.json"),
+            ("namespaces", "namespaces_cmake_compile_commands.json"),
+
+            ("preprocessor_advanced", "preprocessor_advanced_cmake_compile_commands.json"),
+            ("complete", "complete_cmake_compile_commands.json"),
+            ("schema_coverage_complete", "schema_coverage_complete_cmake_compile_commands.json"),
+            ("inheritance", "inheritance_cmake_compile_commands.json"),
+            ("advanced_features", "advanced_features_cmake_compile_commands.json"),
+            ("modern_cpp_features", "modern_cpp_features_cmake_compile_commands.json")
+        ]
         
-        if success:
-            print("\nStep 2: Running verification queries...")
-            success &= run_verification()
+        for i, (category_name, compile_db_file) in enumerate(categories, 1):
+            print(f"[{i}/{len(categories)}] {category_name}...")
+            
+            # Step 1: Index this category
+            category_success = run_dosatsu_indexing(compile_db_file)
+            
+            if category_success:
+                category_success = run_verification_with_db(compile_db_file)
+            
+            if category_success:
+                print(f"   OK")
+            else:
+                print(f"   FAILED")
+                success = False
     
-    print("\n" + "=" * 50)
     if success:
-        print("[SUCCESS] All operations completed successfully!")
+        print("All operations completed successfully")
     else:
-        print("[ERROR] Some operations failed. Check the output above.")
+        print("Some operations failed - check output above")
     
     return 0 if success else 1
 
