@@ -113,13 +113,16 @@ void AdvancedAnalyzer::createConstantExpressionNode(int64_t nodeId,
         std::string cleanConstantValue = constantValue;
         std::string cleanConstantType = constantType;
 
-        std::ranges::replace(cleanEvaluationContext, '\'', '_');
-        std::ranges::replace(cleanEvaluationResult, '\'', '_');
-        std::ranges::replace(cleanResultType, '\'', '_');
-        std::ranges::replace(cleanConstantValue, '\'', '_');
-        std::ranges::replace(cleanConstantType, '\'', '_');
+        cleanEvaluationContext = KuzuDatabase::escapeString(cleanEvaluationContext);
+        cleanEvaluationResult = KuzuDatabase::escapeString(cleanEvaluationResult);
+        cleanResultType = KuzuDatabase::escapeString(cleanResultType);
+        cleanConstantValue = KuzuDatabase::escapeString(cleanConstantValue);
+        cleanConstantType = KuzuDatabase::escapeString(cleanConstantType);
 
-        std::string query = "CREATE (ce:ConstantExpression {node_id: " + std::to_string(nodeId) +
+        // Generate a unique node ID for the ConstantExpression table
+        int64_t constantExprNodeId = database.getNextNodeId();
+
+        std::string query = "CREATE (ce:ConstantExpression {node_id: " + std::to_string(constantExprNodeId) +
                             ", is_constexpr_function: " + (isConstexprFunction ? "true" : "false") +
                             ", evaluation_context: '" + cleanEvaluationContext + "', evaluation_result: '" +
                             cleanEvaluationResult + "', result_type: '" + cleanResultType +
@@ -128,6 +131,13 @@ void AdvancedAnalyzer::createConstantExpressionNode(int64_t nodeId,
                             "', evaluation_status: '" + evaluationStatus + "'})";
 
         database.addToBatch(query);
+
+        // Create relationship between the original AST node and the ConstantExpression
+        std::string relationshipQuery = "MATCH (e:Expression {node_id: " + std::to_string(nodeId) + "}), " +
+                                        "(ce:ConstantExpression {node_id: " + std::to_string(constantExprNodeId) +
+                                        "}) " + "CREATE (e)-[:HAS_CONSTANT_VALUE {evaluation_stage: '" +
+                                        cleanEvaluationContext + "'}]->(ce)";
+        database.addToBatch(relationshipQuery);
     }
     catch (const std::exception& e)
     {
@@ -146,10 +156,10 @@ void AdvancedAnalyzer::createStaticAssertionNode(int64_t nodeId, const clang::St
         std::string failureReason = assertionResult ? "" : "static_assert_failed";
         std::string evaluationContext = "compile_time";
 
-        // Escape single quotes for database storage
-        std::ranges::replace(assertionExpression, '\'', '_');
-        std::ranges::replace(assertionMessage, '\'', '_');
-        std::ranges::replace(failureReason, '\'', '_');
+        // Escape strings for safe database storage
+        assertionExpression = KuzuDatabase::escapeString(assertionExpression);
+        assertionMessage = KuzuDatabase::escapeString(assertionMessage);
+        failureReason = KuzuDatabase::escapeString(failureReason);
 
         std::string query = "CREATE (sa:StaticAssertion {node_id: " + std::to_string(nodeId) +
                             ", assertion_expression: '" + assertionExpression + "', assertion_message: '" +
@@ -317,11 +327,15 @@ auto AdvancedAnalyzer::extractStaticAssertInfo(const clang::StaticAssertDecl* as
     bool result = false;
     if (const Expr* assertExpr = assertDecl->getAssertExpr())
     {
-        Expr::EvalResult evalResult;
-        if (assertExpr->EvaluateAsConstantExpr(evalResult, *astContext))
+        // Only evaluate if the expression is not dependent
+        if (!assertExpr->isValueDependent() && !assertExpr->isTypeDependent())
         {
-            if (evalResult.Val.isInt())
-                result = evalResult.Val.getInt().getBoolValue();
+            Expr::EvalResult evalResult;
+            if (assertExpr->EvaluateAsConstantExpr(evalResult, *astContext))
+            {
+                if (evalResult.Val.isInt())
+                    result = evalResult.Val.getInt().getBoolValue();
+            }
         }
     }
 
@@ -353,9 +367,9 @@ void AdvancedAnalyzer::createCFGBlockNode(int64_t blockNodeId,
                 terminatorKind = terminator->getStmtClassName();
         }
 
-        // Escape single quotes for database storage
-        std::ranges::replace(blockContent, '\'', '_');
-        std::ranges::replace(conditionExpression, '\'', '_');
+        // Escape strings for safe database storage
+        blockContent = KuzuDatabase::escapeString(blockContent);
+        conditionExpression = KuzuDatabase::escapeString(conditionExpression);
 
         std::string query = "CREATE (cfgb:CFGBlock {node_id: " + std::to_string(blockNodeId) +
                             ", function_id: " + std::to_string(functionNodeId) +
@@ -384,8 +398,7 @@ void AdvancedAnalyzer::createCFGEdgeRelation(int64_t fromBlockId,
 
     try
     {
-        std::string cleanCondition = condition;
-        std::ranges::replace(cleanCondition, '\'', '_');
+        std::string cleanCondition = KuzuDatabase::escapeString(condition);
 
         std::string query = "MATCH (from:CFGBlock {node_id: " + std::to_string(fromBlockId) + "}), " +
                             "(to:CFGBlock {node_id: " + std::to_string(toBlockId) + "}) " +

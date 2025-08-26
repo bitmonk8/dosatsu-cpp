@@ -199,9 +199,8 @@ auto DeclarationAnalyzer::extractQualifiedName(const clang::NamedDecl* decl) -> 
         return "";
 
     std::string qualifiedName = decl->getQualifiedNameAsString();
-    // Replace any problematic characters for database storage
-    std::ranges::replace(qualifiedName, '\'', '_');
-    return qualifiedName;
+    // Escape string for safe database storage
+    return KuzuDatabase::escapeString(qualifiedName);
 }
 
 auto DeclarationAnalyzer::extractAccessSpecifier(const clang::Decl* decl) -> std::string

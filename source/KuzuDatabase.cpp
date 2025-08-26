@@ -12,9 +12,9 @@
 #include "NoWarningScope_Leave.h"
 // clang-format on
 
+#include <algorithm>
 #include <filesystem>
 #include <stdexcept>
-#include <algorithm>
 
 using namespace clang;
 
@@ -480,7 +480,7 @@ void KuzuDatabase::createSchema()
 auto KuzuDatabase::escapeString(const std::string& str) -> std::string
 {
     std::string escaped = str;
-    
+
     // Escape backslashes first (for Windows paths)
     std::string::size_type pos = 0;
     while ((pos = escaped.find('\\', pos)) != std::string::npos)
@@ -488,7 +488,7 @@ auto KuzuDatabase::escapeString(const std::string& str) -> std::string
         escaped.replace(pos, 1, "\\\\");
         pos += 2;  // Move past the escaped backslash
     }
-    
+
     // Escape single quotes
     pos = 0;
     while ((pos = escaped.find('\'', pos)) != std::string::npos)
@@ -496,6 +496,6 @@ auto KuzuDatabase::escapeString(const std::string& str) -> std::string
         escaped.replace(pos, 1, "\\'");
         pos += 2;  // Move past the escaped quote
     }
-    
+
     return escaped;
 }

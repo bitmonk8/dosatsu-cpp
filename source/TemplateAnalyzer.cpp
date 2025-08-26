@@ -155,10 +155,11 @@ void TemplateAnalyzer::createTemplateParameterNode(int64_t nodeId, const clang::
             parameterKind = "unknown";
         }
 
-        // Escape single quotes for database storage
-        std::ranges::replace(parameterName, '\'', '_');
-        std::ranges::replace(defaultArgumentText, '\'', '_');
+        // Escape strings for safe database storage
+        parameterName = KuzuDatabase::escapeString(parameterName);
+        defaultArgumentText = KuzuDatabase::escapeString(defaultArgumentText);
 
+        // Use the provided node ID for the TemplateParameter table
         std::string query = "CREATE (tp:TemplateParameter {node_id: " + std::to_string(nodeId) + ", parameter_kind: '" +
                             parameterKind + "', parameter_name: '" + parameterName +
                             "', has_default_argument: " + (hasDefaultArgument ? "true" : "false") +

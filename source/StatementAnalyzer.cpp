@@ -48,8 +48,8 @@ void StatementAnalyzer::createStatementNode(int64_t nodeId, const clang::Stmt* s
         std::string conditionText = extractConditionText(stmt);
         bool isConstexpr = isStatementConstexpr(stmt);
 
-        // Escape single quotes for database storage
-        std::ranges::replace(conditionText, '\'', '_');
+        // Escape string for safe database storage
+        conditionText = KuzuDatabase::escapeString(conditionText);
 
         std::string query = "CREATE (s:Statement {node_id: " + std::to_string(nodeId) + ", statement_kind: '" +
                             statementKind + "', has_side_effects: " + (hasSideEffects ? "true" : "false") +
@@ -267,7 +267,12 @@ auto StatementAnalyzer::extractLiteralValue(const clang::Expr* expr) -> std::str
         return str.str().str();
     }
     if (const auto* stringLiteral = dyn_cast<StringLiteral>(expr))
-        return stringLiteral->getString().str();
+    {
+        // Only process narrow character strings to avoid assertion failures
+        if (stringLiteral->getCharByteWidth() == 1)
+            return stringLiteral->getString().str();
+        return "wide_string_literal";
+    }
     if (const auto* charLiteral = dyn_cast<CharacterLiteral>(expr))
         return std::to_string(charLiteral->getValue());
     if (isa<CXXBoolLiteralExpr>(expr))

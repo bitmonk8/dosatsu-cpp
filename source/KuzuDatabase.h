@@ -81,7 +81,7 @@ private:
     std::unique_ptr<kuzu::main::Connection> connection;
 
     // Performance optimization - batching
-    static constexpr size_t BATCH_SIZE = 100;
+    static constexpr size_t BATCH_SIZE = 25;
     std::vector<std::string> pendingQueries;
     bool transactionActive = false;
     size_t totalOperations = 0;
