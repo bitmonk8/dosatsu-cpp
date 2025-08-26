@@ -58,7 +58,7 @@ Examples/
 
 2. **Analyze with Dosatsu:**
    ```bash
-   ./artifacts/debug/bin/dosatsu_cpp.exe Examples/cpp/compilation/comprehensive_compile_commands.json my_database
+   ./artifacts/debug/bin/dosatsu_cpp.exe artifacts/examples/comprehensive_cmake_compile_commands.json my_database
    ```
 
 ## C++ Examples

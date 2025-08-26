@@ -55,8 +55,10 @@ def get_compilation_database_path(compile_db_name):
             cmake_db_path = ensure_cmake_compilation_database(category)
             return cmake_db_path
     
-    # For no-std databases and any other databases, use original path
-    return project_root / "Examples" / "cpp" / "compilation" / compile_db_name
+    # For databases not in mapping, this is likely an error - CMake should handle all cases now
+    # Log a warning but still try to use artifacts location for consistency
+    print(f"Warning: Database '{compile_db_name}' not found in CMake mapping, trying artifacts location")
+    return project_root / "artifacts" / "examples" / compile_db_name
 
 def ensure_cmake_compilation_database(example_category):
     """Ensure CMake compilation database exists, creating if necessary."""
@@ -132,69 +134,25 @@ def is_cmake_db_current(example_category):
     return True
 
 def create_cmake_project(example_category):
-    """Create CMake project structure for given example category."""
+    """Ensure CMake project directory exists - now using consolidated structure."""
     project_root = get_project_root()
-    cmake_project_dir = project_root / "Examples" / "cmake_projects" / f"{example_category}_examples"
-    cmake_project_dir.mkdir(parents=True, exist_ok=True)
+    cmake_project_dir = project_root / "Examples" / "cpp" / example_category
     
-    # Create CMakeLists.txt content
-    cmake_content = generate_cmake_content(example_category)
+    # Verify the directory exists (should already exist from consolidation)
+    if not cmake_project_dir.exists():
+        raise RuntimeError(f"Example category directory not found: {cmake_project_dir}")
+    
+    # Verify CMakeLists.txt exists
     cmake_file = cmake_project_dir / "CMakeLists.txt"
-    cmake_file.write_text(cmake_content)
+    if not cmake_file.exists():
+        raise RuntimeError(f"CMakeLists.txt not found in: {cmake_project_dir}")
     
-    # Copy source files to CMake project directory
-    src_dir = cmake_project_dir / "src"
-    
-    # Determine source directory based on category
-    if src_dir.exists():
-        shutil.rmtree(src_dir)
-    
-    if example_category == "simple":
-        # Copy simple files from basic directory
-        src_dir.mkdir(parents=True, exist_ok=True)
-        basic_dir = project_root / "Examples" / "cpp" / "basic"
-        for file_name in ["simple_no_includes.cpp", "simple2.cpp"]:
-            src_file = basic_dir / file_name
-            if src_file.exists():
-                shutil.copy2(src_file, src_dir / file_name)
-    elif example_category == "schema":
-        # Copy schema files from comprehensive directory
-        src_dir.mkdir(parents=True, exist_ok=True)
-        comprehensive_dir = project_root / "Examples" / "cpp" / "comprehensive"
-        for file_name in ["schema_coverage_complete.cpp"]:
-            src_file = comprehensive_dir / file_name
-            if src_file.exists():
-                shutil.copy2(src_file, src_dir / file_name)
-    elif example_category == "nostd":
-        # Copy no-std files from both basic and comprehensive directories
-        src_dir.mkdir(parents=True, exist_ok=True)
-        basic_dir = project_root / "Examples" / "cpp" / "basic"
-        comprehensive_dir = project_root / "Examples" / "cpp" / "comprehensive"
-        
-        # Files from basic directory
-        for file_name in ["simple_no_includes.cpp", "inheritance_no_std.cpp"]:
-            src_file = basic_dir / file_name
-            if src_file.exists():
-                shutil.copy2(src_file, src_dir / file_name)
-        
-        # Files from comprehensive directory  
-        for file_name in ["no_std_example.cpp", "advanced_features_no_std.cpp"]:
-            src_file = comprehensive_dir / file_name
-            if src_file.exists():
-                shutil.copy2(src_file, src_dir / file_name)
-    else:
-        # For basic and comprehensive categories, copy entire directory
-        src_target = project_root / "Examples" / "cpp" / example_category
-        if src_target.exists():
-            shutil.copytree(src_target, src_dir)
-        else:
-            # Create empty directory if source doesn't exist
-            src_dir.mkdir(parents=True, exist_ok=True)
+    print(f"   Using consolidated CMake project: {cmake_project_dir}")
 
 def generate_cmake_compilation_database(example_category):
     """Generate compilation database using CMake for given example category."""
     project_root = get_project_root()
-    cmake_project_dir = project_root / "Examples" / "cmake_projects" / f"{example_category}_examples"
+    cmake_project_dir = project_root / "Examples" / "cpp" / example_category
     build_dir = project_root / "artifacts" / "examples" / example_category
     build_dir.mkdir(parents=True, exist_ok=True)
     
@@ -708,9 +666,9 @@ Examples:
     
     if args.force_regenerate_cmake:
         print("Force regenerating all CMake compilation databases...")
-        for category in ['basic', 'comprehensive']:
+        for category in ['basic', 'comprehensive', 'nostd']:
             # Remove existing cmake database to force regeneration
-            cmake_db_path = get_project_root() / "Examples" / "cpp" / "compilation" / f"{category}_cmake_compile_commands.json"
+            cmake_db_path = get_project_root() / "artifacts" / "examples" / f"{category}_cmake_compile_commands.json"
             if cmake_db_path.exists():
                 cmake_db_path.unlink()
                 print(f"   Removed existing database: {cmake_db_path.name}")

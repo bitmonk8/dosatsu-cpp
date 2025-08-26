@@ -159,8 +159,8 @@ def setup_example_database(project_root: Path = None) -> Tuple[str, kuzu.Databas
     # Create temporary database
     db_path = create_temp_database(project_root)
     
-    # Use comprehensive no-std compilation database
-    compile_commands_path = example_data_path / "compilation" / "comprehensive_no_std_compile_commands.json"
+    # Use comprehensive no-std compilation database from CMake-generated artifacts
+    compile_commands_path = project_root / "artifacts" / "examples" / "nostd_cmake_compile_commands.json"
     
     # Run Dosatsu
     run_dosatsu(dosatsu_path, compile_commands_path, db_path)

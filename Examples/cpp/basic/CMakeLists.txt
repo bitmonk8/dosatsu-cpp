@@ -19,18 +19,21 @@ endif()
 
 # Example files
 set(EXAMPLE_FILES
-    inheritance.cpp
-    templates.cpp
-    namespaces.cpp
     control_flow.cpp
     expressions.cpp
+    inheritance.cpp
+    inheritance_no_std.cpp
+    namespaces.cpp
     preprocessor.cpp
+    simple2.cpp
+    simple_no_includes.cpp
+    templates.cpp
 )
 
 # Create targets for each source file
 foreach(SOURCE ${EXAMPLE_FILES})
     get_filename_component(TARGET_NAME ${SOURCE} NAME_WE)
-    add_executable(${TARGET_NAME} "src/${SOURCE}")
+    add_executable(${TARGET_NAME} "${SOURCE}")
     set_target_properties(${TARGET_NAME} PROPERTIES
         EXCLUDE_FROM_ALL TRUE
     )

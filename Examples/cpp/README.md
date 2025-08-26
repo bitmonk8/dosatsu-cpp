@@ -85,15 +85,15 @@ clang++ -std=c++17 -I. Examples/cpp/basic/inheritance.cpp -o inheritance_example
 ### Batch Compilation
 
 ```bash
-# Use compilation database
-clang++ @Examples/cpp/compilation/comprehensive_compile_commands.json
+# Use compilation database (auto-generated via CMake)
+clang++ @../../artifacts/examples/comprehensive_cmake_compile_commands.json
 ```
 
 ### Analysis with Dosatsu
 
 ```bash
 # Analyze examples
-./artifacts/debug/bin/dosatsu_cpp.exe Examples/cpp/compilation/comprehensive_compile_commands.json output_db
+../../artifacts/debug/bin/dosatsu_cpp.exe ../../artifacts/examples/comprehensive_cmake_compile_commands.json output_db
 
 # Verify analysis
 python Examples/queries/run_queries.py

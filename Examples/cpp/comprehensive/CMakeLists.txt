@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
-project(DosatsuNostdExamples 
+project(DosatsuComprehensiveExamples 
     VERSION 1.0.0
-    DESCRIPTION "Dosatsu Nostd C++ Examples"
+    DESCRIPTION "Dosatsu Comprehensive C++ Examples"
     LANGUAGES CXX
 )
 
@@ -19,16 +19,22 @@ endif()
 
 # Example files
 set(EXAMPLE_FILES
-    no_std_example.cpp
+    advanced_features.cpp
     advanced_features_no_std.cpp
-    simple_no_includes.cpp
-    inheritance_no_std.cpp
+    clean_example.cpp
+    complete_example.cpp
+    control_flow_complex.cpp
+    modern_cpp_features.cpp
+    no_std_example.cpp
+    preprocessor_advanced.cpp
+    schema_coverage_complete.cpp
+    standard_example.cpp
 )
 
 # Create targets for each source file
 foreach(SOURCE ${EXAMPLE_FILES})
     get_filename_component(TARGET_NAME ${SOURCE} NAME_WE)
-    add_executable(${TARGET_NAME} "src/${SOURCE}")
+    add_executable(${TARGET_NAME} "${SOURCE}")
     set_target_properties(${TARGET_NAME} PROPERTIES
         EXCLUDE_FROM_ALL TRUE
     )
@@ -36,6 +42,28 @@ foreach(SOURCE ${EXAMPLE_FILES})
     target_compile_definitions(${TARGET_NAME} PRIVATE EXAMPLE_MODE)
 endforeach()
 # Add advanced definitions for specific files
+if(TARGET advanced_features)
+    target_compile_definitions(advanced_features PRIVATE 
+        DEBUG 
+        ENABLE_OPTIMIZATION=1 
+        ADVANCED_MODE 
+        FEATURE_A 
+        FEATURE_B 
+        FEATURE_A_VERSION=2 
+        FEATURE_B_VERSION=3 
+        ENABLE_LOGGING 
+        VERBOSE_LOGGING
+    )
+endif()
+
+if(TARGET preprocessor_advanced)
+    target_compile_definitions(preprocessor_advanced PRIVATE 
+        DEBUG 
+        ENABLE_OPTIMIZATION=1 
+        ADVANCED_MODE
+    )
+endif()
+
 if(TARGET advanced_features_no_std)
     target_compile_definitions(advanced_features_no_std PRIVATE 
         DEBUG 
@@ -45,6 +73,6 @@ if(TARGET advanced_features_no_std)
 endif()
 
 # Special target to build all examples
-add_custom_target(build_all_nostd_examples
+add_custom_target(build_all_comprehensive_examples
     DEPENDS ${EXAMPLE_FILES}
 )

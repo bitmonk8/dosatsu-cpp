@@ -117,14 +117,11 @@ The verification suite:
 ### Using Examples
 
 ```bash
-# Easy way: Use the examples runner
+# Use the examples runner
 python Examples/run_examples.py --list                    # List all examples
 python Examples/run_examples.py --index comprehensive_no_std_compile_commands.json  # Index examples
 python Examples/run_examples.py --verify                  # Run verification queries
-
-# Manual approach
-./artifacts/debug/bin/dosatsu_cpp.exe Examples/cpp/compilation/comprehensive_no_std_compile_commands.json my_database
-clang++ -std=c++17 Examples/cpp/basic/inheritance.cpp -o inheritance_example
+python Examples/run_examples.py --all                     # Run complete workflow
 ```
 
 See `Examples/README.md` for detailed documentation.
