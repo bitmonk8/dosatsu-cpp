@@ -1,4 +1,5 @@
 import sys
+import os
 import subprocess
 import ctypes
 from ctypes import wintypes
@@ -81,6 +82,14 @@ def resume_thread(thread_handle):
         raise ctypes.WinError(err)
 
 
+def get_etwprof_path():
+    """Get the path to etwprof.exe in our third_party directory."""
+    import os
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    etwprof_path = os.path.join(project_root, "third_party", "etwprof_0.3_release", "etwprof.exe")
+    return etwprof_path
+
 def main():
     if len(sys.argv) < 4 or sys.argv[1] != '--tracefile':
         print("Usage: python profile.py --tracefile <tracefile_path> <command> [command_args ...]")
@@ -93,13 +102,25 @@ def main():
         print("You must specify a command to profile")
         sys.exit(1)
 
-    cmdline = ' '.join(shlex.quote(arg) for arg in command)
+    # Get the correct path to etwprof.exe
+    etwprof_path = get_etwprof_path()
+    if not os.path.exists(etwprof_path):
+        print(f"ERROR: etwprof.exe not found at {etwprof_path}")
+        sys.exit(1)
 
+    # On Windows, we need to properly quote arguments
+    cmdline = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in command)
+    
+    print(f"Executing command: {cmdline}")
+    
     process_info = create_suspended_process(cmdline)
 
     # Start etwprof profiling the target process
-    etwprof_cmd = ["etwprof", "/start", "/file", tracefile, "/pid", str(process_info.dwProcessId)]
-    etwprof_proc = subprocess.Popen(etwprof_cmd)
+    output_dir = os.path.dirname(os.path.abspath(tracefile))
+    output_file = os.path.abspath(tracefile)
+    etwprof_cmd = [etwprof_path, "profile", f"--target={process_info.dwProcessId}", f"--output={output_file}"]
+    print(f"Starting profiling with: {' '.join(etwprof_cmd)}")
+    etwprof_proc = subprocess.Popen(etwprof_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     resume_thread(process_info.hThread)
 
@@ -107,7 +128,13 @@ def main():
     kernel32.WaitForSingleObject(process_info.hProcess, 0xFFFFFFFF)
 
     # Wait for etwprof process to exit
-    etwprof_proc.wait()
+    stdout, stderr = etwprof_proc.communicate()
+    
+    print(f"etwprof exit code: {etwprof_proc.returncode}")
+    if stdout:
+        print(f"etwprof stdout: {stdout}")
+    if stderr:
+        print(f"etwprof stderr: {stderr}")
 
     kernel32.CloseHandle(process_info.hThread)
     kernel32.CloseHandle(process_info.hProcess)

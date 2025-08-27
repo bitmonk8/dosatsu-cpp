@@ -723,6 +723,134 @@ def run_verification_with_db(compile_db_path):
         print(f"[ERROR] Failed to run verification with DB {compile_db_path}: {e}")
         return False
 
+def get_profile_output_dir(args):
+    """Get the profiling output directory."""
+    if args.profile_output:
+        return Path(args.profile_output)
+    else:
+        return get_project_root() / "artifacts" / "profile"
+
+def run_dosatsu_with_profiling(compile_commands_path, profile_output_dir, example_name=None):
+    """Run Dosatsu indexing with profiling enabled."""
+    project_root = get_project_root()
+    profile_script = project_root / "scripts" / "profile.py"
+    
+    if not profile_script.exists():
+        print(f"[ERROR] Profile script not found: {profile_script}")
+        return False
+    
+    # Ensure profile output directory exists
+    profile_output_dir = Path(profile_output_dir)
+    profile_output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create timestamped profile filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if example_name:
+        etl_filename = f"dosatsu_profile_{example_name}_{timestamp}.etl"
+    else:
+        etl_filename = f"dosatsu_profile_{timestamp}.etl"
+    
+    etl_path = profile_output_dir / etl_filename
+    
+    # Get dosatsu executable path
+    dosatsu_path = project_root / "artifacts" / "debug" / "bin" / "dosatsu_cpp.exe"
+    if not dosatsu_path.exists():
+        print("[ERROR] Dosatsu not found. Please run 'python please.py build' first.")
+        return False
+    
+    # Prepare dosatsu command
+    output_db_path = profile_output_dir / f"profile_database_{timestamp}"
+    dosatsu_cmd = [
+        str(dosatsu_path),
+        str(compile_commands_path),
+        "--output-db", str(output_db_path)
+    ]
+    
+    # Run profiling
+    profile_cmd = [
+        sys.executable, str(profile_script),
+        "--tracefile", str(etl_path)
+    ] + dosatsu_cmd
+    
+    print(f"Profiling {compile_commands_path.name if hasattr(compile_commands_path, 'name') else compile_commands_path}...")
+    print(f"   ETL output: {etl_filename}")
+    print(f"   Command: {' '.join(str(arg) for arg in profile_cmd)}")
+    
+    try:
+        result = subprocess.run(profile_cmd, cwd=project_root, capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print(f"   Profiling completed successfully")
+            print(f"   Profile data: {etl_path}")
+            return True
+        else:
+            print(f"[ERROR] Profiling failed (return code: {result.returncode})")
+            if result.stderr:
+                print(f"   Error: {result.stderr}")
+            if result.stdout:
+                print(f"   Output: {result.stdout}")
+            return False
+    except Exception as e:
+        print(f"[ERROR] Profiling error: {e}")
+        return False
+
+def run_profile_examples(args):
+    """Run profiling on examples."""
+    profile_output_dir = get_profile_output_dir(args)
+    
+    if args.example:
+        # Profile specific example
+        example_categories = [args.example]
+    else:
+        # Profile all examples
+        example_categories = [
+            'simple', 'clean_code', 'standard',
+            'control_flow_complex', 'expressions', 'templates', 'namespaces', 
+            'preprocessor_advanced', 'complete', 'schema_coverage_complete',
+            'inheritance', 'advanced_features', 'modern_cpp_features'
+        ]
+    
+    success = True
+    results = []
+    
+    for category in example_categories:
+        compile_db_file = f"{category}_cmake_compile_commands.json"
+        
+        print(f"Profiling {category}...")
+        
+        try:
+            # Get compilation database path (auto-generates if needed)
+            compile_db_path = get_compilation_database_path(compile_db_file)
+            
+            # Run profiling
+            category_success = run_dosatsu_with_profiling(compile_db_path, profile_output_dir, category)
+            
+            results.append((category, "SUCCESS" if category_success else "FAILED"))
+            
+            if not category_success:
+                success = False
+        
+        except Exception as e:
+            print(f"[ERROR] Failed to profile {category}: {e}")
+            results.append((category, "ERROR"))
+            success = False
+    
+    # Print summary
+    print("\n=== Profiling Summary ===")
+    for category, status in results:
+        print(f"   {category}: {status}")
+    
+    if success:
+        print(f"\nAll profiling completed successfully")
+        print(f"Profile data saved to: {profile_output_dir}")
+        print("\nNext steps:")
+        print("1. Use xperf or Windows Performance Analyzer to analyze .etl files")
+        print("2. Create analysis script to automate hotspot identification")
+    else:
+        print(f"\nSome profiling operations failed")
+    
+    return success
+
 def main():
     parser = argparse.ArgumentParser(
         description="Dosatsu Examples Runner",
@@ -736,6 +864,9 @@ Examples:
   python run_examples.py --all                     # Run complete workflow on ALL individual files (13 workflows)
   python run_examples.py --generate-cmake simple   # Generate CMake DB for simple example
   python run_examples.py --force-regenerate-cmake  # Force regenerate all CMake databases
+  python run_examples.py --profile                 # Profile all examples with etwprof
+  python run_examples.py --profile --example simple  # Profile specific example
+  python run_examples.py --profile --profile-output C:\\temp  # Profile with custom output dir
         """
     )
     
@@ -757,10 +888,16 @@ Examples:
                        help="Force regenerate all CMake compilation databases")
     parser.add_argument("--generate-cmake", metavar="CATEGORY",
                        help="Generate CMake compilation database for specific file workflow (e.g., simple, templates, inheritance, etc.)")
+    parser.add_argument("--profile", action="store_true",
+                       help="Enable performance profiling using etwprof (generates .etl files)")
+    parser.add_argument("--profile-output", metavar="DIR",
+                       help="Directory for profiling output files (default: artifacts/profile)")
+    parser.add_argument("--example", metavar="EXAMPLE",
+                       help="Run profiling on specific example (use with --profile)")
     
     args = parser.parse_args()
     
-    if not any([args.list, args.compile, args.index, args.verify, args.all, args.force_regenerate_cmake, args.generate_cmake]):
+    if not any([args.list, args.compile, args.index, args.verify, args.all, args.force_regenerate_cmake, args.generate_cmake, args.profile]):
         parser.print_help()
         return 1
     
@@ -815,6 +952,9 @@ Examples:
         except Exception as e:
             print(f"   [ERROR] Failed to generate {category} database: {e}")
             success = False
+    
+    if args.profile:
+        success &= run_profile_examples(args)
     
     if args.all:
         print("Running complete workflow on all categories...")
