@@ -1,86 +1,70 @@
 # Performance Overview
 
-This document describes the current performance characteristics of Dosatsu and optimization opportunities.
-
-## Current Status
-
-### Major Performance Achievement ✅
-**Database Performance Optimization (Priority 1)**: **COMPLETED** with **40% execution time improvement**
-- Batch size optimization (25→150 operations)  
-- Connection pooling implementation
-- Smart transaction management
-- See PERFORMANCE_DONE.md for complete implementation details
-
-### Debug Build Performance
-**Current Goal**: Continue improving debug build performance for better development experience, building on the 40% improvement already achieved.
+This document describes the current performance characteristics of Dosatsu C++ and remaining optimization opportunities.
 
 ## Current Performance Characteristics
 
-✅ **Updated Performance Measurements**: Fresh profiling data collected on 2025-08-27 shows post-optimization performance characteristics.
+Based on profiling data from 2025-08-27 across all example categories (3,917 to 29,767 CPU samples):
 
-### Current Performance Characteristics (Post-Database Optimization)
-
-**Updated profiling data (2025-08-27) confirms optimization success:**
-
-| Component | Current Usage Range | Average | Status | Next Action |
-|-----------|--------------------|---------|---------|--------------|
-| **kuzu_shared.dll** | **43.3% - 44.8%** | **44.0%** | ✅ **OPTIMIZED** | Percentages stable, absolute performance improved |
-| **ntdll.dll** | **30.4% - 32.3%** | **31.4%** | 🔄 **NEXT TARGET** | System call optimization opportunity remains |
-| **Debug Runtime** | **15.0% - 16.2%** | **15.6%** | 🔄 **RESEARCH** | Debug configuration optimization |
-| **dosatsu_cpp.exe** | **0.85% - 1.77%** | **1.3%** | ✅ **EFFICIENT** | Application logic remains highly efficient |
+| Component | CPU Usage Range | Average | Status |
+|-----------|-----------------|---------|---------|
+| **kuzu_shared.dll** | **43.3% - 44.8%** | **44.0%** | Database operations - primary CPU consumer |
+| **ntdll.dll** | **30.4% - 32.3%** | **31.4%** | System calls and memory management |
+| **ucrtbase.dll** | **9.8% - 10.7%** | **10.2%** | C Runtime overhead |
+| **ntkrnlmp.exe** | **6.9% - 9.9%** | **8.1%** | Windows kernel operations |
+| **Debug Runtime** | **15.0% - 16.2%** | **15.6%** | Combined debug libraries (vcruntime140d.dll + msvcp140d.dll) |
+| **dosatsu_cpp.exe** | **0.85% - 1.77%** | **1.3%** | Application logic |
 
 ## Key Performance Insights
 
-### 1. Database Performance ✅ RESOLVED
-- **Primary bottleneck eliminated**: Database operations previously consumed 43.7% CPU time
-- **Solution implemented**: Batch size optimization (25→150), connection pooling, smart transactions
-- **Result achieved**: 40% execution time improvement measured and deployed
+### 1. Database Operations (44.0% CPU Usage)
+Database operations consume the largest portion of CPU time. Processing scales linearly with C++ code complexity.
 
-### 2. System Call Optimization Opportunity 🔄 NEXT PRIORITY
-- **31.0% in ntdll.dll** indicates system call overhead (memory allocation, file I/O)
-- **Investigation needed**: Memory profiling to identify specific bottlenecks
-- **Potential impact**: Second largest remaining optimization opportunity
+### 2. System Call Overhead (31.4% CPU Usage) 
+System calls through ntdll.dll represent the second-largest bottleneck, indicating memory allocation and I/O patterns that could be optimized.
 
-### 3. Debug Runtime Optimization 🔄 RESEARCH NEEDED
-- **15.6% combined debug library overhead** represents development experience improvement opportunity
-- **Investigation needed**: Research optimized debug configurations that preserve debugging capabilities
+### 3. Debug Runtime Overhead (15.6% CPU Usage)
+Debug build configuration creates significant overhead that impacts development experience.
 
-### 4. Application Logic Efficiency ✅ CONFIRMED
-- **Only 1.3% time** spent in application code indicates efficient implementation
-- **Conclusion**: External dependencies are the optimization focus, not application logic
+### 4. Application Logic Efficiency (1.3% CPU Usage)
+Application code is highly efficient - optimization focus should be on external dependencies.
 
-## Performance Infrastructure Available
+## Performance Infrastructure
 
-The project has comprehensive profiling infrastructure available:
-- **ETW profiling** with etwprof.exe for detailed performance data collection
+The project has comprehensive profiling capabilities:
+- **ETW profiling** with etwprof.exe for performance data collection
 - **Stack analysis** with xperf butterfly view for call hierarchy analysis  
 - **Automated profiling** integrated into Examples runner (`--profile` option)
-- **Analysis pipeline** for generating performance reports and recommendations
+- **Analysis pipeline** for generating performance reports
 
 See PERFORMANCE_INFRASTRUCTURE.md for detailed usage instructions.
 
-## Recommendations for Current Performance Analysis
+## Optimization Opportunities
 
-Since major database optimizations have been implemented, updated performance analysis is recommended:
+### Priority 1: System Call Optimization
+- **Target**: ntdll.dll operations (31.4% average CPU usage)
+- **Focus**: Memory allocation patterns and I/O efficiency
+- **Potential Impact**: Significant performance improvement opportunity
 
-1. **Re-profile Current State**: Run `python Examples/run_examples.py --profile` to measure performance after database optimizations
-2. **System Call Investigation**: Use memory profiling tools to analyze ntdll.dll usage patterns
-3. **Debug Runtime Research**: Investigate Visual C++ debug build optimization options
+### Priority 2: Debug Runtime Optimization  
+- **Target**: Debug runtime overhead (15.6% combined)
+- **Focus**: Optimized debug configurations that preserve debugging capabilities
+- **Potential Impact**: Improved development experience
 
-## Current Performance Status Summary
+## Performance Analysis Commands
 
-### ✅ Major Achievement  
-**40% execution time improvement** through database performance optimization
+```bash
+# Profile all examples
+python Examples/run_examples.py --profile
 
-### 🔄 Next Optimization Opportunities (Updated Analysis)
-- **System calls** (31.4% ntdll.dll) - memory allocation patterns unchanged after database optimization
-- **Debug runtime** (15.6%) - development experience optimization opportunity remains
+# Profile specific example  
+python Examples/run_examples.py --profile --example simple
 
-### 📊 Current State (Updated 2025-08-27)
-**Fresh profiling baseline established** - database optimizations confirmed successful with 40% improvement. Performance characteristics now well-understood for next optimization phase.
+# Analyze profiling results
+python scripts/analyze_profile.py --directory artifacts/profile
+```
 
 ---
 
 *Last Updated: 2025-08-27*  
-*Status: Database optimization validated with fresh profiling data. 40% improvement confirmed. Ready for next optimization phase targeting system calls.*
-
+*Performance baseline established from current profiling data*

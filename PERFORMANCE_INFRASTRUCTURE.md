@@ -1,37 +1,32 @@
 # Performance Infrastructure
 
-This document describes the performance profiling tools and workflows available for analyzing Dosatsu performance.
+This document describes the performance profiling tools and workflows available for analyzing Dosatsu C++ performance.
 
 ## Profiling Tools
 
 ### Primary Profiling Tool: etwprof
-
 - **Location**: `third_party\etwprof_0.3_release\etwprof.exe`
-- **Description**: Lightweight, self-contained sampling profiler for native Windows applications
-- **Technology**: Based on Event Tracing for Windows (ETW) framework
+- **Technology**: Event Tracing for Windows (ETW) framework
+- **Output**: Generates `.etl` files with sampling data
 - **Documentation**: [etwprof GitHub Repository](https://github.com/Donpedro13/etwprof)
-- **Output**: Generates `.etl` files with filtered sampling data
 
 ### Analysis Tool: xperf
-
 - **Location**: `C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit`
-- **Purpose**: Process `.etl` files to identify application hotspots
-- **Documentation**: [Xperf Command-Line Reference](https://learn.microsoft.com/en-us/windows-hardware/test/wpt/xperf-command-line-reference)
+- **Purpose**: Process `.etl` files to identify performance hotspots
 - **Key Features**: 
   - CPU sampling analysis
   - Call stack butterfly view (`-a stack -butterfly`)
   - Module-level performance breakdown
+- **Documentation**: [Xperf Command-Line Reference](https://learn.microsoft.com/en-us/windows-hardware/test/wpt/xperf-command-line-reference)
 
 ## Automation Scripts
 
 ### Profiling Automation: `scripts/profile.py`
-
-- **Function**: Run arbitrary commands with profiling enabled
+- **Function**: Run commands with profiling enabled
 - **Usage**: Automatically starts etwprof, executes target application, and collects ETL data
 - **Integration**: Used by Examples runner for seamless profiling
 
 ### Analysis Automation: `scripts/analyze_profile.py`
-
 - **Function**: Process .etl files using xperf and generate performance reports
 - **Features**:
   - Automated xperf command execution
@@ -40,8 +35,7 @@ This document describes the performance profiling tools and workflows available 
   - Executive summary report generation
 
 ### Examples Integration: `Examples/run_examples.py`
-
-- **New Options**:
+- **Options**:
   - `--profile`: Enable performance profiling
   - `--profile-output DIR`: Custom output directory for profiling files
   - `--example EXAMPLE`: Profile specific example only
@@ -49,7 +43,6 @@ This document describes the performance profiling tools and workflows available 
 ## Available Commands
 
 ### Profiling Commands
-
 ```bash
 # Profile a single example
 python Examples/run_examples.py --profile --example simple
@@ -65,16 +58,12 @@ python scripts/profile.py --tracefile output.etl [command] [args...]
 ```
 
 ### Analysis Commands
-
 ```bash
 # Analyze specific .etl file
 python scripts/analyze_profile.py --file artifacts/profile/dosatsu_profile_*.etl
 
 # Analyze all .etl files in directory
 python scripts/analyze_profile.py --directory artifacts/profile
-
-# Generate comparison reports (planned)
-python scripts/analyze_profile.py --compare before.etl after.etl
 ```
 
 ## Output Files Generated
@@ -85,35 +74,22 @@ python scripts/analyze_profile.py --compare before.etl after.etl
 ### From Analysis (`artifacts/profile/analysis/`)
 - `*_butterfly.html` - Interactive call stack analysis with xperf butterfly view
 - `*_summary.txt` - CPU sampling summary by xperf
-- `*_stacks.csv` - Legacy stack data (for compatibility)
+- `*_stacks.csv` - Stack data for compatibility
 - `*_hotspots.json` - Automated hotspot analysis results
 - `performance_report_*.md` - Executive summary with recommendations
 
-## Enhanced Analysis Features
+## Analysis Capabilities
 
-**Capabilities with `xperf -a stack -butterfly`:**
-
+### ETW Profiling Features
 1. **Call Stack Butterfly View**: Visual representation of function call relationships
-2. **Detailed HTML Reports**: Rich HTML output with interactive call stack analysis
+2. **HTML Reports**: Rich HTML output with interactive call stack analysis
 3. **Caller-Callee Analysis**: Identify which functions are calling the hotspots
 4. **Multi-Inclusive Analysis**: Functions appearing multiple times in different call paths
 5. **Performance Hotspot Identification**: Automated extraction of top CPU consumers
 
-## Workflow Integration
+## System Requirements
 
-### Development Process
-- Profiling capabilities integrated into existing Examples infrastructure
-- Automated performance testing as part of validation pipeline
-- Performance metrics tracked alongside functional correctness
-
-### Test Scenarios
-- **Primary Test Suite**: Current Examples dataset
-- **Rationale**: Provides realistic workloads that represent actual Dosatsu usage patterns
-- **Coverage**: Various C++ code patterns and complexity levels
-
-## Technical Requirements
-
-### System Requirements
+### Requirements
 - Windows 10/11 with Windows Performance Toolkit installed
 - Administrative privileges may be required for ETW profiling
 - Python 3.x for automation scripts
@@ -144,25 +120,16 @@ python scripts/analyze_profile.py --directory artifacts/profile
 4. **Implement Optimizations**: Based on identified performance bottlenecks
 5. **Validate Results**: Re-profile to measure improvement
 
-## Recent Success Story
+## Current Performance Baseline
 
-The profiling infrastructure successfully enabled a **40% performance improvement** by identifying database batch size as the primary bottleneck. See PERFORMANCE_DONE.md for complete details.
+Performance baseline established from 2025-08-27 profiling data:
+- **Sample Range**: 3,917 to 29,767 CPU samples across example categories
+- **Primary Bottleneck**: kuzu_shared.dll (44.0% average CPU usage)
+- **Secondary Bottleneck**: ntdll.dll (31.4% average CPU usage)
 
-## Current Performance Infrastructure Status (2025-08-27)
-
-✅ **Performance baseline established** with fresh profiling data:
-- **Database optimization validated**: 40% improvement confirmed with new measurements
-- **System call investigation ready**: ntdll.dll usage confirmed at 31.4% average across all examples
-- **Memory allocation analysis targets identified**: Primary remaining optimization opportunity
-- **Performance regression monitoring**: Baseline data available for continuous tracking
-
-### Ready for Next Optimization Phase
-- **Target**: ntdll.dll system call overhead (31.4% average usage)
-- **Tools available**: Complete profiling pipeline validated and operational
-- **Baseline established**: Fresh 2025-08-27 profiling data provides solid foundation
+The infrastructure is ready for system call optimization targeting ntdll.dll usage patterns.
 
 ---
 
 *Last Updated: 2025-08-27*  
-*Status: Mature profiling infrastructure operational. Fresh baseline established. Ready for system call optimization phase.*
-
+*Status: Operational profiling infrastructure with established performance baseline*
