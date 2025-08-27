@@ -8,8 +8,8 @@ Based on our profiling results, we have identified three priority areas for opti
 
 ### Priority 1: Database Performance Investigation 🔄 ACTIVE
 
-**Target**: kuzu_shared.dll (42.00% CPU usage)  
-**Impact**: Highest potential performance gain
+**Target**: kuzu_shared.dll (43.7% average CPU usage across all examples)  
+**Impact**: Highest potential performance gain - universally consistent bottleneck
 
 **Actions Required**:
 - [ ] Profile database query patterns and transactions in detail
@@ -26,90 +26,95 @@ Based on our profiling results, we have identified three priority areas for opti
   - Explore caching frequently accessed data to reduce database hits
 
 **Success Metrics**:
-- Reduce kuzu_shared.dll CPU usage by at least 50% (target: <21%)
+- Reduce kuzu_shared.dll CPU usage by at least 50% (target: <22%)
 - Improve overall application performance by 20-30%
+- Maintain consistent optimization benefits across all C++ code complexity levels
 
-### Priority 2: Debug Build Optimization 🔄 ACTIVE
+### Priority 2: System Call Optimization 🔄 ACTIVE
 
-**Target**: Debug runtime overhead (13.39% combined)  
-**Impact**: Medium performance gain, high development experience improvement
-
-**Actions Required**:
-- [ ] Test release build performance comparison
-  - Profile the same simple example with release build configuration
-  - Quantify the actual performance difference between debug and release
-  - Document which optimizations provide the biggest gains
-- [ ] Identify debug-specific performance features that can be disabled
-  - Research Visual C++ debug runtime options
-  - Investigate which debug features can be selectively disabled
-  - Test hybrid configurations that maintain debugging capabilities while improving performance
-- [ ] Consider hybrid debug/release configurations
-  - Explore mixed compilation modes (debug our code, release dependencies)
-  - Investigate debug build optimizations that don't compromise debugging
-  - Document recommended development build configurations
-
-**Success Metrics**:
-- Reduce debug runtime overhead by 30-50%
-- Maintain full debugging capabilities for our application code
-- Document optimal development build configuration
-
-### Priority 3: System Call Optimization 🔄 ACTIVE
-
-**Target**: ntdll.dll operations (29.41%)  
-**Impact**: Medium performance gain, system efficiency improvement
+**Target**: ntdll.dll operations (31.0% average across all examples)  
+**Impact**: High performance gain potential - second largest consistent bottleneck
 
 **Actions Required**:
-- [ ] Profile memory allocation patterns
-  - Analyze heap allocation frequency and patterns
+- [ ] Profile memory allocation patterns in detail
+  - Analyze heap allocation frequency and patterns across all examples
   - Identify excessive allocations or memory fragmentation
   - Consider memory pool strategies for frequent allocations
+  - Investigate why system calls scale linearly with C++ code complexity
 - [ ] Investigate file I/O efficiency
   - Profile file operations and disk access patterns
   - Determine if file I/O can be optimized or cached
-  - Review temporary file usage and cleanup
+  - Review temporary file usage and cleanup patterns
+  - Analyze if file operations increase with code complexity
 - [ ] Review string operations and conversions
   - Analyze string processing overhead in critical paths
-  - Identify unnecessary string conversions or copies
-  - Consider more efficient string handling strategies
+  - Identify unnecessary string conversions or copies in AST processing
+  - Consider more efficient string handling strategies for C++ identifiers
 
 **Success Metrics**:
-- Reduce ntdll.dll CPU usage by 20-30%
-- Improve memory allocation efficiency
-- Reduce file I/O overhead
+- Reduce ntdll.dll CPU usage by 25-35% (target: <23%)
+- Improve memory allocation efficiency across all example types
+- Reduce file I/O overhead while maintaining functionality
 
-## Expanded Analysis Tasks
+### Priority 3: Debug Runtime Optimization 🔄 ACTIVE
 
-### Comprehensive Baseline Establishment 📋 PLANNED
-
-**Objective**: Establish complete performance baseline across all examples
-
-**Actions Required**:
-- [ ] Profile all examples in the Examples dataset
-  - Run profiling on all categories: simple, templates, inheritance, etc.
-  - Document performance characteristics for each example type
-  - Identify examples with unusual performance patterns
-- [ ] Create performance regression test suite
-  - Establish automated performance monitoring
-  - Set up performance thresholds and alerts
-  - Integrate performance testing into CI/CD pipeline
-- [ ] Document performance patterns by code complexity
-  - Correlate performance with C++ language features used
-  - Identify which language constructs are most expensive to analyze
-  - Create performance guidelines for developers
-
-### Release vs Debug Comparison 📋 PLANNED
-
-**Objective**: Understand the complete performance profile difference
+**Target**: Debug runtime overhead (15.6% combined: ucrtbase.dll + vcruntime140d.dll + msvcp140d.dll)  
+**Impact**: Medium performance gain, high development experience improvement
 
 **Actions Required**:
-- [ ] Comprehensive release build profiling
-  - Profile all examples with release build configuration
-  - Generate comparative performance reports
-  - Document performance improvement by component
-- [ ] Identify release-specific optimization opportunities
-  - Determine which optimizations can be backported to debug builds
-  - Investigate compiler optimization flags for development builds
-  - Document trade-offs between performance and debuggability
+- [ ] Identify debug-specific performance features that can be disabled
+  - Research Visual C++ debug runtime options that don't compromise debugging
+  - Investigate which debug features can be selectively disabled
+  - Test configurations that maintain debugging capabilities while improving performance
+- [ ] Consider optimized debug configurations
+  - Investigate debug build optimizations that don't compromise debugging our code
+  - Document recommended development build configurations
+  - Test if debug runtime libraries can be optimized without losing debug capabilities
+
+**Success Metrics**:
+- Reduce debug runtime overhead by 20-30%
+- Maintain full debugging capabilities for our application code
+- Document optimal development build configuration for team
+
+## Analysis and Investigation Tasks
+
+### Deep Database Analysis 📋 READY TO START
+
+**Objective**: Understand exactly what kuzu_shared.dll operations are consuming 43.7% of CPU time
+
+**Actions Required**:
+- [ ] Function-level profiling within kuzu_shared.dll
+  - Use detailed stack traces to identify specific database functions
+  - Analyze query patterns and transaction overhead
+  - Determine if CPU time is in query execution, result processing, or transaction management
+- [ ] Database operation tracing
+  - Log all database operations during example processing
+  - Correlate database operations with CPU usage spikes
+  - Identify if there are redundant or inefficient queries
+- [ ] Query pattern analysis
+  - Review AST insertion patterns and batching opportunities
+  - Analyze schema usage and index effectiveness
+  - Test if query optimization or caching can reduce database load
+- [ ] **Header file duplication analysis** ⚠️ **SUSPECTED HIGH IMPACT**
+  - **Hypothesis**: Header files are processed multiple times (once per .cpp file that includes them)
+  - Investigate if GlobalDatabaseManager prevents duplicate processing effectively
+  - Consider if Clang's translation unit model causes redundant header parsing
+  - **Potential Impact**: Could explain why database operations scale with C++ complexity
+  - **Solution**: Implement header-aware caching or preprocessing to avoid duplicate AST processing
+
+### System Resource Investigation 📋 READY TO START
+
+**Objective**: Understand what's driving the 31% ntdll.dll usage
+
+**Actions Required**:
+- [ ] Memory allocation profiling
+  - Use heap profiling tools to identify allocation hotspots
+  - Analyze allocation patterns during AST processing
+  - Determine if allocations scale with C++ code complexity
+- [ ] System call tracing
+  - Profile specific system calls being made
+  - Identify file I/O, memory management, or synchronization bottlenecks  
+  - Correlate system calls with processing phases
 
 ## Optimization Implementation Phase
 
@@ -156,10 +161,10 @@ Based on investigation results, implement the highest-impact improvements:
 ## Success Criteria
 
 ### Quantitative Goals
-- **Overall Performance**: 30-50% improvement in debug build execution time
-- **Database Optimization**: Reduce kuzu_shared.dll usage from 42% to <25%
-- **Debug Overhead**: Reduce debug runtime overhead by 40%
-- **System Efficiency**: Reduce ntdll.dll usage by 25%
+- **Overall Performance**: 30-50% improvement in debug build execution time across all examples
+- **Database Optimization**: Reduce kuzu_shared.dll usage from 43.7% to <22%
+- **System Call Efficiency**: Reduce ntdll.dll usage from 31% to <23%
+- **Debug Runtime Optimization**: Reduce debug runtime overhead from 15.6% by 25%
 
 ### Qualitative Goals
 - **Development Velocity**: Faster iteration time for feature development and testing
@@ -170,14 +175,14 @@ Based on investigation results, implement the highest-impact improvements:
 ## Timeline Estimates
 
 ### Short Term (1-2 weeks)
-- Database performance investigation
-- Release vs debug build comparison
-- System call pattern analysis
+- Deep database performance investigation (kuzu_shared.dll analysis)
+- System call pattern analysis (ntdll.dll investigation)
+- Debug runtime optimization research
 
 ### Medium Term (2-4 weeks)  
-- Implementation of highest-impact optimizations
-- Comprehensive example profiling
-- Performance monitoring setup
+- Implementation of highest-impact optimizations based on deep analysis
+- Performance monitoring and regression detection setup
+- Documentation of optimization strategies and guidelines
 
 ### Long Term (1-2 months)
 - Complete optimization implementation
@@ -186,6 +191,6 @@ Based on investigation results, implement the highest-impact improvements:
 
 ---
 
-*Last Updated: 2025-08-26*  
-*This document will be updated as tasks are completed and new priorities emerge.*
+*Last Updated: 2025-08-27*  
+*Updated based on comprehensive 13-example profiling results. Release build profiling removed as separate project.*
 

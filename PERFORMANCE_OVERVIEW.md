@@ -18,46 +18,70 @@ This document describes the current performance problems we are focused on solvi
 
 ## Current Performance Characteristics
 
-### Latest Baseline Measurements
+### Comprehensive Baseline Measurements
 
-**Test Environment**: Debug build, simple example (simple.cpp)  
-**Date**: 2025-08-26  
-**Total CPU Samples**: 4,645 (using enhanced xperf stack analysis)
+**Test Environment**: Debug build, all examples profiled  
+**Date**: 2025-08-27  
+**Analysis Method**: ETW profiling with xperf stack analysis across 13 example categories
 
-### Performance Breakdown by Module
+### Performance Patterns Across All Examples
 
-| Component | CPU Usage | Samples | Analysis |
-|-----------|-----------|---------|----------|
-| **kuzu_shared.dll** | **42.00%** | 1,951 | Database operations - major bottleneck |
-| **ntdll.dll** | **29.41%** | 1,366 | System calls, memory management |
-| **ucrtbase.dll** | **11.09%** | 515 | Debug C Runtime overhead |
-| **ntkrnlmp.exe** | **9.43%** | 438 | Windows kernel operations |
-| **nvlddmkm.sys** | **2.02%** | 94 | NVIDIA graphics driver |
-| **dosatsu_cpp.exe** | **1.87%** | 87 | Our application logic |
-| **vcruntime140d.dll** | **1.66%** | 77 | Visual C++ debug runtime |
-| **msvcp140d.dll** | **1.64%** | 76 | Visual C++ standard library debug |
+**Consistent Performance Profile** - All examples show remarkably similar CPU usage patterns:
+
+| Component | CPU Usage Range | Average | Analysis |
+|-----------|----------------|---------|----------|
+| **kuzu_shared.dll** | **43.13% - 44.26%** | **43.7%** | Database operations - primary bottleneck |
+| **ntdll.dll** | **29.16% - 32.64%** | **31.0%** | System calls, memory management |
+| **ucrtbase.dll** | **9.67% - 10.95%** | **10.2%** | Debug C Runtime overhead |
+| **ntkrnlmp.exe** | **7.19% - 9.17%** | **8.1%** | Windows kernel operations |
+| **dosatsu_cpp.exe** | **0.97% - 1.87%** | **1.3%** | Our application logic |
+| **Debug Runtime** | **4.93% - 5.84%** | **5.4%** | Combined vcruntime140d.dll + msvcp140d.dll |
+
+### Scale and Complexity Correlation
+
+Examples show performance scales with C++ code complexity:
+
+| Example Category | Total Samples | Relative Complexity |
+|------------------|---------------|-------------------|
+| Simple | 4,223 | 1.0x (baseline) |
+| Preprocessor Advanced | 5,692 | 1.3x |
+| Templates | 7,011 | 1.7x |
+| Inheritance | 8,700 | 2.1x |
+| Namespaces | 10,570 | 2.5x |
+| Expressions | 11,320 | 2.7x |
+| Complete | 12,468 | 3.0x |
+| Modern C++ Features | 16,228 | 3.8x |
+| Advanced Features | 18,698 | 4.4x |
+| Clean Code | 18,988 | 4.5x |
+| Standard | 21,442 | 5.1x |
+| Schema Coverage Complete | 24,414 | 5.8x |
 
 ## Key Performance Insights
 
 ### 1. Database Bottleneck (Priority 1)
-- **42% of CPU time** is spent in Kuzu database operations
-- This is the single largest performance bottleneck
-- Represents the highest-impact optimization opportunity
+- **43.7% of CPU time** consistently spent in Kuzu database operations across all examples
+- This is the single largest performance bottleneck with universal impact
+- Pattern is consistent regardless of C++ code complexity, suggesting database overhead is the limiting factor
 
-### 2. Debug Runtime Overhead (Priority 2)  
-- **~13% combined overhead** from debug runtime libraries
-- ucrtbase.dll + vcruntime140d.dll + msvcp140d.dll
-- This is inherent debug build overhead but may be optimizable
+### 2. System Call Heavy Usage (Priority 2)
+- **31.0% in ntdll.dll** suggests significant system call overhead across all workloads
+- Likely indicates inefficient memory allocation patterns or excessive file I/O
+- Second largest bottleneck with consistent impact across all examples
 
-### 3. System Call Heavy Usage (Priority 3)
-- **29.41% in ntdll.dll** suggests significant system call overhead
-- Could indicate inefficient memory allocation patterns
-- May point to excessive file I/O operations
+### 3. Debug Runtime Overhead (Priority 3)  
+- **~15.6% combined overhead** from debug runtime libraries (ucrtbase.dll + vcruntime140d.dll + msvcp140d.dll)
+- This is inherent debug build overhead but represents significant CPU usage
+- Consistent across all examples, suggesting optimization potential
 
 ### 4. Application Logic Efficiency
-- **Only 1.87%** of time spent in our actual application code
-- Suggests the bottleneck is primarily in external dependencies
-- Our code itself appears to be reasonably efficient
+- **Only 1.3% average** time spent in our actual application code (dosatsu_cpp.exe)
+- Remarkable consistency (0.97%-1.87%) regardless of C++ code complexity
+- Suggests our code itself is highly efficient; bottlenecks are in external dependencies
+
+### 5. Scaling Characteristics
+- **Performance scales linearly** with C++ code complexity (5.8x samples for most complex vs simplest)
+- **Bottleneck ratios remain constant** - indicates database and system calls don't become more efficient with larger workloads
+- **No parallelization benefits observed** - CPU core utilization patterns show processing concentrated on subset of cores
 
 ## Call Stack Analysis Capabilities
 
@@ -87,10 +111,10 @@ With the enhanced `xperf -a stack -butterfly` analysis, we now have:
 - Database operations dominate CPU usage in current workloads
 - Need to investigate query patterns and transaction efficiency
 
-### Debug vs Release Impact
-- Debug runtime libraries add significant overhead (~13%)
-- Need to measure actual performance difference between debug and release builds
-- Consider hybrid configurations for development scenarios
+### Debug Runtime Impact
+- Debug runtime libraries add significant overhead (~15.6% combined)
+- Pattern is consistent across all examples, suggesting inherent debug build characteristics
+- Release build profiling is a separate project - current focus is on debug build optimization
 
 ### System Resource Usage
 - High system call usage suggests memory/IO intensive operations
@@ -99,5 +123,5 @@ With the enhanced `xperf -a stack -butterfly` analysis, we now have:
 
 ---
 
-*Last Updated: 2025-08-26*
+*Last Updated: 2025-08-27 - Comprehensive profiling of all 13 examples completed*
 
