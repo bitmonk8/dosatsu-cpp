@@ -65,6 +65,11 @@ def extract_cpu_sampling_data(etl_path, xperf_path, output_dir):
     csv_file = output_dir / f"{Path(etl_path).stem}_stacks.csv"
     butterfly_file = output_dir / f"{Path(etl_path).stem}_butterfly.html"
     
+    symbol_path = "artifacts\\debug\\bin\\;artifacts\\release\\bin\\;srv*C:\\symbols*http://msdl.microsoft.com/download/symbols"
+
+    env = os.environ.copy()
+    env['_NT_SYMBOL_PATH'] = symbol_path
+
     print(f"Analyzing {Path(etl_path).name}...")
     
     # Extract CPU sampling summary
@@ -72,11 +77,12 @@ def extract_cpu_sampling_data(etl_path, xperf_path, output_dir):
         print("   Extracting CPU sampling summary...")
         summary_cmd = [
             xperf_path, "-i", str(etl_path),
+            "-symbols",
             "-o", str(summary_file),
             "-a", "profile"
         ]
         
-        result = subprocess.run(summary_cmd, capture_output=True, text=True)
+        result = subprocess.run(summary_cmd, capture_output=True, text=True, env=env)
         if result.returncode != 0:
             print(f"   [WARNING] Summary extraction failed: {result.stderr}")
         else:
@@ -90,11 +96,12 @@ def extract_cpu_sampling_data(etl_path, xperf_path, output_dir):
         print("   Extracting stack trace data...")
         stacks_cmd = [
             xperf_path, "-i", str(etl_path),
+            "-symbols",
             "-o", str(csv_file),
             "-a", "profile", "-detail"
         ]
         
-        result = subprocess.run(stacks_cmd, capture_output=True, text=True)
+        result = subprocess.run(stacks_cmd, capture_output=True, text=True, env=env)
         if result.returncode != 0:
             print(f"   [WARNING] Stack extraction failed: {result.stderr}")
         else:
@@ -108,11 +115,12 @@ def extract_cpu_sampling_data(etl_path, xperf_path, output_dir):
         print("   Extracting detailed call stack information...")
         butterfly_cmd = [
             xperf_path, "-i", str(etl_path),
+            "-symbols",
             "-o", str(butterfly_file),
             "-a", "stack", "-butterfly"
-        ]
+        ] 
         
-        result = subprocess.run(butterfly_cmd, capture_output=True, text=True)
+        result = subprocess.run(butterfly_cmd, capture_output=True, text=True, env=env)
         if result.returncode != 0:
             print(f"   [WARNING] Butterfly analysis failed: {result.stderr}")
         else:

@@ -48,11 +48,28 @@ message(STATUS "Generator: ${CMAKE_GENERATOR}")
 if(WIN32)
     if(MSVC)
         message(STATUS "Windows platform with MSVC detected")
+
+        # Disable incremental linking for all build types
+        set(CMAKE_EXE_LINKER_FLAGS_DEBUG          "/INCREMENTAL:NO")
+        set(CMAKE_EXE_LINKER_FLAGS_RELEASE        "/INCREMENTAL:NO")
+        set(CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "/INCREMENTAL:NO")
+        set(CMAKE_EXE_LINKER_FLAGS_MINSIZEREL     "/INCREMENTAL:NO")
+        set(CMAKE_SHARED_LINKER_FLAGS_DEBUG       "/INCREMENTAL:NO")
+        set(CMAKE_SHARED_LINKER_FLAGS_RELEASE     "/INCREMENTAL:NO")
+        set(CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO "/INCREMENTAL:NO")
+        set(CMAKE_SHARED_LINKER_FLAGS_MINSIZEREL  "/INCREMENTAL:NO")
+
         # MSVC-specific flags
         add_compile_options(/W4)  # Warning level 4
         add_compile_options(/wd4146)  # Disable specific warning from LLVM
         # Runtime library selection
         if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+            add_compile_options(/Zi)          # Generate complete debugging information
+            add_compile_options(/Od)          # Disable optimizations
+            add_link_options(/DEBUG:FULL)     # Generate full debug info in PDB
+            add_link_options(/OPT:NOREF)      # Don't remove unreferenced functions
+            add_link_options(/OPT:NOICF)      # Don't fold identical functions
+            add_link_options(/INCREMENTAL:NO) # Disable incremental linking
             set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
         else()
             set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
