@@ -53,3 +53,4 @@ Thumbs.db
 # Python cached bytecode
 __pycache__/
 *.pyc
+third_party/etwprof_0.3_release
