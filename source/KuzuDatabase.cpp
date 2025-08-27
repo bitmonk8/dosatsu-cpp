@@ -144,9 +144,10 @@ void KuzuDatabase::addToBatch(const std::string& query)
         executeBatch();
 }
 
-void KuzuDatabase::addRelationshipToBatch(int64_t fromNodeId, int64_t toNodeId, 
-                                         const std::string& relationshipType,
-                                         const std::map<std::string, std::string>& properties)
+void KuzuDatabase::addRelationshipToBatch(int64_t fromNodeId,
+                                          int64_t toNodeId,
+                                          const std::string& relationshipType,
+                                          const std::map<std::string, std::string>& properties)
 {
     if (!connection)
         return;
@@ -168,7 +169,8 @@ void KuzuDatabase::addRelationshipToBatch(int64_t fromNodeId, int64_t toNodeId,
         executeBatch();
 }
 
-void KuzuDatabase::addBulkRelationshipsToBatch(const std::vector<std::tuple<int64_t, int64_t, std::string, std::map<std::string, std::string>>>& relationships)
+void KuzuDatabase::addBulkRelationshipsToBatch(
+    const std::vector<std::tuple<int64_t, int64_t, std::string, std::map<std::string, std::string>>>& relationships)
 {
     if (!connection || relationships.empty())
         return;
@@ -234,18 +236,15 @@ void KuzuDatabase::executeOptimizedRelationships()
     try
     {
         // Group relationships by type for bulk operations
-        std::map<std::string, std::vector<std::tuple<int64_t, int64_t, std::map<std::string, std::string>>>> groupedRelationships;
-        
+        std::map<std::string, std::vector<std::tuple<int64_t, int64_t, std::map<std::string, std::string>>>>
+            groupedRelationships;
+
         for (const auto& [fromId, toId, relType, properties] : pendingRelationships)
-        {
             groupedRelationships[relType].emplace_back(fromId, toId, properties);
-        }
 
         // Execute each relationship type as a bulk operation
         for (const auto& [relType, relationships] : groupedRelationships)
-        {
             executeBulkRelationshipType(relType, relationships);
-        }
     }
     catch (const std::exception& e)
     {
@@ -253,7 +252,8 @@ void KuzuDatabase::executeOptimizedRelationships()
     }
 }
 
-void KuzuDatabase::executeBulkRelationshipType(const std::string& relationshipType, 
+void KuzuDatabase::executeBulkRelationshipType(
+    const std::string& relationshipType,
     const std::vector<std::tuple<int64_t, int64_t, std::map<std::string, std::string>>>& relationships)
 {
     if (relationships.empty())
@@ -265,36 +265,36 @@ void KuzuDatabase::executeBulkRelationshipType(const std::string& relationshipTy
     executeFallbackRelationships(relationshipType, relationships);
 }
 
-void KuzuDatabase::executeFallbackRelationships(const std::string& relationshipType,
+void KuzuDatabase::executeFallbackRelationships(
+    const std::string& relationshipType,
     const std::vector<std::tuple<int64_t, int64_t, std::map<std::string, std::string>>>& relationships)
 {
     // Fallback: execute individual optimized queries (still better than original MATCH...CREATE)
     for (const auto& [fromId, toId, properties] : relationships)
     {
-        std::string query = "MATCH (from:ASTNode {node_id: " + std::to_string(fromId) + 
-                           "}), (to:ASTNode {node_id: " + std::to_string(toId) + "}) " +
-                           "CREATE (from)-[:" + relationshipType;
-        
+        std::string query = "MATCH (from:ASTNode {node_id: " + std::to_string(fromId) +
+                            "}), (to:ASTNode {node_id: " + std::to_string(toId) + "}) " +
+                            "CREATE (from)-[:" + relationshipType;
+
         if (!properties.empty())
         {
             query += " {";
             bool first = true;
             for (const auto& [key, value] : properties)
             {
-                if (!first) query += ", ";
+                if (!first)
+                    query += ", ";
                 first = false;
                 query += key + ": '" + escapeString(value) + "'";
             }
             query += "}";
         }
-        
+
         query += "]->(to)";
 
         auto result = connection->query(query);
         if (!result->isSuccess())
-        {
             llvm::errs() << "Fallback relationship query failed: " << result->getErrorMessage() << "\n";
-        }
     }
 }
 
@@ -642,7 +642,7 @@ void KuzuDatabase::initializeConnectionPool()
     try
     {
         std::lock_guard<std::mutex> lock(connectionPoolMutex);
-        
+
         // Create multiple connections for the pool
         for (size_t i = 0; i < CONNECTION_POOL_SIZE; ++i)
         {
@@ -660,19 +660,19 @@ void KuzuDatabase::initializeConnectionPool()
 auto KuzuDatabase::getPooledConnection() -> kuzu::main::Connection*
 {
     std::lock_guard<std::mutex> lock(connectionPoolMutex);
-    
+
     if (!connectionPool.empty())
     {
         // Get a connection from the pool
         auto conn = connectionPool.front().get();
         connectionPool.pop();
-        
+
         // Return the connection to the pool after use (this is simplified - in a real implementation
         // you'd want a RAII wrapper to automatically return the connection)
         connectionPool.push(std::unique_ptr<kuzu::main::Connection>(conn));
         return conn;
     }
-    
+
     // Fallback to main connection if pool is empty
     return connection.get();
 }
@@ -689,12 +689,10 @@ void KuzuDatabase::optimizeTransactionBoundaries()
         {
             commitTransaction();
             operationsSinceLastCommit = 0;
-            
+
             // Immediately start a new transaction if we have pending operations
             if (!pendingQueries.empty() || !pendingRelationships.empty())
-            {
                 beginTransaction();
-            }
         }
     }
     catch (const std::exception& e)
