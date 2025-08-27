@@ -54,3 +54,4 @@ Thumbs.db
 __pycache__/
 *.pyc
 third_party/etwprof_0.3_release
+third_party/custom_etwprof

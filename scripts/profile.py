@@ -87,7 +87,7 @@ def get_etwprof_path():
     import os
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
-    etwprof_path = os.path.join(project_root, "third_party", "etwprof_0.3_release", "etwprof.exe")
+    etwprof_path = os.path.join(project_root, "third_party", "custom_etwprof", "etwprof.exe")
     return etwprof_path
 
 def main():
@@ -118,7 +118,7 @@ def main():
     # Start etwprof profiling the target process
     output_dir = os.path.dirname(os.path.abspath(tracefile))
     output_file = os.path.abspath(tracefile)
-    etwprof_cmd = [etwprof_path, "profile", f"--target={process_info.dwProcessId}", f"--output={output_file}"]
+    etwprof_cmd = [etwprof_path, "profile", f"--target={process_info.dwProcessId}", f"--output={output_file}", "--minbuffers=128", "--maxbuffers=512", "--buffersize=1024"]
     print(f"Starting profiling with: {' '.join(etwprof_cmd)}")
     etwprof_proc = subprocess.Popen(etwprof_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 

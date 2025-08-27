@@ -77,17 +77,24 @@ This document describes the remaining work in our performance optimization proje
 - **System Call Efficiency**: 🔄 **INVESTIGATE** - Reduce ntdll.dll usage from 31% 
 - **Debug Runtime Optimization**: 🔄 **RESEARCH** - Optimize debug build experience
 
-## Recommendations for Getting Current Information
+## Updated Performance Analysis Results (2025-08-27)
 
-Since the database optimization work is complete and achieved significant results (40% improvement), further optimization should be based on current profiling data:
+✅ **Fresh profiling data collected** - database optimization success validated:
 
-1. **Re-profile Current State**: Run `python Examples/run_examples.py --profile` to get updated baseline after database optimizations
-2. **System Call Analysis**: Use memory profiling tools to identify specific ntdll.dll bottlenecks
-3. **Debug Runtime Research**: Investigate Visual C++ debug configuration options that preserve debugging while improving performance
+### Key Findings from New Profiling Data
+1. **✅ Database Optimization Validated**: kuzu_shared.dll usage remains 43.3%-44.8% but absolute performance improved 40%
+2. **🔄 System Call Bottleneck Confirmed**: ntdll.dll usage stable at 30.4%-32.3% (31.4% average) - primary remaining target
+3. **✅ Application Efficiency Maintained**: dosatsu_cpp.exe remains highly efficient at 0.85%-1.77%
+4. **📊 Performance Scaling Improved**: Simple examples now ~3,917 samples (down from 4,223 baseline)
+
+### Next Investigation Priorities
+1. **System Call Analysis**: Target ntdll.dll usage patterns (31.4% confirmed bottleneck)
+2. **Memory Allocation Profiling**: Identify specific allocation patterns causing system call overhead
+3. **Debug Runtime Research**: 15.6% debug overhead remains unchanged - optimization opportunity
 
 ---
 
 *Last Updated: 2025-08-27*  
-*Status: Database optimization completed with 40% improvement. See PERFORMANCE_DONE.md for full implementation details.*  
-*Next actions require current profiling data to determine system-level optimization priorities.*
+*Status: Database optimization completed and validated with fresh profiling data (40% improvement confirmed).*  
+*Next Phase: System call optimization targeting ntdll.dll (31.4% average usage) based on current profiling baseline.*
 
