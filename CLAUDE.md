@@ -37,6 +37,11 @@ Dosatsu C++ is a tool that scans C++ projects using Clang and builds a graph dat
 - Clean build: `python please.py clean`
 - Build stats: `python please.py build-stats`
 
+## Terminology
+
+### Clean Slate
+When users refer to "clean slate" for a document (e.g., "Please clean-slate foo.md"), this refers to a specific document refactoring process. See `docs/CLEAN_SLATE.md` for the complete definition. In summary, it means rewriting a document as if from the current state of reality, removing historical information that no longer provides value for current problems while preserving relevant current information.
+
 ## Code Style Guidelines
 
 ### Comments
