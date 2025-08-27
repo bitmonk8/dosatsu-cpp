@@ -1,6 +1,6 @@
 # Performance Infrastructure
 
-This document describes the performance profiling tools and workflows that are available for analyzing Dosatsu performance.
+This document describes the performance profiling tools and workflows available for analyzing Dosatsu performance.
 
 ## Profiling Tools
 
@@ -123,7 +123,41 @@ python scripts/analyze_profile.py --compare before.etl after.etl
 - xperf.exe (Windows Performance Toolkit)
 - Python modules: subprocess, pathlib, datetime, json, csv, re
 
+## Usage Examples
+
+### Quick Performance Analysis
+```bash
+# Profile all examples and generate analysis report
+python Examples/run_examples.py --profile
+
+# Profile specific example  
+python Examples/run_examples.py --profile --example simple
+
+# Analyze generated .etl files
+python scripts/analyze_profile.py --directory artifacts/profile
+```
+
+### Investigation Workflow
+1. **Collect Data**: Use `--profile` option to capture performance data
+2. **Analyze Results**: Run analysis scripts to generate reports and identify hotspots
+3. **Investigate Bottlenecks**: Use butterfly HTML reports for detailed call stack analysis
+4. **Implement Optimizations**: Based on identified performance bottlenecks
+5. **Validate Results**: Re-profile to measure improvement
+
+## Recent Success Story
+
+The profiling infrastructure successfully enabled a **40% performance improvement** by identifying database batch size as the primary bottleneck. See PERFORMANCE_DONE.md for complete details.
+
+## Recommendations for Current Use
+
+Since major database optimizations have been implemented, the infrastructure is ready for:
+- **Post-optimization baseline**: Establish new performance baseline after database improvements
+- **System call investigation**: Deep dive into ntdll.dll usage patterns (31% CPU usage)
+- **Memory allocation analysis**: Identify specific allocation bottlenecks
+- **Performance regression monitoring**: Track performance over time
+
 ---
 
-*Last Updated: 2025-08-26*
+*Last Updated: 2025-08-27*  
+*Status: Mature profiling infrastructure ready for next investigation phase*
 

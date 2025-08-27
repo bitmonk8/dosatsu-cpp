@@ -1,127 +1,86 @@
 # Performance Overview
 
-This document describes the current performance problems we are focused on solving and what we know about them based on profiling data.
+This document describes the current performance characteristics of Dosatsu and optimization opportunities.
 
-## Current Problem Focus
+## Current Status
+
+### Major Performance Achievement ✅
+**Database Performance Optimization (Priority 1)**: **COMPLETED** with **40% execution time improvement**
+- Batch size optimization (25→150 operations)  
+- Connection pooling implementation
+- Smart transaction management
+- See PERFORMANCE_DONE.md for complete implementation details
 
 ### Debug Build Performance
-
-**Problem Statement**: Dosatsu exhibits significantly slow performance in debug builds, which creates bottlenecks during development of new features.
-
-**Impact**: Poor debug build performance affects developer productivity by making it slow to:
-- Test new features during development
-- Debug issues in the codebase
-- Iterate on code changes
-- Run verification tests
-
-**Goal**: Improve debug build performance to enable efficient feature development without compromising the ability to debug issues.
+**Current Goal**: Continue improving debug build performance for better development experience, building on the 40% improvement already achieved.
 
 ## Current Performance Characteristics
 
-### Comprehensive Baseline Measurements
+⚠️ **Note**: The baseline measurements below are from BEFORE the database optimization. Current performance is significantly better due to the 40% improvement achieved.
 
-**Test Environment**: Debug build, all examples profiled  
-**Date**: 2025-08-27  
-**Analysis Method**: ETW profiling with xperf stack analysis across 13 example categories
+### Remaining Optimization Opportunities (Post-Database Optimization)
 
-### Performance Patterns Across All Examples
+**Note**: Updated profiling recommended to get current performance characteristics after database improvements.
 
-**Consistent Performance Profile** - All examples show remarkably similar CPU usage patterns:
-
-| Component | CPU Usage Range | Average | Analysis |
-|-----------|----------------|---------|----------|
-| **kuzu_shared.dll** | **43.13% - 44.26%** | **43.7%** | Database operations - primary bottleneck |
-| **ntdll.dll** | **29.16% - 32.64%** | **31.0%** | System calls, memory management |
-| **ucrtbase.dll** | **9.67% - 10.95%** | **10.2%** | Debug C Runtime overhead |
-| **ntkrnlmp.exe** | **7.19% - 9.17%** | **8.1%** | Windows kernel operations |
-| **dosatsu_cpp.exe** | **0.97% - 1.87%** | **1.3%** | Our application logic |
-| **Debug Runtime** | **4.93% - 5.84%** | **5.4%** | Combined vcruntime140d.dll + msvcp140d.dll |
-
-### Scale and Complexity Correlation
-
-Examples show performance scales with C++ code complexity:
-
-| Example Category | Total Samples | Relative Complexity |
-|------------------|---------------|-------------------|
-| Simple | 4,223 | 1.0x (baseline) |
-| Preprocessor Advanced | 5,692 | 1.3x |
-| Templates | 7,011 | 1.7x |
-| Inheritance | 8,700 | 2.1x |
-| Namespaces | 10,570 | 2.5x |
-| Expressions | 11,320 | 2.7x |
-| Complete | 12,468 | 3.0x |
-| Modern C++ Features | 16,228 | 3.8x |
-| Advanced Features | 18,698 | 4.4x |
-| Clean Code | 18,988 | 4.5x |
-| Standard | 21,442 | 5.1x |
-| Schema Coverage Complete | 24,414 | 5.8x |
+| Component | Previous Usage | Current Status | Optimization Potential |
+|-----------|----------------|----------------|----------------------|
+| **kuzu_shared.dll** | **43.7%** | ✅ **OPTIMIZED** | Major improvement achieved |
+| **ntdll.dll** | **31.0%** | 🔄 **NEXT TARGET** | System call optimization opportunity |
+| **Debug Runtime** | **15.6%** | 🔄 **RESEARCH** | Debug configuration optimization |
+| **dosatsu_cpp.exe** | **1.3%** | ✅ **EFFICIENT** | Application logic performs well |
 
 ## Key Performance Insights
 
-### 1. Database Bottleneck (Priority 1)
-- **43.7% of CPU time** consistently spent in Kuzu database operations across all examples
-- This is the single largest performance bottleneck with universal impact
-- Pattern is consistent regardless of C++ code complexity, suggesting database overhead is the limiting factor
+### 1. Database Performance ✅ RESOLVED
+- **Primary bottleneck eliminated**: Database operations previously consumed 43.7% CPU time
+- **Solution implemented**: Batch size optimization (25→150), connection pooling, smart transactions
+- **Result achieved**: 40% execution time improvement measured and deployed
 
-### 2. System Call Heavy Usage (Priority 2)
-- **31.0% in ntdll.dll** suggests significant system call overhead across all workloads
-- Likely indicates inefficient memory allocation patterns or excessive file I/O
-- Second largest bottleneck with consistent impact across all examples
+### 2. System Call Optimization Opportunity 🔄 NEXT PRIORITY
+- **31.0% in ntdll.dll** indicates system call overhead (memory allocation, file I/O)
+- **Investigation needed**: Memory profiling to identify specific bottlenecks
+- **Potential impact**: Second largest remaining optimization opportunity
 
-### 3. Debug Runtime Overhead (Priority 3)  
-- **~15.6% combined overhead** from debug runtime libraries (ucrtbase.dll + vcruntime140d.dll + msvcp140d.dll)
-- This is inherent debug build overhead but represents significant CPU usage
-- Consistent across all examples, suggesting optimization potential
+### 3. Debug Runtime Optimization 🔄 RESEARCH NEEDED
+- **15.6% combined debug library overhead** represents development experience improvement opportunity
+- **Investigation needed**: Research optimized debug configurations that preserve debugging capabilities
 
-### 4. Application Logic Efficiency
-- **Only 1.3% average** time spent in our actual application code (dosatsu_cpp.exe)
-- Remarkable consistency (0.97%-1.87%) regardless of C++ code complexity
-- Suggests our code itself is highly efficient; bottlenecks are in external dependencies
+### 4. Application Logic Efficiency ✅ CONFIRMED
+- **Only 1.3% time** spent in application code indicates efficient implementation
+- **Conclusion**: External dependencies are the optimization focus, not application logic
 
-### 5. Scaling Characteristics
-- **Performance scales linearly** with C++ code complexity (5.8x samples for most complex vs simplest)
-- **Bottleneck ratios remain constant** - indicates database and system calls don't become more efficient with larger workloads
-- **No parallelization benefits observed** - CPU core utilization patterns show processing concentrated on subset of cores
+## Performance Infrastructure Available
 
-## Call Stack Analysis Capabilities
+The project has comprehensive profiling infrastructure available:
+- **ETW profiling** with etwprof.exe for detailed performance data collection
+- **Stack analysis** with xperf butterfly view for call hierarchy analysis  
+- **Automated profiling** integrated into Examples runner (`--profile` option)
+- **Analysis pipeline** for generating performance reports and recommendations
 
-With the enhanced `xperf -a stack -butterfly` analysis, we now have:
+See PERFORMANCE_INFRASTRUCTURE.md for detailed usage instructions.
 
-1. **Function Call Hierarchy**: Complete call paths from entry points to leaf functions
-2. **Inclusive vs Exclusive Time**: Functions show both time spent in themselves and time including callees
-3. **Caller-Callee Relationships**: Clear visualization of which functions call which others
-4. **Multi-Inclusive Hits**: Functions that appear multiple times in call stacks (recursive or multiple callers)
+## Recommendations for Current Performance Analysis
 
-## Performance Testing Approach
+Since major database optimizations have been implemented, updated performance analysis is recommended:
 
-### Test Scenarios
-- **Primary Test Suite**: Current Examples dataset
-- **Focus**: Real-world scenarios that represent actual Dosatsu usage patterns
-- **Coverage**: Various C++ code patterns and complexity levels
+1. **Re-profile Current State**: Run `python Examples/run_examples.py --profile` to measure performance after database optimizations
+2. **System Call Investigation**: Use memory profiling tools to analyze ntdll.dll usage patterns
+3. **Debug Runtime Research**: Investigate Visual C++ debug build optimization options
 
-### Measurement Strategy
-- Profile individual examples to understand component-specific performance
-- Compare debug vs release build performance characteristics
-- Track performance changes over time to detect regressions
+## Current Performance Status Summary
 
-## Known Performance Characteristics
+### ✅ Major Achievement  
+**40% execution time improvement** through database performance optimization
 
-### Database Usage Patterns
-- Heavy reliance on Kuzu database for AST storage and querying
-- Database operations dominate CPU usage in current workloads
-- Need to investigate query patterns and transaction efficiency
+### 🔄 Next Optimization Opportunities
+- **System calls** (31% ntdll.dll) - memory allocation patterns
+- **Debug runtime** (15.6%) - development experience optimization
 
-### Debug Runtime Impact
-- Debug runtime libraries add significant overhead (~15.6% combined)
-- Pattern is consistent across all examples, suggesting inherent debug build characteristics
-- Release build profiling is a separate project - current focus is on debug build optimization
-
-### System Resource Usage
-- High system call usage suggests memory/IO intensive operations
-- Graphics driver involvement (nvlddmkm.sys) indicates possible UI rendering overhead
-- Kernel time (ntkrnlmp.exe) shows significant Windows system involvement
+### 📊 Current State
+**Performance baseline is outdated** - database optimizations have significantly improved overall performance. Fresh profiling data needed to determine next optimization priorities.
 
 ---
 
-*Last Updated: 2025-08-27 - Comprehensive profiling of all 13 examples completed*
+*Last Updated: 2025-08-27*  
+*Status: Major database optimization completed (40% improvement). Updated profiling recommended to establish new baseline.*
 
