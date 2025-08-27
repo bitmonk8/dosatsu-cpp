@@ -188,13 +188,10 @@ void DeclarationAnalyzer::createReferenceRelation(int64_t fromId, int64_t toId, 
 
     try
     {
-        std::string escapedKind = KuzuDatabase::escapeString(kind);
-        std::string query = "MATCH (from:ASTNode {node_id: " + std::to_string(fromId) + "}), " +
-                            "(to:Declaration {node_id: " + std::to_string(toId) + "}) " +
-                            "CREATE (from)-[:REFERENCES {reference_kind: '" + escapedKind +
-                            "', is_direct: true}]->(to)";
-
-        database.addToBatch(query);
+        std::map<std::string, std::string> properties;
+        properties["reference_kind"] = kind;
+        properties["is_direct"] = "true";
+        database.addRelationshipToBatch(fromId, toId, "REFERENCES", properties);
     }
     catch (const std::exception& e)
     {

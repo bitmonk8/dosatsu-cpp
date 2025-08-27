@@ -36,3 +36,24 @@ Dosatsu C++ is a tool that scans C++ projects using Clang and builds a graph dat
 - Generate compile_commands.json: `python please.py compile-db --copy-to-root`
 - Clean build: `python please.py clean`
 - Build stats: `python please.py build-stats`
+
+## Code Style Guidelines
+
+### Comments
+- **Focus on WHY, not WHAT**: Comments should explain the reasoning behind code decisions, not describe what the code does
+- **Present-focused**: Avoid comments that reference how code "used to work" or optimization history
+- **Avoid historical references**: Comments like "Optimized: increased from X to Y" or "Keep original pattern but..." are not helpful for future developers
+- **Good examples**:
+  ```cpp
+  static constexpr size_t BATCH_SIZE = 150;  // Process this many operations per batch
+  // Use connection pooling to reduce connection overhead
+  ```
+- **Bad examples**:
+  ```cpp
+  static constexpr size_t BATCH_SIZE = 150;  // Optimized: increased from 25 to 150
+  // Keep original query pattern but benefit from increased batch size
+  ```
+- **Exception**: Temporary comments explaining disabled features are acceptable if they include the reason:
+  ```cpp
+  // Note: Complex relationship batching disabled due to schema complexity
+  ```

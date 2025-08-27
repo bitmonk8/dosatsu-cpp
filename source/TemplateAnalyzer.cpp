@@ -182,13 +182,10 @@ void TemplateAnalyzer::createTemplateRelation(int64_t specializationId, int64_t 
 
     try
     {
-        std::string escapedKind = KuzuDatabase::escapeString(kind);
-        std::string query = "MATCH (spec:ASTNode {node_id: " + std::to_string(specializationId) + "}), " +
-                            "(tmpl:Declaration {node_id: " + std::to_string(templateId) + "}) " +
-                            "CREATE (spec)-[:TEMPLATE_RELATION {relation_kind: '" + escapedKind +
-                            "', specialization_type: 'explicit'}]->(tmpl)";
-
-        database.addToBatch(query);
+        std::map<std::string, std::string> properties;
+        properties["relation_kind"] = kind;
+        properties["specialization_type"] = "explicit";
+        database.addRelationshipToBatch(specializationId, templateId, "TEMPLATE_RELATION", properties);
     }
     catch (const std::exception& e)
     {
@@ -207,18 +204,11 @@ void TemplateAnalyzer::createSpecializesRelation(int64_t specializationId,
 
     try
     {
-        // Use proper escaping for database storage
-        std::string escapedSpecializationKind = KuzuDatabase::escapeString(specializationKind);
-        std::string escapedArgs = KuzuDatabase::escapeString(templateArguments);
-        std::string escapedContext = KuzuDatabase::escapeString(instantiationContext);
-
-        std::string query = "MATCH (spec:Declaration {node_id: " + std::to_string(specializationId) + "}), " +
-                            "(tmpl:Declaration {node_id: " + std::to_string(templateId) + "}) " +
-                            "CREATE (spec)-[:SPECIALIZES {specialization_kind: '" + escapedSpecializationKind +
-                            "', template_arguments: '" + escapedArgs + "', instantiation_context: '" + escapedContext +
-                            "'}]->(tmpl)";
-
-        database.addToBatch(query);
+        std::map<std::string, std::string> properties;
+        properties["specialization_kind"] = specializationKind;
+        properties["template_arguments"] = templateArguments;
+        properties["instantiation_context"] = instantiationContext;
+        database.addRelationshipToBatch(specializationId, templateId, "SPECIALIZES", properties);
     }
     catch (const std::exception& e)
     {

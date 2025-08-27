@@ -120,11 +120,9 @@ void CommentProcessor::createCommentRelation(int64_t declId, int64_t commentId)
 
     try
     {
-        std::string query = "MATCH (d:Declaration {node_id: " + std::to_string(declId) + "}), " +
-                            "(c:Comment {node_id: " + std::to_string(commentId) + "}) " +
-                            "CREATE (d)-[:HAS_COMMENT {attachment_type: 'documentation'}]->(c)";
-
-        database.addToBatch(query);
+        std::map<std::string, std::string> properties;
+        properties["attachment_type"] = "documentation";
+        database.addRelationshipToBatch(declId, commentId, "HAS_COMMENT", properties);
     }
     catch (const std::exception& e)
     {

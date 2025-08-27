@@ -132,12 +132,9 @@ void AdvancedAnalyzer::createConstantExpressionNode(int64_t nodeId,
 
         database.addToBatch(query);
 
-        // Create relationship between the original AST node and the ConstantExpression
-        std::string relationshipQuery = "MATCH (e:Expression {node_id: " + std::to_string(nodeId) + "}), " +
-                                        "(ce:ConstantExpression {node_id: " + std::to_string(constantExprNodeId) +
-                                        "}) " + "CREATE (e)-[:HAS_CONSTANT_VALUE {evaluation_stage: '" +
-                                        cleanEvaluationContext + "'}]->(ce)";
-        database.addToBatch(relationshipQuery);
+        std::map<std::string, std::string> properties;
+        properties["evaluation_stage"] = cleanEvaluationContext;
+        database.addRelationshipToBatch(nodeId, constantExprNodeId, "HAS_CONSTANT_VALUE", properties);
     }
     catch (const std::exception& e)
     {
@@ -394,15 +391,10 @@ void AdvancedAnalyzer::createCFGEdgeRelation(int64_t fromBlockId,
 
     try
     {
-        std::string escapedEdgeType = KuzuDatabase::escapeString(edgeType);
-        std::string cleanCondition = KuzuDatabase::escapeString(condition);
-
-        std::string query = "MATCH (from:CFGBlock {node_id: " + std::to_string(fromBlockId) + "}), " +
-                            "(to:CFGBlock {node_id: " + std::to_string(toBlockId) + "}) " +
-                            "CREATE (from)-[:CFG_EDGE {edge_type: '" + escapedEdgeType + "', condition: '" +
-                            cleanCondition + "'}]->(to)";
-
-        database.addToBatch(query);
+        std::map<std::string, std::string> properties;
+        properties["edge_type"] = edgeType;
+        properties["condition"] = condition;
+        database.addRelationshipToBatch(fromBlockId, toBlockId, "CFG_EDGE", properties);
     }
     catch (const std::exception& e)
     {

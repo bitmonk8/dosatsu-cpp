@@ -343,14 +343,11 @@ void KuzuDump::VisitCXXRecordDecl(const CXXRecordDecl* D)
 
                     bool isVirtual = base.isVirtual();
 
-                    // Insert INHERITS_FROM relationship
-                    std::string escapedInheritanceType = KuzuDatabase::escapeString(inheritanceType);
-                    std::string query = "MATCH (d:Declaration {node_id: " + std::to_string(nodeId) +
-                                        "}), (b:Declaration {node_id: " + std::to_string(baseNodeId) +
-                                        "}) CREATE (d)-[:INHERITS_FROM {inheritance_type: '" + escapedInheritanceType +
-                                        "', is_virtual: " + (isVirtual ? "true" : "false") +
-                                        ", base_access_path: ''}]->(b)";
-                    database->addToBatch(query);
+                    std::map<std::string, std::string> properties;
+                    properties["inheritance_type"] = inheritanceType;
+                    properties["is_virtual"] = isVirtual ? "true" : "false";
+                    properties["base_access_path"] = "";
+                    database->addRelationshipToBatch(nodeId, baseNodeId, "INHERITS_FROM", properties);
                 }
             }
         }
