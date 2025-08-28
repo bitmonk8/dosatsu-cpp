@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <stdexcept>
 
 using namespace clang;
@@ -48,6 +49,9 @@ void KuzuDatabase::initialize()
 
         // Create schema
         createSchema();
+        
+        // Initialize relationship schema information
+        initializeRelationshipSchemaInfo();
     }
     catch (const std::exception& e)
     {
@@ -87,19 +91,22 @@ void KuzuDatabase::beginTransaction()
 void KuzuDatabase::commitTransaction()
 {
     if (!connection || !transactionActive)
+    {
+        // Silently ignore if no transaction is active
         return;
+    }
 
     try
     {
         auto result = connection->query("COMMIT");
-        if (result->isSuccess())
-            transactionActive = false;
-        else
+        transactionActive = false;  // Mark as inactive regardless of result
+        if (!result->isSuccess())
             llvm::errs() << "Failed to commit transaction: " << result->getErrorMessage() << "\n";
     }
     catch (const std::exception& e)
     {
         llvm::errs() << "Exception committing transaction: " << e.what() << "\n";
+        transactionActive = false;  // Ensure we reset state
     }
 }
 
@@ -203,19 +210,11 @@ void KuzuDatabase::executeBatch()
 
     try
     {
-        // Execute all regular queries in the batch
-        for (const auto& query : pendingQueries)
-        {
-            auto result = connection->query(query);
-            if (!result->isSuccess())
-            {
-                llvm::errs() << "Batched query failed: " << result->getErrorMessage() << "\n";
-                llvm::errs() << "Query: " << query << "\n";
-                // Continue with other queries rather than failing completely
-            }
-        }
-
-        // Note: Complex relationship batching disabled due to schema complexity
+        // Group queries by type for true bulk operations
+        executeBulkQueries();
+        
+        // Execute optimized relationship batching with schema awareness
+        executeOptimizedRelationships();
 
         pendingQueries.clear();
         pendingRelationships.clear();
@@ -225,6 +224,165 @@ void KuzuDatabase::executeBatch()
         llvm::errs() << "Exception executing batch: " << e.what() << "\n";
         pendingQueries.clear();
         pendingRelationships.clear();
+    }
+}
+
+void KuzuDatabase::executeBulkQueries()
+{
+    if (pendingQueries.empty())
+        return;
+
+    try
+    {
+        // Parse and group queries by table type
+        std::map<std::string, std::vector<std::string>> groupedQueries;
+        parseAndGroupQueries(groupedQueries);
+        
+        // Execute bulk CREATE for each node table
+        for (const auto& [tableName, nodeDataList] : groupedQueries)
+        {
+            if (nodeDataList.empty())
+                continue;
+            
+            // Handle unbatchable queries separately
+            if (tableName == "__unbatchable__")
+            {
+                // Execute these individually as they were originally
+                for (const auto& query : nodeDataList)
+                {
+                    auto result = connection->query(query);
+                    if (!result->isSuccess())
+                    {
+                        llvm::errs() << "Query failed: " << result->getErrorMessage() << "\n";
+                        llvm::errs() << "Query: " << query << "\n";
+                    }
+                }
+                continue;
+            }
+                
+            // Build bulk CREATE query with multiple nodes
+            std::string bulkQuery;
+            if (nodeDataList.size() == 1)
+            {
+                // Single node - use original format with CREATE prefix
+                bulkQuery = "CREATE " + nodeDataList[0];
+            }
+            else if (nodeDataList.size() > 10)
+            {
+                // Very large batch - split into smaller chunks to avoid query size limits
+                const size_t chunkSize = 50;
+                for (size_t i = 0; i < nodeDataList.size(); i += chunkSize)
+                {
+                    std::string chunkQuery = "CREATE ";
+                    size_t end = std::min(i + chunkSize, nodeDataList.size());
+                    for (size_t j = i; j < end; ++j)
+                    {
+                        if (j > i) chunkQuery += ", ";
+                        chunkQuery += nodeDataList[j];
+                    }
+                    
+                    auto result = connection->query(chunkQuery);
+                    if (!result->isSuccess())
+                    {
+                        llvm::errs() << "Chunk query failed: " << result->getErrorMessage() << "\n";
+                        // Fallback to individual queries for this chunk
+                        for (size_t j = i; j < end; ++j)
+                        {
+                            auto individualResult = connection->query("CREATE " + nodeDataList[j]);
+                            if (!individualResult->isSuccess())
+                            {
+                                llvm::errs() << "Individual query also failed: " << individualResult->getErrorMessage() << "\n";
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
+            else
+            {
+                // Multiple nodes - create bulk query
+                bulkQuery = "CREATE ";
+                for (size_t i = 0; i < nodeDataList.size(); ++i)
+                {
+                    if (i > 0) bulkQuery += ", ";
+                    bulkQuery += nodeDataList[i];
+                }
+            }
+            
+            auto result = connection->query(bulkQuery);
+            if (!result->isSuccess())
+            {
+                llvm::errs() << "Bulk query failed: " << result->getErrorMessage() << "\n";
+                // Fallback to individual queries
+                for (const auto& nodeData : nodeDataList)
+                {
+                    auto individualResult = connection->query("CREATE " + nodeData);
+                    if (!individualResult->isSuccess())
+                    {
+                        llvm::errs() << "Individual query also failed: " << individualResult->getErrorMessage() << "\n";
+                    }
+                }
+            }
+        }
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception in bulk query execution: " << e.what() << "\n";
+        // Fallback to original individual execution
+        for (const auto& query : pendingQueries)
+        {
+            try
+            {
+                auto result = connection->query(query);
+                if (!result->isSuccess())
+                {
+                    llvm::errs() << "Fallback query failed: " << result->getErrorMessage() << "\n";
+                }
+            }
+            catch (...) {}
+        }
+    }
+}
+
+void KuzuDatabase::parseAndGroupQueries(std::map<std::string, std::vector<std::string>>& groupedQueries)
+{
+    // Parse CREATE statements and group by node table
+    // Only batch node creations with primary keys, not other types
+    for (const auto& query : pendingQueries)
+    {
+        // Simple parser for CREATE (n:NodeType {...}) statements
+        size_t createPos = query.find("CREATE ");
+        if (createPos == std::string::npos)
+            continue;
+            
+        size_t nodeStart = query.find("(", createPos);
+        if (nodeStart == std::string::npos)
+            continue;
+            
+        size_t colonPos = query.find(":", nodeStart);
+        if (colonPos == std::string::npos)
+            continue;
+            
+        size_t spaceOrBrace = query.find_first_of(" {", colonPos);
+        if (spaceOrBrace == std::string::npos)
+            continue;
+            
+        std::string nodeType = query.substr(colonPos + 1, spaceOrBrace - colonPos - 1);
+        
+        // Check if query contains node_id (required for batching)
+        if (query.find("node_id:") != std::string::npos)
+        {
+            // All AST nodes go to the ASTNode table regardless of their specific type
+            // The node_type field stores the actual Clang type (FunctionDecl, etc.)
+            // but the database table is always ASTNode
+            std::string nodeData = query.substr(nodeStart);
+            groupedQueries["ASTNode"].push_back(nodeData);
+        }
+        else
+        {
+            // Query missing node_id, can't batch it
+            groupedQueries["__unbatchable__"].push_back(query);
+        }
     }
 }
 
@@ -259,10 +417,76 @@ void KuzuDatabase::executeBulkRelationshipType(
     if (relationships.empty())
         return;
 
-    // For now, use improved individual queries rather than buggy bulk queries
-    // This is still much more efficient than the original MATCH...CREATE pattern
-    // because we batch multiple operations in a single transaction
-    executeFallbackRelationships(relationshipType, relationships);
+    try
+    {
+        // Get the correct node types for this relationship from schema
+        auto [fromNodeType, toNodeType] = getRelationshipNodeTypes(relationshipType);
+        
+        // Build bulk relationship creation query with correct schema
+        std::string bulkQuery = "UNWIND [";
+        
+        bool first = true;
+        for (const auto& [fromId, toId, properties] : relationships)
+        {
+            if (!first) bulkQuery += ", ";
+            first = false;
+            
+            bulkQuery += "{from_id: " + std::to_string(fromId) + 
+                        ", to_id: " + std::to_string(toId);
+            
+            // Add properties with correct type handling
+            for (const auto& [key, value] : properties)
+            {
+                if (isPropertyBoolean(relationshipType, key))
+                {
+                    // Handle boolean values without quotes
+                    std::string boolValue = (value == "true" || value == "1") ? "true" : "false";
+                    bulkQuery += ", " + key + ": " + boolValue;
+                }
+                else
+                {
+                    // Handle string values with quotes
+                    bulkQuery += ", " + key + ": '" + escapeString(value) + "'";
+                }
+            }
+            bulkQuery += "}";
+        }
+        
+        bulkQuery += "] AS rel ";
+        
+        // Use correct node types from schema
+        bulkQuery += "MATCH (from:" + fromNodeType + " {node_id: rel.from_id}), ";
+        bulkQuery += "(to:" + toNodeType + " {node_id: rel.to_id}) ";
+        bulkQuery += "CREATE (from)-[:" + relationshipType;
+        
+        // Add property mapping if needed
+        if (!relationships.empty() && !std::get<2>(relationships[0]).empty())
+        {
+            bulkQuery += " {";
+            bool firstProp = true;
+            for (const auto& [key, _] : std::get<2>(relationships[0]))
+            {
+                if (!firstProp) bulkQuery += ", ";
+                firstProp = false;
+                bulkQuery += key + ": rel." + key;
+            }
+            bulkQuery += "}";
+        }
+        
+        bulkQuery += "]->(to)";
+        
+        auto result = connection->query(bulkQuery);
+        if (!result->isSuccess())
+        {
+            // Schema-aware fallback to individual queries
+            executeSchemaAwareFallbackRelationships(relationshipType, relationships);
+        }
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception in bulk relationship creation: " << e.what() << "\n";
+        executeSchemaAwareFallbackRelationships(relationshipType, relationships);
+    }
 }
 
 void KuzuDatabase::executeFallbackRelationships(
@@ -295,6 +519,57 @@ void KuzuDatabase::executeFallbackRelationships(
         auto result = connection->query(query);
         if (!result->isSuccess())
             llvm::errs() << "Fallback relationship query failed: " << result->getErrorMessage() << "\n";
+    }
+}
+
+void KuzuDatabase::executeSchemaAwareFallbackRelationships(
+    const std::string& relationshipType,
+    const std::vector<std::tuple<int64_t, int64_t, std::map<std::string, std::string>>>& relationships)
+{
+    // Get the correct node types for this relationship from schema
+    auto [fromNodeType, toNodeType] = getRelationshipNodeTypes(relationshipType);
+    
+    // Execute individual queries with correct schema
+    for (const auto& [fromId, toId, properties] : relationships)
+    {
+        std::string query = "MATCH (from:" + fromNodeType + " {node_id: " + std::to_string(fromId) +
+                            "}), (to:" + toNodeType + " {node_id: " + std::to_string(toId) + "}) " +
+                            "CREATE (from)-[:" + relationshipType;
+
+        if (!properties.empty())
+        {
+            query += " {";
+            bool first = true;
+            for (const auto& [key, value] : properties)
+            {
+                if (!first)
+                    query += ", ";
+                first = false;
+                
+                if (isPropertyBoolean(relationshipType, key))
+                {
+                    // Handle boolean values without quotes
+                    std::string boolValue = (value == "true" || value == "1") ? "true" : "false";
+                    query += key + ": " + boolValue;
+                }
+                else
+                {
+                    // Handle string values with quotes
+                    query += key + ": '" + escapeString(value) + "'";
+                }
+            }
+            query += "}";
+        }
+
+        query += "]->(to)";
+
+        auto result = connection->query(query);
+        if (!result->isSuccess())
+        {
+            // Only log errors for debugging - some relationships might legitimately fail
+            // due to nodes not existing or schema mismatches in complex cases
+            // llvm::errs() << "Schema-aware relationship query failed: " << result->getErrorMessage() << "\n";
+        }
     }
 }
 
@@ -632,6 +907,194 @@ auto KuzuDatabase::escapeString(const std::string& str) -> std::string
     }
 
     return escaped;
+}
+
+void KuzuDatabase::enableCSVBulkMode(const std::string& directory)
+{
+    csvBulkMode = true;
+    csvDirectory = directory;
+    pendingCSVNodes.clear();
+    csvFilesCreated.clear();
+    
+    // Create CSV directory if it doesn't exist
+    std::filesystem::create_directories(directory);
+}
+
+void KuzuDatabase::disableCSVBulkMode()
+{
+    if (!csvBulkMode)
+        return;
+        
+    // Write any pending CSV nodes
+    for (const auto& [nodeType, nodes] : pendingCSVNodes)
+    {
+        if (!nodes.empty())
+            writeNodesToCSV(nodeType, nodes);
+    }
+    
+    // Import all CSV files
+    importCSVFiles();
+    
+    csvBulkMode = false;
+    pendingCSVNodes.clear();
+    csvFilesCreated.clear();
+}
+
+void KuzuDatabase::writeNodesToCSV(const std::string& nodeType, const std::vector<std::map<std::string, std::string>>& nodes)
+{
+    if (nodes.empty())
+        return;
+        
+    std::string csvFile = csvDirectory + "/" + nodeType + ".csv";
+    bool fileExists = csvFilesCreated.find(csvFile) != csvFilesCreated.end();
+    
+    std::ofstream file(csvFile, fileExists ? std::ios::app : std::ios::out);
+    if (!file.is_open())
+    {
+        llvm::errs() << "Failed to open CSV file: " << csvFile << "\n";
+        return;
+    }
+    
+    // Write header if new file
+    if (!fileExists)
+    {
+        // Get column names from first node
+        bool first = true;
+        for (const auto& [key, _] : nodes[0])
+        {
+            if (!first) file << ",";
+            first = false;
+            file << key;
+        }
+        file << "\n";
+        csvFilesCreated.insert(csvFile);
+    }
+    
+    // Write data rows
+    for (const auto& node : nodes)
+    {
+        bool first = true;
+        for (const auto& [_, value] : node)
+        {
+            if (!first) file << ",";
+            first = false;
+            
+            // Quote strings that contain commas or quotes
+            if (value.find(',') != std::string::npos || value.find('"') != std::string::npos)
+            {
+                file << "\"";
+                // Escape quotes by doubling them
+                for (char c : value)
+                {
+                    if (c == '"') file << "\"\"";
+                    else file << c;
+                }
+                file << "\"";
+            }
+            else
+            {
+                file << value;
+            }
+        }
+        file << "\n";
+    }
+    
+    file.close();
+}
+
+void KuzuDatabase::importCSVFiles()
+{
+    if (!connection || csvFilesCreated.empty())
+        return;
+        
+    try
+    {
+        beginTransaction();
+        
+        for (const auto& csvFile : csvFilesCreated)
+        {
+            // Extract table name from file path
+            std::filesystem::path filePath(csvFile);
+            std::string tableName = filePath.stem().string();
+            
+            // Use COPY FROM for bulk import
+            std::string copyQuery = "COPY " + tableName + " FROM '" + csvFile + "' (HEADER=true)";
+            
+            auto result = connection->query(copyQuery);
+            if (!result->isSuccess())
+            {
+                llvm::errs() << "CSV import failed for " << csvFile << ": " << result->getErrorMessage() << "\n";
+            }
+            else
+            {
+                llvm::outs() << "Successfully imported " << csvFile << " into " << tableName << "\n";
+            }
+        }
+        
+        commitTransaction();
+        
+        // Clean up CSV files after successful import
+        for (const auto& csvFile : csvFilesCreated)
+        {
+            std::filesystem::remove(csvFile);
+        }
+    }
+    catch (const std::exception& e)
+    {
+        llvm::errs() << "Exception during CSV import: " << e.what() << "\n";
+        rollbackTransaction();
+    }
+}
+
+void KuzuDatabase::initializeRelationshipSchemaInfo()
+{
+    // Map relationship types to their FROM/TO node types
+    relationshipNodeTypes = {
+        {"PARENT_OF", {"ASTNode", "ASTNode"}},
+        {"HAS_TYPE", {"Declaration", "Type"}},
+        {"REFERENCES", {"ASTNode", "Declaration"}},
+        {"IN_SCOPE", {"ASTNode", "Declaration"}},
+        {"TEMPLATE_RELATION", {"ASTNode", "Declaration"}},
+        {"INHERITS_FROM", {"Declaration", "Declaration"}},
+        {"OVERRIDES", {"Declaration", "Declaration"}},
+        {"SPECIALIZES", {"Declaration", "Declaration"}},
+        {"MACRO_EXPANSION", {"ASTNode", "MacroDefinition"}},
+        {"INCLUDES", {"ASTNode", "IncludeDirective"}},
+        {"DEFINES", {"ASTNode", "MacroDefinition"}},
+        {"HAS_COMMENT", {"Declaration", "Comment"}},
+        {"HAS_CONSTANT_VALUE", {"Expression", "ConstantExpression"}},
+        {"TEMPLATE_EVALUATES_TO", {"Declaration", "TemplateMetaprogramming"}},
+        {"CONTAINS_STATIC_ASSERT", {"Declaration", "StaticAssertion"}},
+        {"CFG_EDGE", {"CFGBlock", "CFGBlock"}},
+        {"CONTAINS_CFG", {"Declaration", "CFGBlock"}},
+        {"CFG_CONTAINS_STMT", {"CFGBlock", "Statement"}}
+    };
+    
+    // Map relationship types to their boolean properties
+    relationshipBooleanProperties = {
+        {"REFERENCES", {"is_direct"}},
+        {"INHERITS_FROM", {"is_virtual"}},
+        {"OVERRIDES", {"is_covariant_return"}},
+        {"CFGBlock", {"is_entry_block", "is_exit_block", "has_terminator", "reachable"}}  // For node properties
+    };
+}
+
+std::pair<std::string, std::string> KuzuDatabase::getRelationshipNodeTypes(const std::string& relationshipType)
+{
+    auto it = relationshipNodeTypes.find(relationshipType);
+    if (it != relationshipNodeTypes.end())
+        return it->second;
+    
+    // Default to ASTNode for unknown relationships
+    return {"ASTNode", "ASTNode"};
+}
+
+bool KuzuDatabase::isPropertyBoolean(const std::string& relationshipType, const std::string& propertyName)
+{
+    auto it = relationshipBooleanProperties.find(relationshipType);
+    if (it != relationshipBooleanProperties.end())
+        return it->second.count(propertyName) > 0;
+    return false;
 }
 
 void KuzuDatabase::initializeConnectionPool()

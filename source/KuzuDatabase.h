@@ -16,6 +16,7 @@
 #include <memory>
 #include <mutex>
 #include <queue>
+#include <set>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -97,10 +98,38 @@ public:
     /// \param str The string to escape
     /// \return Escaped string safe for Kuzu query usage
     static auto escapeString(const std::string& str) -> std::string;
+    
+    /// Enable CSV bulk import mode for very large datasets
+    /// When enabled, nodes are written to CSV files for bulk loading
+    void enableCSVBulkMode(const std::string& csvDirectory);
+    
+    /// Disable CSV bulk mode and import any pending CSV files
+    void disableCSVBulkMode();
+    
+    /// Write nodes to CSV for bulk import
+    void writeNodesToCSV(const std::string& nodeType, const std::vector<std::map<std::string, std::string>>& nodes);
+    
+    /// Import CSV files using COPY FROM
+    void importCSVFiles();
 
 private:
     /// Create the complete database schema
     void createSchema();
+
+    /// Execute bulk queries for nodes (true bulk operations)
+    void executeBulkQueries();
+    
+    /// Parse and group CREATE queries for bulk execution
+    void parseAndGroupQueries(std::map<std::string, std::vector<std::string>>& groupedQueries);
+
+    /// Get schema information for relationship types
+    void initializeRelationshipSchemaInfo();
+    
+    /// Get the correct node types for a relationship
+    std::pair<std::string, std::string> getRelationshipNodeTypes(const std::string& relationshipType);
+    
+    /// Check if a property should be treated as boolean
+    bool isPropertyBoolean(const std::string& relationshipType, const std::string& propertyName);
 
     /// Execute optimized relationship queries in bulk
     void executeOptimizedRelationships();
@@ -112,6 +141,11 @@ private:
 
     /// Fallback method for individual relationship creation if bulk fails
     void executeFallbackRelationships(
+        const std::string& relationshipType,
+        const std::vector<std::tuple<int64_t, int64_t, std::map<std::string, std::string>>>& relationships);
+        
+    /// Schema-aware fallback method for individual relationship creation
+    void executeSchemaAwareFallbackRelationships(
         const std::string& relationshipType,
         const std::vector<std::tuple<int64_t, int64_t, std::map<std::string, std::string>>>& relationships);
 
@@ -127,9 +161,9 @@ private:
     std::queue<std::unique_ptr<kuzu::main::Connection>> connectionPool;
     std::mutex connectionPoolMutex;
 
-    // Performance optimization - batching
-    static constexpr size_t BATCH_SIZE = 150;                     // Process this many operations per batch
-    static constexpr size_t TRANSACTION_COMMIT_THRESHOLD = 1000;  // Auto-commit after this many operations
+    // Performance optimization - batching (increased for better bulk performance)
+    static constexpr size_t BATCH_SIZE = 500;                     // Process this many operations per batch (increased for bulk ops)
+    static constexpr size_t TRANSACTION_COMMIT_THRESHOLD = 5000;  // Auto-commit after this many operations (increased for less overhead)
     std::vector<std::string> pendingQueries;
 
     // Relationship batching support (currently unused)
@@ -141,6 +175,16 @@ private:
 
     // Global node ID counter for uniqueness across all files
     int64_t nextNodeId = 1;
+    
+    // CSV bulk import mode
+    bool csvBulkMode = false;
+    std::string csvDirectory;
+    std::map<std::string, std::vector<std::map<std::string, std::string>>> pendingCSVNodes;
+    std::set<std::string> csvFilesCreated;
+    
+    // Relationship schema information
+    std::map<std::string, std::pair<std::string, std::string>> relationshipNodeTypes;
+    std::map<std::string, std::set<std::string>> relationshipBooleanProperties;
 };
 
 }  // namespace clang

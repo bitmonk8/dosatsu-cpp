@@ -5,7 +5,9 @@
       "Bash(grep:*)",
       "Bash(git stash:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(run_examples:*)",
+      "Bash(artifacts\\debug\\bin\\dosatsu_cpp.exe:*)"
     ],
     "deny": [],
     "ask": []
