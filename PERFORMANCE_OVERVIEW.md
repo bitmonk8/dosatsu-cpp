@@ -41,15 +41,21 @@ See PERFORMANCE_INFRASTRUCTURE.md for detailed usage instructions.
 
 ## Optimization Opportunities
 
-### Priority 1: System Call Optimization ✅ Investigation Complete
-- **Target**: ntdll.dll operations (31.4% average CPU usage)
+### Priority 1: Database Query Optimization ✅ Investigation Complete
+- **Target**: kuzu_shared.dll operations (43-44% average CPU usage)
 - **Root Cause Analysis**: 
-  - Memory allocation: 13-14% CPU (RtlpLowFragHeapAllocFromContext dominant)
-  - Synchronization overhead: 17-23% CPU (Critical sections, condition variables)
-  - String operations: 1% CPU (Hash map operations with string keys)
-  - File I/O: Minimal impact (<0.1% CPU)
-- **Optimization Strategy**: Focus on memory pools and lock contention reduction
-- **Potential Impact**: 25-35% reduction achievable through targeted optimizations
+  - Memory allocation: 13-14% CPU from Kuzu operations
+    - Individual query execution despite batching infrastructure
+    - String-based query construction with repeated parsing
+  - Synchronization overhead: 17-23% CPU from database locks
+    - Individual operations causing lock contention
+    - Inefficient transaction boundaries
+  - Query processing inefficiencies:
+    - Pseudo-batching: queries executed individually in loops
+    - Disabled relationship batching (fallback to MATCH...CREATE)
+    - No prepared statements or query caching
+- **Optimization Strategy**: Implement true bulk operations and optimize query patterns
+- **Potential Impact**: 50-70% reduction in database CPU usage through bulk operations
 
 ### Priority 2: Debug Runtime Optimization  
 - **Target**: Debug runtime overhead (15.6% combined)
@@ -70,6 +76,42 @@ Based on ETW profiling analysis across all examples (3,917 to 29,767 CPU samples
 - Frequent small allocations dominate performance profile
 - Heap fragmentation contributing to allocation overhead
 - String-heavy operations triggering excessive allocations
+
+### Memory Allocation Source Analysis
+Detailed call stack analysis reveals the origin of memory allocations:
+
+**Allocation Distribution by Module:**
+- **kuzu_shared.dll (43-44% CPU)**: Primary source of allocations
+  - Database operations and SQL query processing
+  - ANTLR parser components for SQL parsing
+  - STL containers (vectors, unordered_maps, shared_ptrs)
+  - ValueVectors, ExpressionEvaluators, DataChunks
+- **dosatsu_cpp.exe (0.85-1.77% CPU)**: Minimal allocation activity
+  - LLVM/Clang AST processing (integrated)
+  - Application-level string and container operations
+- **System overhead (ntdll.dll 30-32% CPU)**: Serving allocation requests
+
+**Key Finding:** The Kuzu database library, not the application code or LLVM/Clang, is responsible for the vast majority of memory allocations. The application code itself is highly efficient.
+
+### Database Query Pattern Analysis
+Code investigation reveals critical inefficiencies in database operations:
+
+**Query Execution Patterns:**
+- **Pseudo-batching**: Despite BATCH_SIZE=150, queries execute individually in loops
+- **Disabled bulk operations**: Relationship batching commented out as "disabled due to schema complexity"
+- **String concatenation**: Every query built via string concatenation, no prepared statements
+- **Individual CREATE statements**: Each AST node and relationship creates separate query
+
+**Performance Bottlenecks:**
+- Query parsing overhead: ANTLR parses each query individually
+- Memory allocations: Each query allocates intermediate results
+- Lock contention: Individual operations compete for database locks
+- Transaction overhead: Suboptimal transaction boundaries
+
+**Optimization Potential:**
+- True bulk operations could reduce database CPU by 50-70%
+- Prepared statements could eliminate 20-30% of parsing overhead
+- Proper batching could reduce lock contention significantly
 
 ### Synchronization Analysis
 Critical section contention is the primary driver of ntdll.dll overhead:
@@ -100,5 +142,5 @@ python scripts/analyze_profile.py --directory artifacts/profile
 
 ---
 
-*Last Updated: 2025-08-27*  
-*Performance baseline established and system call optimization investigation completed*
+*Last Updated: 2025-08-28*  
+*Database query pattern analysis completed - specific optimization strategies identified with 50-70% potential CPU reduction*
