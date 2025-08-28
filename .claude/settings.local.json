@@ -4,7 +4,8 @@
       "Bash(python:*)",
       "Bash(grep:*)",
       "Bash(git stash:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
