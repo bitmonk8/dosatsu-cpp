@@ -38,17 +38,29 @@ The AST processing pipeline is failing to properly store several critical node t
 - Issue likely in AST traversal, node filtering, or batch commit process
 - Database creation succeeds (23MB file created) but missing core node types
 
-**Root Cause Hypotheses**:
-1. **Traversal Issue**: AST traversal not calling expected visitor methods
-2. **Batch Processing Bug**: Nodes created but batch operations not committed properly
-3. **Filtering Issue**: Nodes being filtered out by implicit node detection or other filters
-4. **Visitor Registration**: Visitor methods declared but not properly registered in traversal
+**Root Cause Confirmed**:
+**AST Traversal Mechanism Defect**: The core issue is in the AST traversal architecture in `KuzuDump.cpp`. The current implementation inherits from `ASTNodeTraverser<KuzuDump, TextNodeDumper>` but only processes nodes through generic `VisitDecl()` and `VisitStmt()` methods. The specific visitor methods (`VisitCXXRecordDecl`, `VisitVarDecl`, etc.) are implemented but **never called** by the base traverser.
+
+**Technical Details**:
+- The `ASTNodeTraverser` base class doesn't automatically dispatch to specific visitor methods
+- Current traversal flow: `Visit(TranslationUnitDecl)` → `VisitDecl()` → `processDeclaration()` 
+- Missing dispatch: The traversal never calls `VisitCXXRecordDecl`, `VisitVarDecl`, or processes `ReturnStmt` nodes
+- Only nodes processed in `VisitDecl` and `VisitStmt` get created (FunctionDecl, basic statements, expressions)
+- Database operations and batch processing are working correctly - the issue is purely in node traversal
+
+**Evidence**: Database contains 12 node types instead of expected 20+, specifically missing all CXXRecordDecl, VarDecl, and ReturnStmt nodes that should be created by the unexecuted visitor methods.
+
+**Recommended Fix**:
+The AST traversal mechanism needs to be redesigned to properly dispatch to specific visitor methods. Two approaches:
+1. **Override TraverseDecl/TraverseStmt**: Modify the traversal to call specific Visit methods based on node type
+2. **Dynamic Dispatch**: Add type checking in VisitDecl/VisitStmt to call appropriate specific methods
+3. **RecursiveASTVisitor**: Consider switching from ASTNodeTraverser to RecursiveASTVisitor for automatic dispatch
 
 **Files Involved**:
-- `source/KuzuDump.cpp` - AST visitor implementations
-- `source/ASTNodeProcessor.cpp` - Node creation and type extraction
-- `source/KuzuDatabase.cpp` - Batch processing and database operations
-- `Examples/queries/verifiers/ast_queries.py` - Verification logic
+- `source/KuzuDump.cpp` - AST visitor implementations (PRIMARY FIX LOCATION)
+- `source/ASTNodeProcessor.cpp` - Node creation and type extraction (working correctly)
+- `source/KuzuDatabase.cpp` - Batch processing and database operations (working correctly)
+- `Examples/queries/verifiers/ast_queries.py` - Verification logic (correct)
 
 ### Bug 2: Inheritance Verifier False Negatives
 
@@ -68,13 +80,26 @@ The inheritance verification logic is incorrectly reporting "No C++ class declar
 2. Observe InheritanceVerifier failures on examples with classes
 3. Examples like simple.cpp clearly contain classes but verification fails
 
-**Root Cause Hypothesis**:
-- Related to Bug 1 - if `CXXRecordDecl` nodes are missing from database, inheritance verification cannot find class declarations
-- Verification logic may be querying for wrong node type or using incorrect Kuzu query syntax
+**Root Cause Confirmed**:
+**Dependency on Bug 1**: This is a direct consequence of Bug 1. The inheritance verifier correctly queries for `CXXRecordDecl` nodes using the query:
+```cypher
+MATCH (a:ASTNode), (d:Declaration) WHERE a.node_type = 'CXXRecordDecl' AND a.node_id = d.node_id RETURN d LIMIT 1
+```
+
+Since Bug 1 causes `CXXRecordDecl` nodes to never be created during AST traversal, this query returns no results, causing the verifier to report "No C++ class declarations found" even when classes like `SimpleClass`, `DerivedClass`, and `Container` exist in the source code.
+
+**Technical Details**:
+- Verification logic in `inheritance_queries.py:69` is correct
+- The query syntax and database schema are properly designed
+- Issue occurs in `has_class_declarations()` function which fails the assertion
+- All subsequent inheritance verification steps are bypassed due to this early failure
+
+**Recommended Fix**:
+This bug will be automatically resolved when Bug 1 is fixed. No changes needed to the inheritance verifier itself.
 
 **Files Involved**:
-- `Examples/queries/verifiers/inheritance_queries.py` - Inheritance verification logic
-- Related to core AST processing bug above
+- `Examples/queries/verifiers/inheritance_queries.py` - Inheritance verification logic (working correctly)
+- Dependency: Fix Bug 1 first to resolve this issue
 
 ### Bug 3: Kuzu Database Lacks Standard SQL Introspection Commands
 
@@ -94,14 +119,25 @@ Kuzu database doesn't support standard SQL table introspection commands like "SH
 2. Try executing `SHOW TABLES` or similar SQL commands
 3. Observe parser error
 
-**Workaround**:
+**Root Cause Confirmed**:
+**Kuzu Database Design**: This is an inherent limitation of Kuzu database rather than a bug. Kuzu uses Cypher query language and doesn't support standard SQL introspection commands like `SHOW TABLES`, `DESCRIBE`, or `INFORMATION_SCHEMA`.
+
+**Technical Details**:
+- Kuzu parser explicitly rejects `SHOW TABLES` with error: "extraneous input 'SHOW' expecting {ALTER, ATTACH, BEGIN, CALL, ...}"
+- This is expected behavior for a graph database using Cypher syntax
+- Standard SQL commands are not part of Kuzu's supported query language
+
+**Workaround Implementation**:
 - Use direct Cypher queries: `MATCH (n:ASTNode) RETURN DISTINCT labels(n)`
 - Query specific tables directly: `MATCH (n:ASTNode) RETURN count(n)`
-- `scripts/debug_database.py` has been updated to avoid SHOW TABLES
+- `scripts/debug_database.py` properly implements Cypher-based introspection
+- All database debugging tools correctly avoid SQL-style commands
+
+**Status**: Workaround is complete and working. No further action needed.
 
 **Files Involved**:
-- `scripts/debug_database.py` - Updated to use Cypher queries instead
-- Any other database introspection code should avoid SQL-style commands
+- `scripts/debug_database.py` - Correctly uses Cypher queries instead of SQL
+- All database debugging tools properly avoid SQL-style commands
 
 ---
 
