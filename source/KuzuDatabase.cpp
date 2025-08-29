@@ -346,41 +346,65 @@ void KuzuDatabase::executeBulkQueries()
 
 void KuzuDatabase::parseAndGroupQueries(std::map<std::string, std::vector<std::string>>& groupedQueries)
 {
-    // Parse CREATE statements and group by node table
-    // Only batch node creations with primary keys, not other types
+    // Parse queries and group by type
+    // Only batch simple node creations with primary keys, not relationship or complex queries
     for (const auto& query : pendingQueries)
     {
-        // Simple parser for CREATE (n:NodeType {...}) statements
+        // Check if this is a simple CREATE statement for node creation
         size_t createPos = query.find("CREATE ");
-        if (createPos == std::string::npos)
-            continue;
-            
-        size_t nodeStart = query.find("(", createPos);
-        if (nodeStart == std::string::npos)
-            continue;
-            
-        size_t colonPos = query.find(":", nodeStart);
-        if (colonPos == std::string::npos)
-            continue;
-            
-        size_t spaceOrBrace = query.find_first_of(" {", colonPos);
-        if (spaceOrBrace == std::string::npos)
-            continue;
-            
-        std::string nodeType = query.substr(colonPos + 1, spaceOrBrace - colonPos - 1);
-        
-        // Check if query contains node_id (required for batching)
-        if (query.find("node_id:") != std::string::npos)
+        if (createPos != std::string::npos)
         {
-            // All AST nodes go to the ASTNode table regardless of their specific type
-            // The node_type field stores the actual Clang type (FunctionDecl, etc.)
-            // but the database table is always ASTNode
-            std::string nodeData = query.substr(nodeStart);
-            groupedQueries["ASTNode"].push_back(nodeData);
+            // Check if this is a MATCH...CREATE pattern (relationship creation)
+            size_t matchPos = query.find("MATCH ");
+            if (matchPos != std::string::npos && matchPos < createPos)
+            {
+                // This is a MATCH...CREATE query (like PARENT_OF relationships), execute individually
+                groupedQueries["__unbatchable__"].push_back(query);
+                continue;
+            }
+            
+            // Simple CREATE query - try to batch if it's a node creation
+            size_t nodeStart = query.find("(", createPos);
+            if (nodeStart == std::string::npos)
+            {
+                groupedQueries["__unbatchable__"].push_back(query);
+                continue;
+            }
+                
+            size_t colonPos = query.find(":", nodeStart);
+            if (colonPos == std::string::npos)
+            {
+                groupedQueries["__unbatchable__"].push_back(query);
+                continue;
+            }
+                
+            size_t spaceOrBrace = query.find_first_of(" {", colonPos);
+            if (spaceOrBrace == std::string::npos)
+            {
+                groupedQueries["__unbatchable__"].push_back(query);
+                continue;
+            }
+                
+            std::string nodeType = query.substr(colonPos + 1, spaceOrBrace - colonPos - 1);
+            
+            // Check if query contains node_id (required for batching)
+            if (query.find("node_id:") != std::string::npos)
+            {
+                // All AST nodes go to the ASTNode table regardless of their specific type
+                // The node_type field stores the actual Clang type (FunctionDecl, etc.)
+                // but the database table is always ASTNode
+                std::string nodeData = query.substr(nodeStart);
+                groupedQueries["ASTNode"].push_back(nodeData);
+            }
+            else
+            {
+                // Query missing node_id, can't batch it
+                groupedQueries["__unbatchable__"].push_back(query);
+            }
         }
         else
         {
-            // Query missing node_id, can't batch it
+            // Not a CREATE query, execute individually
             groupedQueries["__unbatchable__"].push_back(query);
         }
     }

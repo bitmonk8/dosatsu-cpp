@@ -9,7 +9,11 @@
       "Bash(run_examples:*)",
       "Bash(artifacts\\debug\\bin\\dosatsu_cpp.exe:*)",
       "Bash(git checkout:*)",
-      "Bash(git cherry-pick:*)"
+      "Bash(git cherry-pick:*)",
+      "Bash(\"artifacts\\debug\\bin\\dosatsu_cpp.exe\" \"artifacts\\examples\\simple_cmake_compile_commands.json\" \"simple_test_db\")",
+      "Bash(\"artifacts\\debug\\bin\\dosatsu_cpp.exe\" --help)",
+      "Bash(\"artifacts\\debug\\bin\\dosatsu_cpp.exe\" --output-db=simple_debug_db \"artifacts\\examples\\simple_cmake_compile_commands.json\")",
+      "Bash(git fsck:*)"
     ],
     "deny": [],
     "ask": []
