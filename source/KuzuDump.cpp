@@ -69,6 +69,91 @@ void KuzuDump::initializeAnalyzers(ASTContext& Context)
     advancedAnalyzer = std::make_unique<AdvancedAnalyzer>(*database, *nodeProcessor, Context);
 }
 
+bool KuzuDump::TraverseDecl(Decl* D)
+{
+    if (D == nullptr)
+        return true;
+
+    // Dispatch to specific visitor methods based on declaration type
+    switch (D->getKind()) {
+        case Decl::Function:
+        case Decl::CXXMethod:
+        case Decl::CXXConstructor:
+        case Decl::CXXDestructor:
+            VisitFunctionDecl(cast<FunctionDecl>(D));
+            break;
+        case Decl::Var:
+        case Decl::ParmVar:  // Handle parameter variables
+            VisitVarDecl(cast<VarDecl>(D));
+            break;
+        case Decl::Field:    // Handle field variables (members)
+            // Field declarations need special handling since they're not VarDecl
+            VisitDecl(D);
+            break;
+        case Decl::Namespace:
+            VisitNamespaceDecl(cast<NamespaceDecl>(D));
+            break;
+        case Decl::Using:
+            VisitUsingDecl(cast<UsingDecl>(D));
+            break;
+        case Decl::UsingDirective:
+            VisitUsingDirectiveDecl(cast<UsingDirectiveDecl>(D));
+            break;
+        case Decl::NamespaceAlias:
+            VisitNamespaceAliasDecl(cast<NamespaceAliasDecl>(D));
+            break;
+        case Decl::CXXRecord:
+            VisitCXXRecordDecl(cast<CXXRecordDecl>(D));
+            break;
+        case Decl::Record:  // Handle plain C structs
+            // For plain C structs, we'll use the generic handler for now
+            VisitDecl(D);
+            break;
+        case Decl::ClassTemplate:
+            VisitClassTemplateDecl(cast<ClassTemplateDecl>(D));
+            break;
+        case Decl::FunctionTemplate:
+            VisitFunctionTemplateDecl(cast<FunctionTemplateDecl>(D));
+            break;
+        case Decl::ClassTemplateSpecialization:
+            VisitClassTemplateSpecializationDecl(cast<ClassTemplateSpecializationDecl>(D));
+            break;
+        case Decl::StaticAssert:
+            VisitStaticAssertDecl(cast<StaticAssertDecl>(D));
+            break;
+        case Decl::TranslationUnit:
+            VisitTranslationUnitDecl(cast<TranslationUnitDecl>(D));
+            break;
+        default:
+            // For unhandled declaration types, use fallback processing
+            VisitDecl(D);
+            break;
+    }
+
+    return true;  // Continue traversal
+}
+
+bool KuzuDump::TraverseStmt(Stmt* S)
+{
+    if (S == nullptr)
+        return true;
+
+    // Dispatch to specific visitor methods for important statement types
+    switch (S->getStmtClass()) {
+        case Stmt::ReturnStmtClass:
+            VisitReturnStmt(cast<ReturnStmt>(S));
+            break;
+        default:
+            // For other statements, use the generic visitor
+            VisitStmt(S);
+            // Continue with base class traversal for child nodes
+            ASTNodeTraverser<KuzuDump, TextNodeDumper>::VisitStmt(S);
+            break;
+    }
+
+    return true;  // Continue traversal
+}
+
 void KuzuDump::VisitDecl(const Decl* D)
 {
     if (D == nullptr)
@@ -484,6 +569,39 @@ void KuzuDump::VisitStaticAssertDecl(const StaticAssertDecl* D)
         NodeDumper.Visit(D);
 }
 
+void KuzuDump::VisitTranslationUnitDecl(const TranslationUnitDecl* D)
+{
+    if (D == nullptr)
+        return;
+
+    // Create AST node using node processor
+    int64_t nodeId = nodeProcessor->createASTNode(D);
+    if (nodeId == -1)
+        return;
+
+    // TranslationUnitDecl is not a NamedDecl, so we skip the declaration analyzer
+    // and only create basic AST node processing
+
+    // Create scope relationships - this is the root scope
+    scopeManager->createScopeRelationships(nodeId);
+
+    // Push translation unit as global scope
+    scopeManager->pushScope(nodeId);
+
+    // Push translation unit as parent for top-level declarations
+    scopeManager->pushParent(nodeId);
+
+    // Standard AST traversal
+    if (!databaseOnlyMode)
+        NodeDumper.Visit(D);
+
+    // Let the base traverser handle child node traversal
+
+    // Pop translation unit scope and parent
+    scopeManager->popParent();
+    scopeManager->popScope();
+}
+
 void KuzuDump::VisitStmt(const Stmt* S)
 {
     if (S == nullptr)
@@ -511,6 +629,36 @@ void KuzuDump::VisitStmt(const Stmt* S)
     ASTNodeTraverser<KuzuDump, TextNodeDumper>::VisitStmt(S);
 
     // Pop statement parent
+    scopeManager->popParent();
+}
+
+void KuzuDump::VisitReturnStmt(const ReturnStmt* S)
+{
+    if (S == nullptr)
+        return;
+
+    // Create AST node using node processor
+    int64_t nodeId = nodeProcessor->createASTNode(S);
+    if (nodeId == -1)
+        return;
+
+    // Create statement node using statement analyzer
+    statementAnalyzer->createStatementNode(nodeId, S);
+
+    // Create hierarchy relationships
+    scopeManager->createHierarchyRelationship(nodeId);
+
+    // Push return statement as parent for its child expressions
+    scopeManager->pushParent(nodeId);
+
+    // Text output (if enabled)
+    if (!databaseOnlyMode)
+        NodeDumper.Visit(S);
+
+    // Continue recursive traversal for child nodes (return value expression)
+    ASTNodeTraverser<KuzuDump, TextNodeDumper>::VisitStmt(S);
+
+    // Pop return statement parent
     scopeManager->popParent();
 }
 

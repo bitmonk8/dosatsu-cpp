@@ -7,7 +7,7 @@ This document describes known technical issues in the Dosatsu project that requi
 ### Bug 1: Missing Core AST Node Types in Database
 
 **Severity**: High  
-**Status**: Identified, not fixed  
+**Status**: Partially fixed - significant progress made, requires further investigation
 **Introduced**: Likely during recent batch processing optimizations
 
 **Description**:  
@@ -48,13 +48,37 @@ The AST processing pipeline is failing to properly store several critical node t
 - Only nodes processed in `VisitDecl` and `VisitStmt` get created (FunctionDecl, basic statements, expressions)
 - Database operations and batch processing are working correctly - the issue is purely in node traversal
 
-**Evidence**: Database contains 12 node types instead of expected 20+, specifically missing all CXXRecordDecl, VarDecl, and ReturnStmt nodes that should be created by the unexecuted visitor methods.
+**Update 2025-08-29**: Partial fix implemented using TraverseDecl override approach. Database now contains 12 node types (up from 3-4), and FunctionDecl nodes are correctly created. However, still missing CXXRecordDecl, VarDecl, and ReturnStmt nodes.
 
-**Recommended Fix**:
-The AST traversal mechanism needs to be redesigned to properly dispatch to specific visitor methods. Two approaches:
-1. **Override TraverseDecl/TraverseStmt**: Modify the traversal to call specific Visit methods based on node type
-2. **Dynamic Dispatch**: Add type checking in VisitDecl/VisitStmt to call appropriate specific methods
-3. **RecursiveASTVisitor**: Consider switching from ASTNodeTraverser to RecursiveASTVisitor for automatic dispatch
+**Evidence**: 
+- BEFORE FIX: Database contained only 3-4 node types  
+- AFTER PARTIAL FIX: Database contains 12 node types, FunctionDecl now working
+- STILL MISSING: CXXRecordDecl, VarDecl, ReturnStmt nodes
+
+**Investigation Results**:
+Node types currently working (in database):
+- CXXConstructorDecl, CaseStmt, CompoundStmt, ConstantExpr, DeclRefExpr
+- FunctionDecl, FunctionProto, ImplicitCastExpr, MaterializeTemporaryExpr
+- MemberExpr, RValueReference, TranslationUnitDecl
+
+**Key Finding**: CXXConstructorDecl nodes are being created successfully (confirming TraverseDecl works for constructors) but CXXRecordDecl nodes (the classes containing them) are not. This indicates the dispatch mechanism is working but class declarations are either:
+1. Not being traversed by the base ASTNodeTraverser 
+2. Using a different Decl::Kind than expected
+3. Being handled by some other code path that bypasses our TraverseDecl
+
+**Current Approach Status**:
+**PARTIALLY IMPLEMENTED**: TraverseDecl override approach working for some node types but not all.
+
+**Next Steps Required**:
+1. **Debug Missing Node Types**: Add logging to determine why CXXRecordDecl, VarDecl, ReturnStmt are not reaching TraverseDecl/TraverseStmt
+2. **Check Base Class Behavior**: The ASTNodeTraverser base class may not call TraverseDecl for all declaration types
+3. **Consider RecursiveASTVisitor**: As originally suggested, switching to RecursiveASTVisitor may provide better automatic dispatch
+4. **Add Debugging Output**: Implement temporary logging to track which Decl::Kind values are actually encountered
+
+**Alternative Fix Approaches**:
+1. **RecursiveASTVisitor Migration**: Replace ASTNodeTraverser inheritance with RecursiveASTVisitor
+2. **Manual AST Walking**: Implement custom traversal that ensures all node types are visited
+3. **Debug-First Approach**: Add extensive logging to understand the actual traversal flow before making more changes
 
 **Files Involved**:
 - `source/KuzuDump.cpp` - AST visitor implementations (PRIMARY FIX LOCATION)
