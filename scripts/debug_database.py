@@ -2,10 +2,16 @@
 
 import kuzu
 import os
+import sys
 
 def main():
-    # Check if database file exists
-    db_path = "simple_debug_db"
+    # Check if database path was provided
+    if len(sys.argv) < 2:
+        print("Usage: python debug_database.py <database_path>")
+        print("Example: python debug_database.py simple_test_db")
+        return
+    
+    db_path = sys.argv[1]
     if not os.path.exists(db_path):
         print(f"Database file {db_path} does not exist!")
         return
@@ -21,23 +27,8 @@ def main():
         print(f"Failed to connect to database: {e}")
         return
     
-    # Check what tables exist
-    try:
-        result = conn.execute("SHOW TABLES")
-        print("Tables in database:")
-        tables = []
-        while result.has_next():
-            row = result.get_next()
-            table = row[0]
-            tables.append(table)
-            print(f"  - {table}")
-        
-        if not tables:
-            print("  No tables found!")
-    except Exception as e:
-        print(f"Error checking tables: {e}")
-    
-    # Try to query ASTNode if it exists
+    # Note: Kuzu doesn't support "SHOW TABLES" syntax, so we directly query known tables
+    # Try to query ASTNode table
     try:
         result = conn.execute("MATCH (n:ASTNode) RETURN DISTINCT n.node_type as node_type ORDER BY node_type")
         

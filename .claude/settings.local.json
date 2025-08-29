@@ -13,7 +13,10 @@
       "Bash(\"artifacts\\debug\\bin\\dosatsu_cpp.exe\" \"artifacts\\examples\\simple_cmake_compile_commands.json\" \"simple_test_db\")",
       "Bash(\"artifacts\\debug\\bin\\dosatsu_cpp.exe\" --help)",
       "Bash(\"artifacts\\debug\\bin\\dosatsu_cpp.exe\" --output-db=simple_debug_db \"artifacts\\examples\\simple_cmake_compile_commands.json\")",
-      "Bash(git fsck:*)"
+      "Bash(git fsck:*)",
+      "Bash(\"artifacts\\debug\\bin\\dosatsu_cpp.exe\" --output-db=simple_test_db \"artifacts\\examples\\simple_cmake_compile_commands.json\")",
+      "Bash(dir:*)",
+      "Bash(\"artifacts\\debug\\bin\\dosatsu_cpp.exe\" --output-db=\"C:\\UnitySrc\\CppGraphIndex\\simple_test_db\" \"artifacts\\examples\\simple_cmake_compile_commands.json\")"
     ],
     "deny": [],
     "ask": []
