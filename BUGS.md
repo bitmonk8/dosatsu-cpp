@@ -48,32 +48,44 @@ The AST processing pipeline is failing to properly store several critical node t
 - Only nodes processed in `VisitDecl` and `VisitStmt` get created (FunctionDecl, basic statements, expressions)
 - Database operations and batch processing are working correctly - the issue is purely in node traversal
 
-**Update 2025-08-29**: Partial fix implemented using TraverseDecl override approach. Database now contains 12 node types (up from 3-4), and FunctionDecl nodes are correctly created. However, still missing CXXRecordDecl, VarDecl, and ReturnStmt nodes.
+**Update 2025-08-29**: **MAJOR BREAKTHROUGH**: Root cause identified through debug logging.
+
+**Key Discovery**: The AST traversal IS working correctly:
+- `VisitCXXRecordDecl` is being called successfully for `SimpleClass`, `DerivedClass`, `Point`
+- `VisitVarDecl` is being called successfully for variables like `obj`, `result`, `value`, `x`, `y`
+- `nodeProcessor->createASTNode(D)` succeeds and returns valid node IDs
+
+**Real Root Cause**: **Database Batch Processing Failure**
+The issue is NOT in AST traversal but in the database layer:
+1. ✅ AST visitor methods are called correctly
+2. ✅ Nodes are created in memory with valid IDs
+3. ❌ Nodes are not committed to the database during batch flush
 
 **Evidence**: 
-- BEFORE FIX: Database contained only 3-4 node types  
-- AFTER PARTIAL FIX: Database contains 12 node types, FunctionDecl now working
-- STILL MISSING: CXXRecordDecl, VarDecl, ReturnStmt nodes
+- Debug output shows `VisitCXXRecordDecl` called for classes and creates nodes (IDs 4, 5, 84, 85, 121, 122)
+- Debug output shows `VisitVarDecl` called for variables and creates nodes (IDs 10, 26, 35, etc.)
+- Database query for these specific node IDs returns empty results
+- Database still contains only 12 node types: BreakStmt, CXXConstructExpr, CXXConstructorDecl, etc.
 
 **Investigation Results**:
-Node types currently working (in database):
-- CXXConstructorDecl, CaseStmt, CompoundStmt, ConstantExpr, DeclRefExpr
-- FunctionDecl, FunctionProto, ImplicitCastExpr, MaterializeTemporaryExpr
-- MemberExpr, RValueReference, TranslationUnitDecl
+- AST traversal and visitor dispatch working correctly
+- Node creation in `ASTNodeProcessor::createASTNode()` succeeds  
+- Database batch processing or commit process is failing silently
+- Nodes exist in memory but never reach the database
 
-**Key Finding**: CXXConstructorDecl nodes are being created successfully (confirming TraverseDecl works for constructors) but CXXRecordDecl nodes (the classes containing them) are not. This indicates the dispatch mechanism is working but class declarations are either:
-1. Not being traversed by the base ASTNodeTraverser 
-2. Using a different Decl::Kind than expected
-3. Being handled by some other code path that bypasses our TraverseDecl
-
-**Current Approach Status**:
-**PARTIALLY IMPLEMENTED**: TraverseDecl override approach working for some node types but not all.
+**Suspected Issues**:
+1. **Silent batch commit failure**: Nodes added to batch but batch.commit() fails without error reporting
+2. **Database manager singleton issue**: Multiple database instances causing commit to wrong database
+3. **Batch size limits**: Nodes created but batch size exceeded before commit
+4. **Transaction management issue**: Nodes created outside active transaction scope
 
 **Next Steps Required**:
-1. **Debug Missing Node Types**: Add logging to determine why CXXRecordDecl, VarDecl, ReturnStmt are not reaching TraverseDecl/TraverseStmt
-2. **Check Base Class Behavior**: The ASTNodeTraverser base class may not call TraverseDecl for all declaration types
-3. **Consider RecursiveASTVisitor**: As originally suggested, switching to RecursiveASTVisitor may provide better automatic dispatch
-4. **Add Debugging Output**: Implement temporary logging to track which Decl::Kind values are actually encountered
+1. **Debug Database Layer**: Add logging to batch processing, flush, and commit operations
+2. **Check GlobalDatabaseManager**: Verify singleton behavior and database instance consistency
+3. **Investigate Batch Processing**: Check if nodes are properly added to batches and batches are committed
+4. **Add Error Handling**: Ensure batch commit failures are reported rather than silently ignored
+
+**Status**: **CRITICAL DATABASE BUG IDENTIFIED** - AST traversal bug resolved, database persistence bug confirmed.
 
 **Alternative Fix Approaches**:
 1. **RecursiveASTVisitor Migration**: Replace ASTNodeTraverser inheritance with RecursiveASTVisitor

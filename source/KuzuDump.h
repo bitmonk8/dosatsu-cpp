@@ -73,8 +73,6 @@ public:
 
     // Core Visit methods - simplified implementation using analyzers
     void VisitDecl(const Decl* D);
-    bool TraverseDecl(Decl* D);  // Override base traversal to dispatch correctly
-    bool TraverseStmt(Stmt* S);  // Override base traversal for statements
     void VisitFunctionDecl(const FunctionDecl* D);
     void VisitVarDecl(const VarDecl* D);
     void VisitNamespaceDecl(const NamespaceDecl* D);
