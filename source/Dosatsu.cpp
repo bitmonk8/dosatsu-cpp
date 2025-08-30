@@ -1,5 +1,6 @@
 #include "ASTDumpAction.h"
 #include "CompilationDatabaseLoader.h"
+#include "GlobalDatabaseManager.h"
 
 // clang-format off
 #define DOCTEST_CONFIG_IMPLEMENT
@@ -200,6 +201,19 @@ auto RealMain(int argc, char** argv) -> int
             llvm::outs() << "AST processing completed successfully!\n";
         else
             llvm::errs() << "AST processing completed with errors (exit code: " << Result << ")\n";
+
+        // Explicitly flush database operations before exiting
+        // This ensures all pending operations are committed to the database
+        if (useDatabaseOutput)
+        {
+            auto& dbManager = clang::GlobalDatabaseManager::getInstance();
+            if (dbManager.isInitialized())
+            {
+                auto* db = dbManager.getDatabase();
+                if (db != nullptr)
+                    db->flushOperations();
+            }
+        }
 
         return Result;
     }

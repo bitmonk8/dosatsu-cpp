@@ -138,9 +138,14 @@ void KuzuDatabase::addToBatch(const std::string& query)
     totalOperations++;
     operationsSinceLastCommit++;
 
+    // Removed debug output for production use
+
     // Start transaction on first batched operation
     if (!transactionActive)
+    {
+        // Starting transaction for batched operations
         beginTransaction();
+    }
 
     // Optimize transaction boundaries - commit periodically for better performance
     if (operationsSinceLastCommit >= TRANSACTION_COMMIT_THRESHOLD)
@@ -278,13 +283,27 @@ void KuzuDatabase::executeBulkQueries()
                     for (size_t j = i; j < end; ++j)
                     {
                         if (j > i) chunkQuery += ", ";
-                        chunkQuery += nodeDataList[j];
+                        
+                        // Fix variable name conflicts: replace "(n:" with unique variable name
+                        std::string nodeData = nodeDataList[j];
+                        std::string uniqueVar = "n" + std::to_string(j);
+                        
+                        // Replace "(n:" with "(nX:" where X is the index
+                        size_t varPos = nodeData.find("(n:");
+                        if (varPos != std::string::npos)
+                        {
+                            nodeData = nodeData.substr(0, varPos + 1) + uniqueVar + nodeData.substr(varPos + 2);
+                        }
+                        
+                        chunkQuery += nodeData;
                     }
+                    
+                    // Executing bulk insert chunk
                     
                     auto result = connection->query(chunkQuery);
                     if (!result->isSuccess())
                     {
-                        llvm::errs() << "Chunk query failed: " << result->getErrorMessage() << "\n";
+                        llvm::errs() << "Bulk insert chunk failed: " << result->getErrorMessage() << "\n";
                         // Fallback to individual queries for this chunk
                         for (size_t j = i; j < end; ++j)
                         {
@@ -294,6 +313,10 @@ void KuzuDatabase::executeBulkQueries()
                                 llvm::errs() << "Individual query also failed: " << individualResult->getErrorMessage() << "\n";
                             }
                         }
+                    }
+                    else
+                    {
+                        // Bulk insert chunk succeeded
                     }
                 }
                 continue;
@@ -305,10 +328,23 @@ void KuzuDatabase::executeBulkQueries()
                 for (size_t i = 0; i < nodeDataList.size(); ++i)
                 {
                     if (i > 0) bulkQuery += ", ";
-                    bulkQuery += nodeDataList[i];
+                    
+                    // Fix variable name conflicts: replace "(n:" with unique variable name
+                    std::string nodeData = nodeDataList[i];
+                    std::string uniqueVar = "n" + std::to_string(i);
+                    
+                    // Replace "(n:" with "(nX:" where X is the index
+                    size_t varPos = nodeData.find("(n:");
+                    if (varPos != std::string::npos)
+                    {
+                        nodeData = nodeData.substr(0, varPos + 1) + uniqueVar + nodeData.substr(varPos + 2);
+                    }
+                    
+                    bulkQuery += nodeData;
                 }
             }
             
+            // Execute bulk query
             auto result = connection->query(bulkQuery);
             if (!result->isSuccess())
             {
@@ -320,9 +356,11 @@ void KuzuDatabase::executeBulkQueries()
                     if (!individualResult->isSuccess())
                     {
                         llvm::errs() << "Individual query also failed: " << individualResult->getErrorMessage() << "\n";
+                        llvm::errs() << "Failed individual query: CREATE " << nodeData.substr(0, 150) << "...\n";
                     }
                 }
             }
+            // Bulk query succeeded
         }
     }
     catch (const std::exception& e)
@@ -394,6 +432,7 @@ void KuzuDatabase::parseAndGroupQueries(std::map<std::string, std::vector<std::s
                 // The node_type field stores the actual Clang type (FunctionDecl, etc.)
                 // but the database table is always ASTNode
                 std::string nodeData = query.substr(nodeStart);
+                
                 groupedQueries["ASTNode"].push_back(nodeData);
             }
             else
