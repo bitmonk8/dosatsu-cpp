@@ -15,7 +15,16 @@
       "WebFetch(*)",
       "WebSearch(*)",
       "BashOutput(*)",
-      "KillBash(*)"
+      "KillBash(*)",
+      "Bash(python:*)",
+      "Bash(\"artifacts\\debug\\bin\\dosatsu_cpp.exe\" --output-db=test_db_debug \"artifacts\\examples\\simple_cmake_compile_commands.json\")",
+      "Bash(\"artifacts\\debug\\bin\\dosatsu_cpp.exe\" --output-db=test_db_fixed \"artifacts\\examples\\simple_cmake_compile_commands.json\")",
+      "Bash(\"artifacts\\debug\\bin\\dosatsu_cpp.exe\" --output-db=test_db_query_debug \"artifacts\\examples\\simple_cmake_compile_commands.json\")",
+      "Bash(\"artifacts\\debug\\bin\\dosatsu_cpp.exe\" --output-db=test_db_bulk_debug \"artifacts\\examples\\simple_cmake_compile_commands.json\")",
+      "Bash(\"artifacts\\debug\\bin\\dosatsu_cpp.exe\" --output-db=test_db_node_debug \"artifacts\\examples\\simple_cmake_compile_commands.json\")",
+      "Bash(\"artifacts\\debug\\bin\\dosatsu_cpp.exe\" --output-db=test_db_query_preview \"artifacts\\examples\\simple_cmake_compile_commands.json\")",
+      "Bash(\"artifacts\\debug\\bin\\dosatsu_cpp.exe\" --output-db=test_clean_db \"artifacts\\examples\\simple_cmake_compile_commands.json\")",
+      "Bash(\"artifacts\\debug\\bin\\dosatsu_cpp.exe\" --output-db=test_clean_run \"artifacts\\examples\\simple_cmake_compile_commands.json\")"
     ],
     "deny": [],
     "ask": []
